@@ -8,6 +8,27 @@
 
 #define IR_TX_PIN 44
 
+struct ColorMap
+{
+  Color color;
+  unsigned short rgb565;
+};
+
+const ColorMap BtColors[] = {
+    {Color::RED, TFT_RED},
+    {Color::ORANGE, TFT_ORANGE},
+    {Color::YELLOW, TFT_YELLOW},
+    {Color::GREEN, TFT_GREEN},
+    {Color::CYAN, TFT_CYAN},
+    {Color::LIGHTBLUE, 0x9E7F},
+    {Color::BLUE, TFT_BLUE},
+    {Color::PURPLE, TFT_PURPLE},
+    {Color::PINK, TFT_PINK},
+    {Color::WHITE, TFT_WHITE},
+    {Color::BLACK, TFT_BLACK},
+};
+const unsigned short BtNumColors = sizeof(BtColors) / sizeof(ColorMap);
+
 M5Canvas canvas(&M5Cardputer.Display);
 
 Lpf2Hub btTrainCtl;
@@ -15,9 +36,9 @@ byte btChA = (byte)PoweredUpHubPort::A;
 byte btChB = (byte)PoweredUpHubPort::B;
 short btChASpd = 0;
 short btChBSpd = 0;
-unsigned short BtColors[] = {TFT_RED, TFT_ORANGE, TFT_YELLOW, TFT_GREEN, TFT_BLUE, TFT_PURPLE, TFT_CYAN, TFT_PINK, TFT_WHITE};
-unsigned short BtNumColors = sizeof(BtColors) / sizeof(unsigned short);
+
 unsigned short btColorIndex = 0;
+unsigned short btDisconnectDelay; // prevent jamming connect and then disconnecting accidentally once connected
 
 PowerFunctions irTrainCtl(IR_TX_PIN, 0);
 short irChannel = 0;
@@ -25,7 +46,7 @@ short irChannel = 0;
 // short irBSpd;
 
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
-int batteryDelay = 0;
+int updateDelay = 0;
 
 // define a bunch of display variables to make adjustments not a nightmare
 int w = 240; // width
@@ -157,13 +178,13 @@ void handle_button_press(Button *button)
 
         if (btTrainCtl.isConnected())
         {
-          int r, g, b;
-          rgb565toRgb(BtColors[btColorIndex], r, g, b);
-          btTrainCtl.setLedRGBColor(r, g, b);
+          btTrainCtl.setLedColor(BtColors[btColorIndex].color);
         }
+
+        btDisconnectDelay = millis() + 500;
       }
     }
-    else
+    else if (btDisconnectDelay < millis())
     {
       btTrainCtl.shutDownHub();
       btChASpd = btChBSpd = 0;
@@ -172,10 +193,8 @@ void handle_button_press(Button *button)
   case BtColor:
     // can change colors while not connected to choose initial color
     btColorIndex = (btColorIndex + 1) % BtNumColors;
-    int r, g, b;
-    rgb565toRgb(BtColors[btColorIndex], r, g, b);
     if (btTrainCtl.isConnected())
-      btTrainCtl.setLedRGBColor(r, g, b);
+      btTrainCtl.setLedColor(BtColors[btColorIndex].color);
     break;
   case IrChannel:
     irChannel = (irChannel + 1) % 4;
@@ -293,7 +312,7 @@ void draw()
   }
 
   // BT color button, TODO: move to draw_symbol??
-  canvas.fillRoundRect(c1 + 5, (r2 + r3) / 2 + 5, bw - 10, bw - 10, 6, BtColors[btColorIndex]);
+  canvas.fillRoundRect(c1 + 5, (r2 + r3) / 2 + 5, bw - 10, bw - 10, 6, BtColors[btColorIndex].rgb565);
 
   // IR channel button, TODO: move to draw_symbol??
   canvas.setTextColor(TFT_SILVER, COLOR_LIGHTGRAY);
@@ -340,9 +359,9 @@ void loop()
   }
 
   // redraw occcasionally for battery and bt connection status updates
-  if (millis() > batteryDelay)
+  if (millis() > updateDelay)
   {
-    batteryDelay = millis() + 1000;
+    updateDelay = millis() + 1000;
     batteryPct = M5Cardputer.Power.getBatteryLevel();
     draw();
   }
