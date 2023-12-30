@@ -15,8 +15,9 @@ byte btChA = (byte)PoweredUpHubPort::A;
 byte btChB = (byte)PoweredUpHubPort::B;
 short btChASpd = 0;
 short btChBSpd = 0;
-Color btColor = (Color)random(0, Color::NUM_COLORS);
-// unsigned short BtColors[] = {TFT_RED, TFT_ORANGE, ...}; // RGB565 or 3x shorts?
+unsigned short BtColors[] = {TFT_RED, TFT_ORANGE, TFT_YELLOW, TFT_GREEN, TFT_BLUE, TFT_PURPLE, TFT_CYAN, TFT_PINK, TFT_WHITE};
+unsigned short BtNumColors = sizeof(BtColors) / sizeof(unsigned short);
+unsigned short btColorIndex = 0;
 
 PowerFunctions irTrainCtl(IR_TX_PIN, 0);
 short irChannel = 0;
@@ -127,56 +128,14 @@ void checkForMenuBoot()
   }
 }
 
-void draw()
+void rgb565toRgb(unsigned short rgb565, int &red, int &green, int &blue)
 {
-  canvas.fillSprite(m5gfx::ili9341_colors::BLACK);
-
-  // draw background, sidebar, header graphics
-  canvas.fillRoundRect(hx, hy, hw, hh, 8, COLOR_DARKGRAY);
-  canvas.fillRoundRect(rx, ry, rw, rh, 8, COLOR_DARKGRAY);
-  canvas.fillRoundRect(btx, bty, btw, bth, 6, COLOR_MEDGRAY);
-  canvas.fillRoundRect(irx, iry, irw, irh, 6, COLOR_MEDGRAY);
-
-  canvas.setTextColor(TFT_SILVER, COLOR_DARKGRAY);
-  canvas.setTextDatum(middle_center);
-  canvas.setTextSize(1.25);
-  canvas.drawString("Lego Train Remote", w / 2, hy + hh / 2);
-
-  canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
-  canvas.setTextSize(1.8);
-  canvas.drawString("BT", c1 + bw / 2, bty + bw / 2);
-  canvas.drawString("IR", c6 + bw / 2, iry + bw / 2);
-
-  draw_connected_indicator(&canvas, hx + om, hy + hh / 2, btTrainCtl.isConnected());
-  draw_battery_indicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
-
-  // draw labels
-  canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
-  canvas.setTextDatum(bottom_center);
-  canvas.setTextSize(1);
-  canvas.drawString("CHA", c2 + bw / 2, r1 - 2);
-  canvas.drawString("CHB", c3 + bw / 2, r1 - 2);
-  canvas.drawString("RED", c4 + bw / 2, r1 - 2);
-  canvas.drawString("BLUE", c5 + bw / 2, r1 - 2);
-
-  // draw all layout for remote
-  for (auto button : buttons)
-  {
-    unsigned short color = button.pressed ? TFT_ORANGE : button.color;
-    canvas.fillRoundRect(button.x, button.y, button.w, button.h, 3, color);
-    draw_button_symbol(&canvas, button.action, button.x + button.w / 2, button.y + button.h / 2);
-  }
-
-  // BT color button, TODO: move to draw_symbol??
-  canvas.fillRoundRect(c1 + 4, (r2 + r3) / 2 + 4, bw - 8, bw - 8, 6, TFT_GREEN);
-
-  // IR channel button, TODO: move to draw_symbol??
-  canvas.setTextColor(TFT_SILVER, COLOR_LIGHTGRAY);
-  canvas.setTextDatum(middle_center);
-  canvas.setTextSize(1.5);
-  canvas.drawString(String(irChannel + 1), c6 + bw / 2, r2 + bw / 2);
-
-  canvas.pushSprite(0, 0);
+  int red5 = (rgb565 >> 11) & 0x1F;
+  int green6 = (rgb565 >> 5) & 0x3F;
+  int blue5 = rgb565 & 0x1F;
+  red = (red5 * 255) / 31;
+  green = (green6 * 255) / 63;
+  blue = (blue5 * 255) / 31;
 }
 
 void handle_button_press(Button *button)
@@ -195,6 +154,13 @@ void handle_button_press(Button *button)
       if (btTrainCtl.isConnecting())
       {
         btTrainCtl.connectHub();
+
+        if (btTrainCtl.isConnected())
+        {
+          int r, g, b;
+          rgb565toRgb(BtColors[btColorIndex], r, g, b);
+          btTrainCtl.setLedRGBColor(r, g, b);
+        }
       }
     }
     else
@@ -204,10 +170,12 @@ void handle_button_press(Button *button)
     }
     break;
   case BtColor:
-    if (!btTrainCtl.isConnected())
-      break;
-    btColor = (Color)((btColor + 1) % Color::NUM_COLORS);
-    btTrainCtl.setLedColor(btColor);
+    // can change colors while not connected to choose initial color
+    btColorIndex = (btColorIndex + 1) % BtNumColors;
+    int r, g, b;
+    rgb565toRgb(BtColors[btColorIndex], r, g, b);
+    if (btTrainCtl.isConnected())
+      btTrainCtl.setLedRGBColor(r, g, b);
     break;
   case IrChannel:
     irChannel = (irChannel + 1) % 4;
@@ -284,6 +252,58 @@ void handle_button_press(Button *button)
   }
 }
 
+void draw()
+{
+  canvas.fillSprite(m5gfx::ili9341_colors::BLACK);
+
+  // draw background, sidebar, header graphics
+  canvas.fillRoundRect(hx, hy, hw, hh, 8, COLOR_DARKGRAY);
+  canvas.fillRoundRect(rx, ry, rw, rh, 8, COLOR_DARKGRAY);
+  canvas.fillRoundRect(btx, bty, btw, bth, 6, COLOR_MEDGRAY);
+  canvas.fillRoundRect(irx, iry, irw, irh, 6, COLOR_MEDGRAY);
+
+  canvas.setTextColor(TFT_SILVER, COLOR_DARKGRAY);
+  canvas.setTextDatum(middle_center);
+  canvas.setTextSize(1.25);
+  canvas.drawString("Lego Train Remote", w / 2, hy + hh / 2);
+
+  canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
+  canvas.setTextSize(1.8);
+  canvas.drawString("BT", c1 + bw / 2, bty + bw / 2);
+  canvas.drawString("IR", c6 + bw / 2, iry + bw / 2);
+
+  draw_connected_indicator(&canvas, hx + om, hy + hh / 2, btTrainCtl.isConnected());
+  draw_battery_indicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
+
+  // draw labels
+  canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
+  canvas.setTextDatum(bottom_center);
+  canvas.setTextSize(1);
+  canvas.drawString("CHA", c2 + bw / 2, r1 - 2);
+  canvas.drawString("CHB", c3 + bw / 2, r1 - 2);
+  canvas.drawString("RED", c4 + bw / 2, r1 - 2);
+  canvas.drawString("BLUE", c5 + bw / 2, r1 - 2);
+
+  // draw all layout for remote
+  for (auto button : buttons)
+  {
+    unsigned short color = button.pressed ? TFT_ORANGE : button.color;
+    canvas.fillRoundRect(button.x, button.y, button.w, button.h, 3, color);
+    draw_button_symbol(&canvas, button.action, button.x + button.w / 2, button.y + button.h / 2);
+  }
+
+  // BT color button, TODO: move to draw_symbol??
+  canvas.fillRoundRect(c1 + 5, (r2 + r3) / 2 + 5, bw - 10, bw - 10, 6, BtColors[btColorIndex]);
+
+  // IR channel button, TODO: move to draw_symbol??
+  canvas.setTextColor(TFT_SILVER, COLOR_LIGHTGRAY);
+  canvas.setTextDatum(middle_center);
+  canvas.setTextSize(1.5);
+  canvas.drawString(String(irChannel + 1), c6 + bw / 2, r2 + bw / 2);
+
+  canvas.pushSprite(0, 0);
+}
+
 void setup()
 {
   Serial.begin(115200);
@@ -319,9 +339,10 @@ void loop()
     draw();
   }
 
+  // redraw occcasionally for battery and bt connection status updates
   if (millis() > batteryDelay)
   {
-    batteryDelay = millis() + 60000;
+    batteryDelay = millis() + 1000;
     batteryPct = M5Cardputer.Power.getBatteryLevel();
     draw();
   }
