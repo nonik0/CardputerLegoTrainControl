@@ -168,7 +168,7 @@ void draw()
   }
 
   // BT color button, TODO: move to draw_symbol??
-  canvas.fillRoundRect(c1 + 2, (r2 + r3) / 2 + 2, bw - 4, bw - 4, 4, TFT_GREEN);
+  canvas.fillRoundRect(c1 + 4, (r2 + r3) / 2 + 4, bw - 8, bw - 8, 6, TFT_GREEN);
 
   // IR channel button, TODO: move to draw_symbol??
   canvas.setTextColor(TFT_SILVER, COLOR_LIGHTGRAY);
