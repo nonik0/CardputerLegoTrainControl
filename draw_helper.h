@@ -12,19 +12,23 @@ const unsigned short COLOR_BLUEGRAY = 0x0B0C;
 const unsigned short COLOR_BLUE = 0x026E;
 const unsigned short COLOR_PURPLE = 0x7075;
 
-enum Symbol
+enum Action
 {
+  BtConnection,
+  BtColor,
+  IrChannel,
   SpeedUp,
   SpeedDn,
   Stop
 };
+
 
 inline void draw_connected_indicator(M5Canvas* canvas, int x, int y, bool connected) {
   int w = 32;
   int h = 14;
   y -= h / 2;
   unsigned short color = connected ? TFT_GREEN : TFT_RED;
-  String text = connected ? "CON" : "DC";
+  String text = connected ? "CON" : "D/C";
   canvas->fillRoundRect(x, y, w, h, 6, color);
   canvas->setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas->setTextSize(1.0);
@@ -56,6 +60,13 @@ inline void draw_battery_indicator(M5Canvas* canvas, int x, int y, int batteryPc
                   batColor); // 1px margin from outer battery
 }
 
+inline void draw_power_symbol(M5Canvas* canvas, int x, int y)
+{
+    canvas->fillArc(x, y, 8, 6, 0, 230, TFT_RED);
+    canvas->fillArc(x, y, 8, 6, 310, 359, TFT_RED);
+    canvas->fillRect(x - 1, y - 9, 3, 9, TFT_RED);
+}
+
 inline void draw_speedup_symbol(M5Canvas* canvas, int x, int y)
 { 
   int w = 6;
@@ -76,16 +87,25 @@ inline void draw_speeddn_symbol(M5Canvas* canvas, int x, int y)
   canvas->fillTriangle(x, y + h / 2, x + w, y - h / 2, x - w, y - h / 2, TFT_SILVER);
 }
 
-inline void draw_button_symbol(M5Canvas* canvas, Symbol symbol, int x, int y)
+inline void draw_button_symbol(M5Canvas* canvas, Action action, int x, int y)
 {
-  switch (symbol) {
-    case Symbol::SpeedUp:
+  switch (action) {
+    case Action::BtConnection:
+      draw_power_symbol(canvas, x, y);
+      break;
+    case Action::BtColor:
+      // TODO
+      break;
+    case Action::IrChannel:
+      // TODO
+      break;
+    case Action::SpeedUp:
       draw_speedup_symbol(canvas, x, y);
       break;
-    case Symbol::Stop:
+    case Action::Stop:
       draw_stop_symbol(canvas, x, y);
       break;
-    case Symbol::SpeedDn:
+    case Action::SpeedDn:
       draw_speeddn_symbol(canvas, x, y);
       break;
     default:
