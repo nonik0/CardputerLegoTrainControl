@@ -8,62 +8,42 @@
 
 #define IR_TX_PIN 44
 
-struct ColorMap
-{
-  Color color;
-  unsigned short rgb565;
-};
-
-const ColorMap BtColors[] = {
-    {Color::RED, TFT_RED},
-    {Color::ORANGE, COLOR_ORANGE},
-    {Color::YELLOW, TFT_YELLOW},
-    {Color::GREEN, TFT_GREEN},
-    {Color::CYAN, TFT_CYAN},
-    {Color::LIGHTBLUE, 0x9E7F},
-    {Color::BLUE, TFT_BLUE},
-    {Color::PURPLE, TFT_PURPLE},
-    {Color::PINK, TFT_PINK},
-    {Color::WHITE, TFT_WHITE},
-    {Color::BLACK, TFT_BLACK},
-};
-const unsigned short BtNumColors = sizeof(BtColors) / sizeof(ColorMap);
-
 M5Canvas canvas(&M5Cardputer.Display);
 
 const byte BtChA = (byte)PoweredUpHubPort::A;
 const byte BtChB = (byte)PoweredUpHubPort::B;
-int BtMaxSpeed = 100;
+const int BtMaxSpeed = 100;
+const short BtSpdInc = 10;
 Lpf2Hub btTrainCtl;
 short btChASpd = 0;
 short btChBSpd = 0;
-short btSpdInc = 10;
 
 unsigned short btColorIndex = 0;
-unsigned short btDisconnectDelay; // prevent jamming connect and then disconnecting accidentally once connected
+unsigned short btDisconnectDelay;  // prevent jamming connect and then
+                                   // disconnecting accidentally once connected
 
 const PowerFunctionsPort IrChR = PowerFunctionsPort::RED;
 const PowerFunctionsPort IrChB = PowerFunctionsPort::BLUE;
-int IrMaxSpeed = 105;
+const int IrMaxSpeed = 105;
+const short IrSpdInc = 15;
 PowerFunctions irTrainCtl(IR_TX_PIN);
+bool irTrackState = false;
 byte irChannel = 0;
 short irChRSpd = 0;
 short irChBSpd = 0;
-short irSpdInc = 15;
-
 
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
 int updateDelay = 0;
 
 // define a bunch of display variables to make adjutments not a nightmare
-int w = 240; // width
-int h = 135; // height
-int bw = 25; // button width
-int om = 4;  // outer margin
-int im = 2;  // inner margin
+int w = 240;  // width
+int h = 135;  // height
+int bw = 25;  // button width
+int om = 4;   // outer margin
+int im = 2;   // inner margin
 
 // header rectangle
-int hx = om; 
+int hx = om;
 int hy = om;
 int hw = w - 2 * om;
 int hh = 20;
@@ -93,17 +73,9 @@ int iry = ry + om;
 int irw = 3 * bw + im + 3 * om;
 int irh = rh - im - om;
 
-enum Channel
-{
-  BtA,
-  BtB,
-  IrR,
-  IrB,
-  None
-};
+enum Channel { BtA, BtB, IrR, IrB, None };
 
-struct Button
-{
+struct Button {
   char key;
   int x;
   int y;
@@ -116,7 +88,8 @@ struct Button
 };
 
 Button buttons[] = {
-    {'`', c1, (r1 + r2) / 2, bw, bw, None, BtConnection, COLOR_LIGHTGRAY, false},
+    {'`', c1, (r1 + r2) / 2, bw, bw, None, BtConnection, COLOR_LIGHTGRAY,
+     false},
     {KEY_TAB, c1, (r2 + r3) / 2, bw, bw, None, BtColor, COLOR_LIGHTGRAY, false},
     {'e', c2, r1, bw, bw, BtA, SpdUp, COLOR_LIGHTGRAY, false},
     {'s', c2, r2, bw, bw, BtA, Brake, COLOR_LIGHTGRAY, false},
@@ -130,23 +103,21 @@ Button buttons[] = {
     {'o', c5, r1, bw, bw, IrB, SpdUp, COLOR_LIGHTGRAY, false},
     {'k', c5, r2, bw, bw, IrB, Brake, COLOR_LIGHTGRAY, false},
     {'m', c5, r3, bw, bw, IrB, SpdDn, COLOR_LIGHTGRAY, false},
+    {KEY_BACKSPACE, 0, 0, 0, 0, None, IrTrackState, COLOR_LIGHTGRAY, false},
     {KEY_ENTER, c6, r2, bw, bw, None, IrChannel, COLOR_LIGHTGRAY, false},
 };
 uint8_t buttonCount = sizeof(buttons) / sizeof(Button);
 
 SPIClass SPI2;
-void checkForMenuBoot()
-{
+void checkForMenuBoot() {
   M5Cardputer.update();
 
-  if (M5Cardputer.Keyboard.isKeyPressed('a'))
-  {
+  if (M5Cardputer.Keyboard.isKeyPressed('a')) {
     SPI2.begin(M5.getPin(m5::pin_name_t::sd_spi_sclk),
                M5.getPin(m5::pin_name_t::sd_spi_miso),
                M5.getPin(m5::pin_name_t::sd_spi_mosi),
                M5.getPin(m5::pin_name_t::sd_spi_ss));
-    while (!SD.begin(M5.getPin(m5::pin_name_t::sd_spi_ss), SPI2))
-    {
+    while (!SD.begin(M5.getPin(m5::pin_name_t::sd_spi_ss), SPI2)) {
       delay(500);
     }
 
@@ -155,176 +126,181 @@ void checkForMenuBoot()
   }
 }
 
-void handle_button_press(Button *button)
-{
+void handle_button_press(Button* button) {
   button->pressed = true;
 
   PowerFunctionsPwm pwm;
-  switch (button->action)
-  {
-  case BtConnection:
-    if (!btTrainCtl.isConnected())
-    {
-      if (!btTrainCtl.isConnecting())
-      {
-        btTrainCtl.init();
-      }
-      if (btTrainCtl.isConnecting())
-      {
-        btTrainCtl.connectHub();
-
-        if (btTrainCtl.isConnected())
-        {
-          btTrainCtl.setLedColor(BtColors[btColorIndex].color);
+  switch (button->action) {
+    case BtConnection:
+      if (!btTrainCtl.isConnected()) {
+        if (!btTrainCtl.isConnecting()) {
+          btTrainCtl.init();
         }
+        if (btTrainCtl.isConnecting()) {
+          btTrainCtl.connectHub();
 
-        btDisconnectDelay = millis() + 500;
+          if (btTrainCtl.isConnected()) {
+            btTrainCtl.setLedColor(BtColors[btColorIndex].color);
+          }
+
+          btDisconnectDelay = millis() + 500;
+        }
+      } else if (btDisconnectDelay < millis()) {
+        btTrainCtl.shutDownHub();
+        btChASpd = btChBSpd = 0;
       }
-    }
-    else if (btDisconnectDelay < millis())
-    {
-      btTrainCtl.shutDownHub();
-      btChASpd = btChBSpd = 0;
-    }
-    break;
-  case BtColor:
-    // can change colors while not connected to choose initial color
-    btColorIndex = (btColorIndex + 1) % BtNumColors;
-    if (btTrainCtl.isConnected())
-      btTrainCtl.setLedColor(BtColors[btColorIndex].color);
-    break;
-  case IrChannel:
-    irChannel = (irChannel + 1) % 4;
-    break;
-  case SpdUp:
-    switch (button->channel)
-    {
-    case BtA:
-      if (!btTrainCtl.isConnected())
-        break;
-      btChASpd = min(BtMaxSpeed, btChASpd + btSpdInc);
-      btTrainCtl.setBasicMotorSpeed(BtChA, btChASpd);
       break;
-    case BtB:
-      if (!btTrainCtl.isConnected())
-        break;
-      btChBSpd = min(BtMaxSpeed, btChBSpd + btSpdInc);
-      btTrainCtl.setBasicMotorSpeed(BtChB, btChBSpd);
+    case BtColor:
+      // can change colors while not connected to choose initial color
+      btColorIndex = (btColorIndex + 1) % BtNumColors;
+      if (btTrainCtl.isConnected())
+        btTrainCtl.setLedColor(BtColors[btColorIndex].color);
       break;
-    case IrR:
-      irChRSpd = min(IrMaxSpeed, irChRSpd + irSpdInc);
-      pwm = irTrainCtl.speedToPwm(irChRSpd);
-      irTrainCtl.single_pwm(IrChR, pwm, irChannel);
-      //irTrainCtl.single_increment(IrChR, irChannel);
+    case IrChannel:
+      irChannel = (irChannel + 1) % 4;
       break;
-    case IrB:
-      irChBSpd = min(IrMaxSpeed, irChBSpd + irSpdInc);
-      pwm = irTrainCtl.speedToPwm(irChBSpd);
-      irTrainCtl.single_pwm(IrChB, pwm, irChannel);
-      //irTrainCtl.single_increment(IrChB, irChannel);
+    case IrTrackState:
+      irTrackState = !irTrackState;
       break;
-    }
-    break;
-  case Brake:
-    switch (button->channel)
-    {
-    case BtA:
-      if (!btTrainCtl.isConnected())
-        break;
-      btChASpd = 0;
-      btTrainCtl.stopBasicMotor(BtChA);
+    case SpdUp:
+      switch (button->channel) {
+        case BtA:
+          if (!btTrainCtl.isConnected()) break;
+          btChASpd = min(BtMaxSpeed, btChASpd + BtSpdInc);
+          btTrainCtl.setBasicMotorSpeed(BtChA, btChASpd);
+          break;
+        case BtB:
+          if (!btTrainCtl.isConnected()) break;
+          btChBSpd = min(BtMaxSpeed, btChBSpd + BtSpdInc);
+          btTrainCtl.setBasicMotorSpeed(BtChB, btChBSpd);
+          break;
+        case IrR:
+          irChRSpd = min(IrMaxSpeed, irChRSpd + IrSpdInc);
+          if (irTrackState) {
+            pwm = irTrainCtl.speedToPwm(irChRSpd);
+            irTrainCtl.single_pwm(IrChR, pwm, irChannel);
+          } else {
+            irTrainCtl.single_increment(IrChR, irChannel);
+          }
+          break;
+        case IrB:
+          irChBSpd = min(IrMaxSpeed, irChBSpd + IrSpdInc);
+          if (irTrackState) {
+            pwm = irTrainCtl.speedToPwm(irChBSpd);
+            irTrainCtl.single_pwm(IrChB, pwm, irChannel);
+          } else {
+            irTrainCtl.single_increment(IrChB, irChannel);
+          }
+          break;
+      }
       break;
-    case BtB:
-      if (!btTrainCtl.isConnected())
-        break;
-      btChBSpd = 0;
-      btTrainCtl.stopBasicMotor(BtChB);
+    case Brake:
+      switch (button->channel) {
+        case BtA:
+          if (!btTrainCtl.isConnected()) break;
+          btChASpd = 0;
+          btTrainCtl.stopBasicMotor(BtChA);
+          break;
+        case BtB:
+          if (!btTrainCtl.isConnected()) break;
+          btChBSpd = 0;
+          btTrainCtl.stopBasicMotor(BtChB);
+          break;
+        case IrR:
+          irChRSpd = 0;
+          irTrainCtl.single_pwm(IrChR, PowerFunctionsPwm::BRAKE, irChannel);
+          break;
+        case IrB:
+          irChBSpd = 0;
+          irTrainCtl.single_pwm(IrChB, PowerFunctionsPwm::BRAKE, irChannel);
+          break;
+      }
       break;
-    case IrR:
-      irChRSpd = 0;
-      irTrainCtl.single_pwm(IrChR, PowerFunctionsPwm::BRAKE, irChannel);
+    case SpdDn:
+      switch (button->channel) {
+        case BtA:
+          if (!btTrainCtl.isConnected()) break;
+          btChASpd = max(-BtMaxSpeed, btChASpd - BtSpdInc);
+          btTrainCtl.setBasicMotorSpeed(BtChA, btChASpd);
+          break;
+        case BtB:
+          if (!btTrainCtl.isConnected()) break;
+          btChBSpd = max(-BtMaxSpeed, btChBSpd - BtSpdInc);
+          btTrainCtl.setBasicMotorSpeed(BtChB, btChBSpd);
+          break;
+        case IrR:
+          if (irTrackState) {
+            irChRSpd = max(-IrMaxSpeed, irChRSpd - IrSpdInc);
+            pwm = irTrainCtl.speedToPwm(irChRSpd);
+            irTrainCtl.single_pwm(IrChR, pwm, irChannel);
+          } else {
+            irTrainCtl.single_decrement(IrChR, irChannel);
+          }
+          break;
+        case IrB:
+          if (irTrackState) {
+            irChBSpd = max(-IrMaxSpeed, irChBSpd - IrSpdInc);
+            pwm = irTrainCtl.speedToPwm(irChBSpd);
+            irTrainCtl.single_pwm(IrChB, pwm, irChannel);
+          } else {
+            irTrainCtl.single_decrement(IrChB, irChannel);
+          }
+          break;
+      }
       break;
-    case IrB:
-      irChBSpd = 0;
-      irTrainCtl.single_pwm(IrChB, PowerFunctionsPwm::BRAKE, irChannel);
-      break;
-    }
-    break;
-  case SpdDn:
-    switch (button->channel)
-    {
-    case BtA:
-      if (!btTrainCtl.isConnected())
-        break;
-      btChASpd = max(-BtMaxSpeed, btChASpd - btSpdInc);
-      btTrainCtl.setBasicMotorSpeed(BtChA, btChASpd);
-      break;
-    case BtB:
-      if (!btTrainCtl.isConnected())
-        break;
-      btChBSpd = max(-BtMaxSpeed, btChBSpd - btSpdInc);
-      btTrainCtl.setBasicMotorSpeed(BtChB, btChBSpd);
-      break;
-    case IrR:
-      irChRSpd = max(-IrMaxSpeed, irChRSpd - irSpdInc);
-      pwm = irTrainCtl.speedToPwm(irChRSpd);
-      irTrainCtl.single_pwm(IrChR, pwm, irChannel);
-      //irTrainCtl.single_decrement(IrChR, irChannel);
-      break;
-    case IrB:
-      irChBSpd = max(-IrMaxSpeed, irChBSpd - irSpdInc);
-      pwm = irTrainCtl.speedToPwm(irChBSpd);
-      irTrainCtl.single_pwm(IrChB, pwm, irChannel);
-      //irTrainCtl.single_decrement(IrChB, irChannel);
-      break;
-    }
-    break;
   }
 }
 
+unsigned short COLOR_GREYORANGEDIM =
+    interpolateColors(COLOR_LIGHTGRAY, COLOR_ORANGE, 25);
+unsigned short COLOR_GREYORANGEBRIGHT =
+    interpolateColors(COLOR_LIGHTGRAY, COLOR_ORANGE, 75);
 unsigned short get_button_color(Button* button) {
   if (button->pressed) {
     return COLOR_ORANGE;
   }
 
   if (button->action == Brake) {
-    if (button->channel == BtA && btChASpd == 0)
-      return COLOR_GRAYORANGE;
-    if (button->channel == BtB && btChBSpd == 0)
-      return COLOR_GRAYORANGE;
-    if (button->channel == IrR && irChRSpd == 0)
-      return COLOR_GRAYORANGE;
-    if (button->channel == IrB && irChBSpd == 0)
-      return COLOR_GRAYORANGE;
+    if (button->channel == BtA && btChASpd == 0) return COLOR_GREYORANGEDIM;
+    if (button->channel == BtB && btChBSpd == 0) return COLOR_GREYORANGEDIM;
+    if (button->channel == IrR && irTrackState && irChRSpd == 0) return COLOR_GREYORANGEDIM;
+    if (button->channel == IrB && irTrackState && irChBSpd == 0) return COLOR_GREYORANGEDIM;
   }
 
   if (button->action == SpdUp) {
     if (button->channel == BtA && btChASpd > 0)
-      return COLOR_GRAYORANGE;
+      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT,
+                               btChASpd);
     if (button->channel == BtB && btChBSpd > 0)
-      return COLOR_GRAYORANGE;
-    if (button->channel == IrR && irChRSpd > 0)
-      return COLOR_GRAYORANGE;
-    if (button->channel == IrB && irChBSpd > 0)
-      return COLOR_GRAYORANGE;
+      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT,
+                               btChBSpd);
+    if (button->channel == IrR && irTrackState && irChRSpd > 0)
+      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT,
+                               irChRSpd);
+    if (button->channel == IrB && irTrackState && irChBSpd > 0)
+      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT,
+                               irChBSpd);
   }
 
   if (button->action == SpdDn) {
     if (button->channel == BtA && btChASpd < 0)
-      return COLOR_GRAYORANGE;
+      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT,
+                               -btChASpd);
     if (button->channel == BtB && btChBSpd < 0)
-      return COLOR_GRAYORANGE;
-    if (button->channel == IrR && irChRSpd < 0)
-      return COLOR_GRAYORANGE;
-    if (button->channel == IrB && irChBSpd < 0)
-      return COLOR_GRAYORANGE;
+      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT,
+                               -btChBSpd);
+    if (button->channel == IrR && irTrackState && irChRSpd < 0)
+      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT,
+                               -irChRSpd);
+    if (button->channel == IrB && irTrackState && irChBSpd < 0)
+      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT,
+                               -irChBSpd);
   }
 
   return button->color;
 }
 
-void draw()
-{
+void draw() {
   canvas.fillSprite(m5gfx::ili9341_colors::BLACK);
 
   // draw background, sidebar, header graphics
@@ -343,7 +319,8 @@ void draw()
   canvas.drawString("BT", c1 + bw / 2, bty + bw / 2);
   canvas.drawString("IR", c6 + bw / 2, iry + bw / 2);
 
-  draw_connected_indicator(&canvas, hx + om, hy + hh / 2, btTrainCtl.isConnected());
+  draw_connected_indicator(&canvas, hx + om, hy + hh / 2,
+                           btTrainCtl.isConnected());
   draw_battery_indicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
 
   // draw labels
@@ -357,27 +334,18 @@ void draw()
   canvas.drawString("CH", c6 + bw / 2, r2 - 2);
 
   // draw all layout for remotes
-  for (auto button : buttons)
-  {
+  State curState = {btColorIndex, btTrainCtl.isConnected(), irChannel};
+  for (auto button : buttons) {
     unsigned short color = get_button_color(&button);
     canvas.fillRoundRect(button.x, button.y, button.w, button.h, 3, color);
-    draw_button_symbol(&canvas, button.action, button.x + button.w / 2, button.y + button.h / 2);
+    draw_button_symbol(&canvas, button.action, button.x + button.w / 2,
+                       button.y + button.h / 2, &curState);
   }
-
-  // BT color button, TODO: move to draw_symbol??
-  canvas.fillRoundRect(c1 + 5, (r2 + r3) / 2 + 5, bw - 10, bw - 10, 6, BtColors[btColorIndex].rgb565);
-
-  // IR channel button, TODO: move to draw_symbol??
-  canvas.setTextColor(TFT_SILVER, COLOR_LIGHTGRAY);
-  canvas.setTextDatum(middle_center);
-  canvas.setTextSize(1.5);
-  canvas.drawString(String(irChannel + 1), c6 + bw / 2, r2 + bw / 2);
 
   canvas.pushSprite(0, 0);
 }
 
-void setup()
-{
+void setup() {
   Serial.begin(115200);
   auto cfg = M5.config();
   M5Cardputer.begin(cfg, true);
@@ -395,29 +363,23 @@ void setup()
   draw();
 }
 
-void loop()
-{
+void loop() {
   M5Cardputer.update();
-  if (M5Cardputer.Keyboard.isChange())
-  {
-    for (int i = 0; i < buttonCount; i++)
-    {
-      if (M5Cardputer.Keyboard.isKeyPressed(buttons[i].key))
-      {
+  if (M5Cardputer.Keyboard.isChange()) {
+    for (int i = 0; i < buttonCount; i++) {
+      if (M5Cardputer.Keyboard.isKeyPressed(buttons[i].key)) {
         handle_button_press(&buttons[i]);
       }
     }
 
     draw();
     delay(60);
-    for (int i = 0; i < buttonCount; i++)
-      buttons[i].pressed = false;
+    for (int i = 0; i < buttonCount; i++) buttons[i].pressed = false;
     draw();
   }
 
   // redraw occcasionally for battery and bt connection status updates
-  if (millis() > updateDelay)
-  {
+  if (millis() > updateDelay) {
     updateDelay = millis() + 1000;
     batteryPct = M5Cardputer.Power.getBatteryLevel();
     draw();
