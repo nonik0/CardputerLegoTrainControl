@@ -17,8 +17,8 @@ enum Action
   BtConnection,
   BtColor,
   IrChannel,
-  SpeedUp,
-  SpeedDn,
+  Increment,
+  Decrement,
   Stop
 };
 
@@ -99,13 +99,13 @@ inline void draw_button_symbol(M5Canvas* canvas, Action action, int x, int y)
     case Action::IrChannel:
       // TODO
       break;
-    case Action::SpeedUp:
+    case Action::Increment:
       draw_speedup_symbol(canvas, x, y);
       break;
     case Action::Stop:
       draw_stop_symbol(canvas, x, y);
       break;
-    case Action::SpeedDn:
+    case Action::Decrement:
       draw_speeddn_symbol(canvas, x, y);
       break;
     default:
