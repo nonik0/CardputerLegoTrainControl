@@ -110,7 +110,7 @@ inline void draw_power_symbol(M5Canvas* canvas, int x, int y,
 
 inline void draw_bt_color_indicator(M5Canvas* canvas, int x, int y,
                                     int btColorIndex) {
-  int w = 15;
+  int w = 16;
   canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6,
                         BtColors[btColorIndex].rgb565);
 }

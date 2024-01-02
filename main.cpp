@@ -14,11 +14,14 @@ const byte BtChA = (byte)PoweredUpHubPort::A;
 const byte BtChB = (byte)PoweredUpHubPort::B;
 const int BtMaxSpeed = 100;
 const short BtSpdInc = 10;
+const short BtConnWait = 100;
+const short BtColorWait = 500;
 Lpf2Hub btTrainCtl;
 short btChASpd = 0;
 short btChBSpd = 0;
 
 unsigned short btColorIndex = 0;
+unsigned short btColorDelay = 0;
 unsigned short btDisconnectDelay;  // prevent jamming connect and then
                                    // disconnecting accidentally once connected
 
@@ -126,6 +129,7 @@ void checkForMenuBoot() {
   }
 }
 
+int connTime = 0;
 void handle_button_press(Button* button) {
   button->pressed = true;
 
@@ -136,15 +140,21 @@ void handle_button_press(Button* button) {
         if (!btTrainCtl.isConnecting()) {
           btTrainCtl.init();
         }
-        if (btTrainCtl.isConnecting()) {
-          btTrainCtl.connectHub();
 
-          if (btTrainCtl.isConnected()) {
+        unsigned long exp = millis() + BtConnWait;
+        while (!btTrainCtl.isConnecting() && exp > millis())
+          ;
+
+        if (btTrainCtl.isConnecting() && btTrainCtl.connectHub()) {
+          // if first time connecting, wait a bit otherwise won't work
+          if (btColorDelay == 0) {
+            btColorDelay = millis() + BtColorWait;
+          } else {
             btTrainCtl.setLedColor(BtColors[btColorIndex].color);
           }
-
-          btDisconnectDelay = millis() + 500;
         }
+
+        btDisconnectDelay = millis() + 500;
       } else if (btDisconnectDelay < millis()) {
         btTrainCtl.shutDownHub();
         btChASpd = btChBSpd = 0;
@@ -161,6 +171,7 @@ void handle_button_press(Button* button) {
       break;
     case IrTrackState:
       irTrackState = !irTrackState;
+      irChRSpd = irChBSpd = 0;
       break;
     case SpdUp:
       switch (button->channel) {
@@ -263,8 +274,10 @@ unsigned short get_button_color(Button* button) {
   if (button->action == Brake) {
     if (button->channel == BtA && btChASpd == 0) return COLOR_GREYORANGEDIM;
     if (button->channel == BtB && btChBSpd == 0) return COLOR_GREYORANGEDIM;
-    if (button->channel == IrR && irTrackState && irChRSpd == 0) return COLOR_GREYORANGEDIM;
-    if (button->channel == IrB && irTrackState && irChBSpd == 0) return COLOR_GREYORANGEDIM;
+    if (button->channel == IrR && irTrackState && irChRSpd == 0)
+      return COLOR_GREYORANGEDIM;
+    if (button->channel == IrB && irTrackState && irChBSpd == 0)
+      return COLOR_GREYORANGEDIM;
   }
 
   if (button->action == SpdUp) {
@@ -383,5 +396,10 @@ void loop() {
     updateDelay = millis() + 1000;
     batteryPct = M5Cardputer.Power.getBatteryLevel();
     draw();
+
+    if (btColorDelay > 0 && millis() > btColorDelay && btTrainCtl.isConnected()) {
+      btColorDelay = -1;
+      btTrainCtl.setLedColor(BtColors[btColorIndex].color);
+    }
   }
 }
