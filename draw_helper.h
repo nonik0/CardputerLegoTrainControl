@@ -6,7 +6,8 @@ const unsigned short COLOR_DARKGRAY = 0x0861;
 const unsigned short COLOR_MEDGRAY = 0x2104;
 const unsigned short COLOR_LIGHTGRAY = 0x4208;
 const unsigned short COLOR_DARKRED = 0x5800;
-const unsigned short COLOR_ORANGE = 0xC401;
+const unsigned short COLOR_ORANGE = 0xEBC3;
+const unsigned short COLOR_GRAYORANGE = 0x92E5;
 const unsigned short COLOR_TEAL = 0x07CC;
 const unsigned short COLOR_BLUEGRAY = 0x0B0C;
 const unsigned short COLOR_BLUE = 0x026E;
@@ -17,9 +18,9 @@ enum Action
   BtConnection,
   BtColor,
   IrChannel,
-  Increment,
-  Decrement,
-  Stop
+  SpdUp,
+  SpdDn,
+  Brake
 };
 
 
@@ -99,13 +100,13 @@ inline void draw_button_symbol(M5Canvas* canvas, Action action, int x, int y)
     case Action::IrChannel:
       // TODO
       break;
-    case Action::Increment:
+    case Action::SpdUp:
       draw_speedup_symbol(canvas, x, y);
       break;
-    case Action::Stop:
+    case Action::Brake:
       draw_stop_symbol(canvas, x, y);
       break;
-    case Action::Decrement:
+    case Action::SpdDn:
       draw_speeddn_symbol(canvas, x, y);
       break;
     default:

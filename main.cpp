@@ -16,7 +16,7 @@ struct ColorMap
 
 const ColorMap BtColors[] = {
     {Color::RED, TFT_RED},
-    {Color::ORANGE, TFT_ORANGE},
+    {Color::ORANGE, COLOR_ORANGE},
     {Color::YELLOW, TFT_YELLOW},
     {Color::GREEN, TFT_GREEN},
     {Color::CYAN, TFT_CYAN},
@@ -33,19 +33,24 @@ M5Canvas canvas(&M5Cardputer.Display);
 
 const byte BtChA = (byte)PoweredUpHubPort::A;
 const byte BtChB = (byte)PoweredUpHubPort::B;
+int BtMaxSpeed = 100;
 Lpf2Hub btTrainCtl;
 short btChASpd = 0;
 short btChBSpd = 0;
+short btSpdInc = 10;
 
 unsigned short btColorIndex = 0;
 unsigned short btDisconnectDelay; // prevent jamming connect and then disconnecting accidentally once connected
 
 const PowerFunctionsPort IrChR = PowerFunctionsPort::RED;
 const PowerFunctionsPort IrChB = PowerFunctionsPort::BLUE;
+int IrMaxSpeed = 105;
 PowerFunctions irTrainCtl(IR_TX_PIN);
-short irChannel = 0;
-// short irRSpd;
-// short irBSpd;
+byte irChannel = 0;
+short irChRSpd = 0;
+short irChBSpd = 0;
+short irSpdInc = 15;
+
 
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
 int updateDelay = 0;
@@ -58,7 +63,7 @@ int om = 4;  // outer margin
 int im = 2;  // inner margin
 
 // header rectangle
-int hx = om;
+int hx = om; 
 int hy = om;
 int hw = w - 2 * om;
 int hh = 20;
@@ -113,18 +118,18 @@ struct Button
 Button buttons[] = {
     {'`', c1, (r1 + r2) / 2, bw, bw, None, BtConnection, COLOR_LIGHTGRAY, false},
     {KEY_TAB, c1, (r2 + r3) / 2, bw, bw, None, BtColor, COLOR_LIGHTGRAY, false},
-    {'e', c2, r1, bw, bw, BtA, Increment, COLOR_LIGHTGRAY, false},
-    {'s', c2, r2, bw, bw, BtA, Stop, COLOR_LIGHTGRAY, false},
-    {'z', c2, r3, bw, bw, BtA, Decrement, COLOR_LIGHTGRAY, false},
-    {'r', c3, r1, bw, bw, BtB, Increment, COLOR_LIGHTGRAY, false},
-    {'d', c3, r2, bw, bw, BtB, Stop, COLOR_LIGHTGRAY, false},
-    {'x', c3, r3, bw, bw, BtB, Decrement, COLOR_LIGHTGRAY, false},
-    {'i', c4, r1, bw, bw, IrR, Increment, COLOR_LIGHTGRAY, false},
-    {'j', c4, r2, bw, bw, IrR, Stop, COLOR_LIGHTGRAY, false},
-    {'n', c4, r3, bw, bw, IrR, Decrement, COLOR_LIGHTGRAY, false},
-    {'o', c5, r1, bw, bw, IrB, Increment, COLOR_LIGHTGRAY, false},
-    {'k', c5, r2, bw, bw, IrB, Stop, COLOR_LIGHTGRAY, false},
-    {'m', c5, r3, bw, bw, IrB, Decrement, COLOR_LIGHTGRAY, false},
+    {'e', c2, r1, bw, bw, BtA, SpdUp, COLOR_LIGHTGRAY, false},
+    {'s', c2, r2, bw, bw, BtA, Brake, COLOR_LIGHTGRAY, false},
+    {'z', c2, r3, bw, bw, BtA, SpdDn, COLOR_LIGHTGRAY, false},
+    {'r', c3, r1, bw, bw, BtB, SpdUp, COLOR_LIGHTGRAY, false},
+    {'d', c3, r2, bw, bw, BtB, Brake, COLOR_LIGHTGRAY, false},
+    {'x', c3, r3, bw, bw, BtB, SpdDn, COLOR_LIGHTGRAY, false},
+    {'i', c4, r1, bw, bw, IrR, SpdUp, COLOR_LIGHTGRAY, false},
+    {'j', c4, r2, bw, bw, IrR, Brake, COLOR_LIGHTGRAY, false},
+    {'n', c4, r3, bw, bw, IrR, SpdDn, COLOR_LIGHTGRAY, false},
+    {'o', c5, r1, bw, bw, IrB, SpdUp, COLOR_LIGHTGRAY, false},
+    {'k', c5, r2, bw, bw, IrB, Brake, COLOR_LIGHTGRAY, false},
+    {'m', c5, r3, bw, bw, IrB, SpdDn, COLOR_LIGHTGRAY, false},
     {KEY_ENTER, c6, r2, bw, bw, None, IrChannel, COLOR_LIGHTGRAY, false},
 };
 uint8_t buttonCount = sizeof(buttons) / sizeof(Button);
@@ -154,6 +159,7 @@ void handle_button_press(Button *button)
 {
   button->pressed = true;
 
+  PowerFunctionsPwm pwm;
   switch (button->action)
   {
   case BtConnection:
@@ -190,30 +196,36 @@ void handle_button_press(Button *button)
   case IrChannel:
     irChannel = (irChannel + 1) % 4;
     break;
-  case Increment:
+  case SpdUp:
     switch (button->channel)
     {
     case BtA:
       if (!btTrainCtl.isConnected())
         break;
-      btChASpd = min(100, btChASpd + 10);
+      btChASpd = min(BtMaxSpeed, btChASpd + btSpdInc);
       btTrainCtl.setBasicMotorSpeed(BtChA, btChASpd);
       break;
     case BtB:
       if (!btTrainCtl.isConnected())
         break;
-      btChBSpd = min(100, btChBSpd + 10);
+      btChBSpd = min(BtMaxSpeed, btChBSpd + btSpdInc);
       btTrainCtl.setBasicMotorSpeed(BtChB, btChBSpd);
       break;
     case IrR:
-      irTrainCtl.single_increment(IrChR, irChannel);
+      irChRSpd = min(IrMaxSpeed, irChRSpd + irSpdInc);
+      pwm = irTrainCtl.speedToPwm(irChRSpd);
+      irTrainCtl.single_pwm(IrChR, pwm, irChannel);
+      //irTrainCtl.single_increment(IrChR, irChannel);
       break;
     case IrB:
-      irTrainCtl.single_increment(IrChB, irChannel);
+      irChBSpd = min(IrMaxSpeed, irChBSpd + irSpdInc);
+      pwm = irTrainCtl.speedToPwm(irChBSpd);
+      irTrainCtl.single_pwm(IrChB, pwm, irChannel);
+      //irTrainCtl.single_increment(IrChB, irChannel);
       break;
     }
     break;
-  case Stop:
+  case Brake:
     switch (button->channel)
     {
     case BtA:
@@ -229,37 +241,86 @@ void handle_button_press(Button *button)
       btTrainCtl.stopBasicMotor(BtChB);
       break;
     case IrR:
+      irChRSpd = 0;
       irTrainCtl.single_pwm(IrChR, PowerFunctionsPwm::BRAKE, irChannel);
       break;
     case IrB:
+      irChBSpd = 0;
       irTrainCtl.single_pwm(IrChB, PowerFunctionsPwm::BRAKE, irChannel);
       break;
     }
     break;
-  case Decrement:
+  case SpdDn:
     switch (button->channel)
     {
     case BtA:
       if (!btTrainCtl.isConnected())
         break;
-      btChASpd = max(-100, btChASpd - 10);
+      btChASpd = max(-BtMaxSpeed, btChASpd - btSpdInc);
       btTrainCtl.setBasicMotorSpeed(BtChA, btChASpd);
       break;
     case BtB:
       if (!btTrainCtl.isConnected())
         break;
-      btChBSpd = max(-100, btChBSpd - 10);
+      btChBSpd = max(-BtMaxSpeed, btChBSpd - btSpdInc);
       btTrainCtl.setBasicMotorSpeed(BtChB, btChBSpd);
       break;
     case IrR:
-      irTrainCtl.single_decrement(IrChR, irChannel);
+      irChRSpd = max(-IrMaxSpeed, irChRSpd - irSpdInc);
+      pwm = irTrainCtl.speedToPwm(irChRSpd);
+      irTrainCtl.single_pwm(IrChR, pwm, irChannel);
+      //irTrainCtl.single_decrement(IrChR, irChannel);
       break;
     case IrB:
-      irTrainCtl.single_decrement(IrChB, irChannel);
+      irChBSpd = max(-IrMaxSpeed, irChBSpd - irSpdInc);
+      pwm = irTrainCtl.speedToPwm(irChBSpd);
+      irTrainCtl.single_pwm(IrChB, pwm, irChannel);
+      //irTrainCtl.single_decrement(IrChB, irChannel);
       break;
     }
     break;
   }
+}
+
+unsigned short get_button_color(Button* button) {
+  if (button->pressed) {
+    return COLOR_ORANGE;
+  }
+
+  if (button->action == Brake) {
+    if (button->channel == BtA && btChASpd == 0)
+      return COLOR_GRAYORANGE;
+    if (button->channel == BtB && btChBSpd == 0)
+      return COLOR_GRAYORANGE;
+    if (button->channel == IrR && irChRSpd == 0)
+      return COLOR_GRAYORANGE;
+    if (button->channel == IrB && irChBSpd == 0)
+      return COLOR_GRAYORANGE;
+  }
+
+  if (button->action == SpdUp) {
+    if (button->channel == BtA && btChASpd > 0)
+      return COLOR_GRAYORANGE;
+    if (button->channel == BtB && btChBSpd > 0)
+      return COLOR_GRAYORANGE;
+    if (button->channel == IrR && irChRSpd > 0)
+      return COLOR_GRAYORANGE;
+    if (button->channel == IrB && irChBSpd > 0)
+      return COLOR_GRAYORANGE;
+  }
+
+  if (button->action == SpdDn) {
+    if (button->channel == BtA && btChASpd < 0)
+      return COLOR_GRAYORANGE;
+    if (button->channel == BtB && btChBSpd < 0)
+      return COLOR_GRAYORANGE;
+    if (button->channel == IrR && irChRSpd < 0)
+      return COLOR_GRAYORANGE;
+    if (button->channel == IrB && irChBSpd < 0)
+      return COLOR_GRAYORANGE;
+  }
+
+  return button->color;
 }
 
 void draw()
@@ -295,10 +356,10 @@ void draw()
   canvas.drawString("BLUE", c5 + bw / 2, r1 - 2);
   canvas.drawString("CH", c6 + bw / 2, r2 - 2);
 
-  // draw all layout for remote
+  // draw all layout for remotes
   for (auto button : buttons)
   {
-    unsigned short color = button.pressed ? TFT_ORANGE : button.color;
+    unsigned short color = get_button_color(&button);
     canvas.fillRoundRect(button.x, button.y, button.w, button.h, 3, color);
     draw_button_symbol(&canvas, button.action, button.x + button.w / 2, button.y + button.h / 2);
   }
