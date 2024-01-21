@@ -126,9 +126,9 @@ inline void draw_color_symbol(M5Canvas *canvas, int x, int y, const int &color)
   canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, color);
 }
 
-inline void draw_ir_channel_indicator(M5Canvas *canvas, int x, int y, byte irChannel)
+inline void draw_ir_channel_indicator(M5Canvas *canvas, int x, int y, byte irChannel, bool isPressed)
 {
-  canvas->setTextColor(TFT_SILVER, COLOR_LIGHTGRAY);
+  canvas->setTextColor(TFT_SILVER, isPressed ? COLOR_ORANGE : COLOR_LIGHTGRAY);
   canvas->setTextDatum(middle_center);
   canvas->setTextSize(1.5);
   canvas->drawString(String(irChannel + 1), x, y);
@@ -150,7 +150,7 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     draw_bt_color_indicator(canvas, x, y, state.btColorIndex);
     break;
   case Action::IrChannel:
-    draw_ir_channel_indicator(canvas, x, y, state.irChannel);
+    draw_ir_channel_indicator(canvas, x, y, state.irChannel, button.pressed);
     break;
   case Action::SpdUp:
     button.port == state.btSensorPort
@@ -164,7 +164,7 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     break;
   case Action::SpdDn:
     button.port == state.btSensorPort
-        ? draw_color_symbol(canvas, x, y, TFT_BLUE)
+        ? draw_color_symbol(canvas, x, y, TFT_YELLOW)
         : draw_speeddn_symbol(canvas, x, y);
     break;
   default:

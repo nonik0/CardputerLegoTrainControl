@@ -433,13 +433,15 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
 
     switch (color)
     {
+    // maybe as well use both since sensor confuses them a lot
+    case Color::BLUE:
     case Color::GREEN:
       action = SpdUp;
       break;
     case Color::RED:
       action = Brake;
       break;
-    case Color::BLUE:
+    case Color::YELLOW:
       action = SpdDn;
       break;
     default:
