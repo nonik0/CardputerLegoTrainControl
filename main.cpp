@@ -17,6 +17,7 @@ unsigned short COLOR_GREYORANGEBRIGHT =
 
 M5Canvas canvas(&M5Cardputer.Display);
 
+// bluetooth train control state
 const byte BtPortA = (byte)PoweredUpHubPort::A;
 const byte BtPortB = (byte)PoweredUpHubPort::B;
 const int BtMaxSpeed = 100;
@@ -27,15 +28,22 @@ Lpf2Hub btTrainCtl;
 short btPortASpd = 0;
 short btPortBSpd = 0;
 
-byte btSensorPort = NO_SENSOR_FOUND; // set to A or B if found
+unsigned short btLedColorIndex = 0;
+unsigned short btLedColorDelay = 0;
+unsigned short btDisconnectDelay; // debounce disconnects
+
+// color/distance sensor
+bool btSensorInit = false;
+byte btSensorPort = NO_SENSOR_FOUND; // set to A or B if detected
+volatile byte btMotorPort = NO_SENSOR_FOUND;
+volatile Action btSensorAction = NoAction;
 Color btSensorLastColorSeen = Color::NONE;
 bool btSensorFunction = false; // false=color, true=distance
+unsigned long btSensorDebounce = 0;
 
-unsigned short btColorIndex = 0;
-unsigned short btColorDelay = 0;
-unsigned short btDisconnectDelay; // prevent jamming connect and then
-                                  // disconnecting accidentally once connected
+volatile bool redraw = false;
 
+// IR train control state
 const PowerFunctionsPort IrPortR = PowerFunctionsPort::RED;
 const PowerFunctionsPort IrPortB = PowerFunctionsPort::BLUE;
 const int IrMaxSpeed = 105;
@@ -46,10 +54,11 @@ byte irChannel = 0;
 short irPortRSpd = 0;
 short irPortBSpd = 0;
 
+// system bar state
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
 int updateDelay = 0;
 
-// define a bunch of display variables to make adjutments not a nightmare
+// define a bunch of display variables to make adjustments not a nightmare
 int w = 240; // width
 int h = 135; // height
 int bw = 25; // button width
@@ -130,7 +139,7 @@ void checkForMenuBoot()
   }
 }
 
-void btConnectionInit()
+void btConnectionToggle()
 {
   if (!btTrainCtl.isConnected())
   {
@@ -145,25 +154,11 @@ void btConnectionInit()
 
     if (btTrainCtl.isConnecting() && btTrainCtl.connectHub())
     {
-      // detect if color/distance sensor is connected and set up for use if so
-      btSensorPort = btTrainCtl.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
-      if (btSensorPort == NO_SENSOR_FOUND)
-      {
-        // if first time connecting, wait a bit otherwise won't work
-        if (btColorDelay == 0)
-        {
-          btColorDelay = millis() + BtColorInitWait;
-        }
-        else
-        {
-          btTrainCtl.setLedColor(BtColors[btColorIndex].color);
-        }
-      }
-      else if (btSensorPort == BtPortA || btSensorPort == BtPortB)
-      {
-        // TODO: check if sensor port == to btChA or btChB?
-        btTrainCtl.activatePortDevice(btSensorPort, sensorCallback);
-      }
+      // if first time connecting, wait a bit otherwise won't work
+      if (btLedColorDelay == 0)
+        btLedColorDelay = millis() + BtColorInitWait;
+      else
+        btTrainCtl.setLedColor(BtColors[btLedColorIndex].color);
     }
 
     btDisconnectDelay = millis() + 500;
@@ -172,6 +167,7 @@ void btConnectionInit()
   {
     btTrainCtl.shutDownHub();
     btPortASpd = btPortBSpd = 0;
+    btSensorPort = NO_SENSOR_FOUND;
   }
 }
 
@@ -183,13 +179,13 @@ void handle_button_press(Button *button)
   switch (button->action)
   {
   case BtConnection:
-    btConnectionInit();
+    btConnectionToggle();
     break;
   case BtColor:
     // can change colors while not connected to choose initial color
-    btColorIndex = (btColorIndex + 1) % BtNumColors;
+    btLedColorIndex = (btLedColorIndex + 1) % BtNumColors;
     if (btTrainCtl.isConnected())
-      btTrainCtl.setLedColor(BtColors[btColorIndex].color);
+      btTrainCtl.setLedColor(BtColors[btLedColorIndex].color);
     break;
   case IrChannel:
     irChannel = (irChannel + 1) % 4;
@@ -357,6 +353,11 @@ unsigned short get_button_color(Button *button)
     return COLOR_ORANGE;
   }
 
+  if (btSensorPort == button->port)
+  {
+    return button->color;
+  }
+
   if (button->action == Brake)
   {
     if ((button->port == BtA && btPortASpd == 0) ||
@@ -402,44 +403,52 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
 {
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
 
-  if (deviceType == DeviceType::COLOR_DISTANCE_SENSOR)
+  if (deviceType != DeviceType::COLOR_DISTANCE_SENSOR || millis() < btSensorDebounce)
   {
-    // distance function: TODO
-    if (btSensorFunction)
-    {
-      int distance = trainCtl->parseDistance(pData);
-      // TODO: stop if blocked, save speed and continue moving when unblocked
-    }
-    // color function
-    else
-    {
-      Action action;
-      int color = trainCtl->parseColor(pData);
-      switch (color)
-      {
-      case (byte)Color::GREEN:
-        action = SpdUp;
-        break;
-      case (byte)Color::RED:
-        action = Brake;
-        break;
-      case (byte)Color::BLUE:
-        action = SpdDn;
-        break;
-      default:
-        return;
-      }
+    return;
+  }
+  btSensorDebounce = millis() + 200;
 
-      // "press" the corresponding button on the opposite port (i.e. the motor)
-      byte btMotorPort = (sensorPort == (byte)PoweredUpHubPort::A) ? BtPortB : BtPortA;
-      for (int i = 0; i < buttonCount; i++)
-      {
-        if (buttons[i].action == action && buttons[i].port == btMotorPort)
-        {
-          handle_button_press(&buttons[i]);
-        }
-      }
+  // distance function: TODO
+  if (btSensorFunction)
+  {
+    int distance = trainCtl->parseDistance(pData);
+    USBSerial.println("distance: " + String(distance));
+    // TODO: stop if blocked, save speed and continue moving when unblocked
+  }
+  // color function
+  else
+  {
+    Action action;
+    Color color = static_cast<Color>(trainCtl->parseColor(pData));
+
+    if (color != Color::NONE && color != Color::BLACK && color != btSensorLastColorSeen)
+    {
+      btSensorLastColorSeen = color;
+      redraw = true;
     }
+
+    USBSerial.print("Color: ");
+    USBSerial.println(LegoinoCommon::ColorStringFromColor(color).c_str());
+
+    switch (color)
+    {
+    case Color::GREEN:
+      action = SpdUp;
+      break;
+    case Color::RED:
+      action = Brake;
+      break;
+    case Color::BLUE:
+      action = SpdDn;
+      break;
+    default:
+      return;
+    }
+
+    // trigger the corresponding button press in the main loop
+    btSensorAction = action;
+    btSensorDebounce = millis() + 200;
   }
 }
 
@@ -463,10 +472,9 @@ void draw()
   canvas.drawString("BT", c1 + bw / 2, bty + bw / 2);
   canvas.drawString("IR", c6 + bw / 2, iry + bw / 2);
 
-  draw_connected_indicator(&canvas, hx + om, hy + hh / 2,
-                           btTrainCtl.isConnected());
-  if (btSensorPort != NO_SENSOR_FOUND)
-    draw_sensor_indicator(&canvas, hx + om + hy + hh / 2 + om, hy + hh / 2, btSensorLastColorSeen);
+  // draw_connected_indicator(&canvas, hx + om, hy + hh / 2, btTrainCtl.isConnected());
+  // if (btSensorPort != NO_SENSOR_FOUND)
+  draw_sensor_indicator(&canvas, hx + om + 1, hy + hh / 2, btSensorLastColorSeen);
   draw_battery_indicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
 
   // draw labels
@@ -480,7 +488,7 @@ void draw()
   canvas.drawString("CH", c6 + bw / 2, r2 - 2);
 
   // draw all layout for remotes
-  State state = {btColorIndex, btTrainCtl.isConnected(), btSensorPort, irChannel};
+  State state = {btLedColorIndex, btTrainCtl.isConnected(), btSensorPort, irChannel};
   for (auto button : buttons)
   {
     unsigned short color = get_button_color(&button);
@@ -513,7 +521,8 @@ void setup()
 void loop()
 {
   M5Cardputer.update();
-  if (M5Cardputer.Keyboard.isChange())
+
+  if (M5Cardputer.Keyboard.isChange() || btSensorAction != NoAction)
   {
     for (int i = 0; i < buttonCount; i++)
     {
@@ -521,30 +530,56 @@ void loop()
       {
         handle_button_press(&buttons[i]);
       }
+      else if (btSensorAction == buttons[i].action && btMotorPort == buttons[i].port)
+      {
+        handle_button_press(&buttons[i]);
+        btSensorAction = NoAction;
+      }
     }
 
     draw();
     delay(60);
     for (int i = 0; i < buttonCount; i++)
       buttons[i].pressed = false;
-    draw();
+    redraw = true;
   }
 
-  // redraw occcasionally for battery and bt connection status updates
+  // update loop for system bar redraws, etc
   if (millis() > updateDelay)
   {
-    updateDelay = millis() + 2000;
+    updateDelay = millis() + 1000;
     int newBatteryPct = M5Cardputer.Power.getBatteryLevel();
     if (newBatteryPct != batteryPct)
     {
       batteryPct = newBatteryPct;
-      draw();
+      redraw = true;
     }
 
-    if (btColorDelay > 0 && millis() > btColorDelay && btTrainCtl.isConnected())
+    if (btLedColorDelay > 0 && millis() > btLedColorDelay && btTrainCtl.isConnected())
     {
-      btColorDelay = -1;
-      btTrainCtl.setLedColor(BtColors[btColorIndex].color);
+      btLedColorDelay = -1;
+      btTrainCtl.setLedColor(BtColors[btLedColorIndex].color);
     }
+
+    // sensor takes a little time to show up
+    if (!btSensorInit) // TODO: timeout for checking for sensor?
+    {
+      btSensorPort = btTrainCtl.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
+      if (btSensorPort == BtPortA || btSensorPort == BtPortB)
+      {
+        // btTrainCtl.activatePortDevice(btSensorPort, sensorCallback);
+        btTrainCtl.activatePortDevice((byte)PoweredUpHubPort::B, sensorCallback);
+        btMotorPort = btSensorPort == BtPortA ? BtPortB : BtPortA;
+        btSensorLastColorSeen = Color::NONE;
+        btSensorInit = true;
+        redraw = true;
+      }
+    }
+  }
+
+  if (redraw)
+  {
+    draw();
+    redraw = false;
   }
 }

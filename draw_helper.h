@@ -30,9 +30,8 @@ inline void draw_connected_indicator(M5Canvas *canvas, int x, int y, bool connec
   int h = 14;
   y -= h / 2;
   unsigned short color = connected ? TFT_GREEN : TFT_RED;
-  String text = connected ? "CON" : "D/C";
+  String text = connected ? "CN" : "DC";
   canvas->fillRoundRect(x, y, w, h, 6, color);
-  canvas->setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas->setTextSize(1.0);
   canvas->setTextColor(TFT_BLACK, color);
   canvas->setTextDatum(middle_center);
@@ -42,14 +41,27 @@ inline void draw_connected_indicator(M5Canvas *canvas, int x, int y, bool connec
 inline void draw_sensor_indicator(M5Canvas *canvas, int x, int y, Color color)
 {
   // TODO distance
-  int w = 32;
-  int h = 14;
+  int w = 24;
+  int h = 11;
   y -= h / 2;
 
-  if (color == Color::NONE)
-    return;
+  if (color != Color::NONE)
+  {
+    for (int i = 0; i < BtNumColors; i++)
+    {
+      if (BtColors[i].color == color)
+      {
+        canvas->fillRoundRect(x, y, w, h, 3, BtColors[i].rgb565);
+        // canvas->setTextColor(TFT_SILVER, BtColors[i].rgb565);
+        // canvas->setTextSize(1.0);
+        // canvas->setTextDatum(middle_center);
+        // canvas->drawString(LegoinoCommon::ColorStringFromColor(BtColors[i].color).c_str(), x + w / 2, y + h / 2);
+        break;
+      }
+    }
+  }
 
-  canvas->fillRoundRect(x, y, w, h, 6, color);
+  canvas->drawRoundRect(x, y, w, h, 3, TFT_SILVER);
 }
 
 inline void draw_battery_indicator(M5Canvas *canvas, int x, int y, int batteryPct)
@@ -70,12 +82,11 @@ inline void draw_battery_indicator(M5Canvas *canvas, int x, int y, int batteryPc
   }
   canvas->fillRoundRect(x, ya, battw, batth, 2, TFT_SILVER);
   canvas->fillRect(x - 2, y - 2, 2, 4, TFT_SILVER);
-  canvas->fillRect(x + 1, ya + 1, battw - 2 - chgw, batth - 2, COLOR_DARKGRAY); // 1px margin from outer battery
+  canvas->fillRect(x + 1, ya + 1, battw - 2 - chgw, batth - 2, COLOR_DARKGRAY);  // 1px margin from outer battery
   canvas->fillRect(x + 1 + battw - 2 - chgw, ya + 1, chgw, batth - 2, batColor); // 1px margin from outer battery
 }
 
-inline void draw_power_symbol(M5Canvas *canvas, int x, int y,
-                              bool isConnected)
+inline void draw_power_symbol(M5Canvas *canvas, int x, int y, bool isConnected)
 {
   unsigned short color = isConnected ? TFT_BLUE : TFT_RED;
   canvas->fillArc(x, y, 8, 6, 0, 230, color);

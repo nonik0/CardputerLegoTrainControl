@@ -54,7 +54,8 @@ enum Action
   IrTrackState,
   SpdUp,
   SpdDn,
-  Brake
+  Brake,
+  NoAction
 };
 
 struct Button
