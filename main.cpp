@@ -17,19 +17,22 @@ unsigned short COLOR_GREYORANGEBRIGHT =
 
 M5Canvas canvas(&M5Cardputer.Display);
 
-// bluetooth train control state
+// bluetooth train control constants
 const byte BtPortA = (byte)PoweredUpHubPort::A;
 const byte BtPortB = (byte)PoweredUpHubPort::B;
 const int BtMaxSpeed = 100;
 const short BtSpdInc = 10; // TODO configurable
 const short BtConnWait = 100;
 const short BtColorInitWait = 500;
-unsigned short btDisconnectDelay; // debounce disconnects
+
+// hub state
 Lpf2Hub btTrainCtl;
 short btPortASpd = 0;
 short btPortBSpd = 0;
-
-volatile unsigned short btLedColorIndex = 0;
+unsigned long btDisconnectDelay; // debounce disconnects
+volatile Action btButtonAction = NoAction;
+unsigned long btButtonDebounce = 0; // debounce button presses
+volatile uint8_t btLedColorIndex = 0;
 unsigned short btLedColorDelay = 0;
 
 // color/distance sensor
@@ -38,10 +41,11 @@ byte btSensorPort = NO_SENSOR_FOUND; // set to A or B if detected
 byte btMotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if detected
 volatile Action btSensorAction = NoAction;
 Color btSensorColor = Color::NONE;
-volatile int btSensorColorIndex = BtNumColors - 1; // detected color by sensor
-unsigned long btSensorDebounce = 0;                // debounce sensor color changes
+volatile uint8_t btSensorColorIndex = BtNumColors - 1; // detected color by sensor
+unsigned long btSensorDebounce = 0;                    // debounce sensor color changes
+uint8_t btSensorStopFunction = 0;                      // 0=infinite, >0=wait time in seconds
 unsigned long btSensorStopDelay = 0;
-short btSensorStopSpd = 0; // saved speed before stopping
+short btSensorStopSavedSpd = 0; // saved speed before stopping
 
 volatile bool redraw = false;
 
@@ -49,7 +53,7 @@ volatile bool redraw = false;
 const PowerFunctionsPort IrPortR = PowerFunctionsPort::RED;
 const PowerFunctionsPort IrPortB = PowerFunctionsPort::BLUE;
 const int IrMaxSpeed = 105;
-const short IrSpdInc = 15;
+const short IrSpdInc = 15; // hacky but to match 7 levels
 PowerFunctions irTrainCtl(IR_TX_PIN);
 bool irTrackState = false;
 byte irChannel = 0;
@@ -118,6 +122,45 @@ Button buttons[] = {
 };
 uint8_t buttonCount = sizeof(buttons) / sizeof(Button);
 
+void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
+{
+  Lpf2Hub *myHub = (Lpf2Hub *)hub;
+
+  if (hubProperty != HubPropertyReference::BUTTON || millis() < btButtonDebounce)
+  {
+    return;
+  }
+
+  btButtonDebounce = millis() + 200;
+  ButtonState buttonState = myHub->parseHubButton(pData);
+
+  if (buttonState == ButtonState::PRESSED)
+  {
+    if (btSensorStopDelay > 0)
+    {
+      btSensorStopDelay = 0;
+      btSensorAction = SpdUp;
+      if (btMotorPort == BtPortA)
+        btPortASpd = btSensorStopSavedSpd;
+      else
+        btPortBSpd = btSensorStopSavedSpd;
+
+      // for (int i = 0; i < buttonCount; i++)
+      // {
+      //   if (buttons[i].action == BtColor)
+      //   {
+      //     buttons[i].pressed = true;
+      //     break;
+      //   }
+      // }
+    }
+    else
+    {
+      btButtonAction = BtColor;
+    }
+  }
+}
+
 void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *pData)
 {
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
@@ -175,9 +218,9 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
   case Color::RED:
     btSensorAction = Brake;
     // setup trigger to start again after a delay
-    btSensorStopDelay = millis() + 2000; // TODO: configurable with button press? toggle between stop 2s, 5s, 10s, forever?
-    btSensorStopSpd = btMotorPort == BtPortA ? btPortASpd : btPortBSpd;
-    btSensorStopSpd -= BtSpdInc; // account for increment
+    btSensorStopDelay = millis() + btSensorStopFunction * 1000;
+    btSensorStopSavedSpd = btMotorPort == BtPortA ? btPortASpd : btPortBSpd;
+    btSensorStopSavedSpd -= BtSpdInc; // account for increment
     break;
   case Color::YELLOW:
     btSensorAction = SpdDn;
@@ -238,6 +281,8 @@ void btConnectionToggle()
         btLedColorDelay = millis() + BtColorInitWait;
       else
         btTrainCtl.setLedColor(BtColors[btLedColorIndex].color);
+
+      btTrainCtl.activateHubPropertyUpdate(HubPropertyReference::BUTTON, buttonCallback);
     }
 
     btDisconnectDelay = millis() + 500;
@@ -336,7 +381,14 @@ void handle_button_press(Button *button)
         break;
       if (btSensorPort == BtPortA)
       {
-        // TODO
+        if (btSensorStopFunction == 0)
+          btSensorStopFunction = 2;
+        else if (btSensorStopFunction == 2)
+          btSensorStopFunction = 5;
+        else if (btSensorStopFunction == 5)
+          btSensorStopFunction = 10;
+        else
+          btSensorStopFunction = 0;
       }
       else
       {
@@ -349,7 +401,14 @@ void handle_button_press(Button *button)
         break;
       if (btSensorPort == BtPortB)
       {
-        // TODO
+        if (btSensorStopFunction == 0)
+          btSensorStopFunction = 2;
+        else if (btSensorStopFunction == 2)
+          btSensorStopFunction = 5;
+        else if (btSensorStopFunction == 5)
+          btSensorStopFunction = 10;
+        else
+          btSensorStopFunction = 0;
       }
       else
       {
@@ -501,7 +560,7 @@ void draw()
   if (btTrainCtl.isConnected())
   {
     draw_connected_indicator(&canvas, hx + om, hy + hh / 2, btTrainCtl.isConnected());
-    
+
     if (btSensorPort != NO_SENSOR_FOUND)
       draw_sensor_indicator(&canvas, hx + om + om + 18, hy + hh / 2, btSensorColorIndex);
   }
@@ -518,7 +577,7 @@ void draw()
   canvas.drawString("CH", c6 + bw / 2, r2 - 2);
 
   // draw all layout for remotes
-  State state = {btLedColorIndex, btTrainCtl.isConnected(), btSensorPort, irChannel};
+  State state = {btTrainCtl.isConnected(), btLedColorIndex, btSensorPort, btSensorStopFunction, irChannel};
   for (auto button : buttons)
   {
     unsigned short color = get_button_color(&button);
@@ -568,7 +627,7 @@ void loop()
   }
 
   // sensor triggered action
-  if (btSensorAction != NoAction)
+  if (btSensorAction != NoAction || btButtonAction != NoAction)
   {
     for (int i = 0; i < buttonCount; i++)
     {
@@ -576,6 +635,12 @@ void loop()
       {
         handle_button_press(&buttons[i]);
         btSensorAction = NoAction;
+        actionTaken = true;
+      }
+      else if (btButtonAction == buttons[i].action)
+      {
+        handle_button_press(&buttons[i]);
+        btButtonAction = NoAction;
         actionTaken = true;
       }
     }
@@ -609,14 +674,14 @@ void loop()
     }
 
     // bt sensor delayed start after stop
-    if (btSensorStopDelay > 0 && millis() > btSensorStopDelay)
+    if (btSensorStopFunction > 0 && btSensorStopDelay > 0 && millis() > btSensorStopDelay)
     {
       btSensorStopDelay = 0;
       btSensorAction = SpdUp;
       if (btMotorPort == BtPortA)
-        btPortASpd = btSensorStopSpd;
+        btPortASpd = btSensorStopSavedSpd;
       else
-        btPortBSpd = btSensorStopSpd;
+        btPortBSpd = btSensorStopSavedSpd;
 
       // also show press for sensor button
       for (int i = 0; i < buttonCount; i++)

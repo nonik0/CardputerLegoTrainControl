@@ -74,8 +74,9 @@ struct Button
 // used for conveying current state when drawing
 struct State
 {
-  int btColorIndex;
   bool btConnected;
+  uint8_t btColorIndex;
   byte btSensorPort;
+  uint8_t btSensorStopFunction;
   byte irChannel;
 };

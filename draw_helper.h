@@ -120,6 +120,19 @@ inline void draw_color_symbol(M5Canvas *canvas, int x, int y, const int &color)
   canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, color);
 }
 
+inline void draw_sensor_stop_symbol(M5Canvas *canvas, int x, int y, const int &color, uint8_t stopFunction)
+{
+  int w = 17;
+  canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, color);
+  if (stopFunction > 0)
+  {
+    canvas->setTextColor(TFT_SILVER, color);
+    canvas->setTextDatum(middle_center);
+    canvas->setTextSize(1);
+    canvas->drawString(String(stopFunction), x + 1, y + 1);
+  }
+}
+
 inline void draw_ir_channel_indicator(M5Canvas *canvas, int x, int y, byte irChannel, bool isPressed)
 {
   canvas->setTextColor(TFT_SILVER, isPressed ? COLOR_ORANGE : COLOR_LIGHTGRAY);
@@ -153,7 +166,7 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     break;
   case Action::Brake:
     button.port == state.btSensorPort
-        ? draw_color_symbol(canvas, x, y, TFT_RED)
+        ? draw_sensor_stop_symbol(canvas, x, y, TFT_RED, state.btSensorStopFunction)
         : draw_stop_symbol(canvas, x, y);
     break;
   case Action::SpdDn:
