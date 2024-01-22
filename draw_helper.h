@@ -26,39 +26,33 @@ inline unsigned short interpolateColors(unsigned short color1, unsigned short co
 
 inline void draw_connected_indicator(M5Canvas *canvas, int x, int y, bool connected)
 {
-  int w = 32;
-  int h = 14;
+  int w = 18;
+  int h = 11;
   y -= h / 2;
   unsigned short color = connected ? TFT_GREEN : TFT_RED;
-  String text = connected ? "CN" : "DC";
-  canvas->fillRoundRect(x, y, w, h, 6, color);
-  canvas->setTextSize(1.0);
-  canvas->setTextColor(TFT_BLACK, color);
-  canvas->setTextDatum(middle_center);
-  canvas->drawString(text, x + w / 2, y + h / 2);
+  canvas->fillRoundRect(x, y, w, h, 3, color);
+  // String text = connected ? "CN" : "DC";
+  // canvas->setTextSize(1.0);
+  // canvas->setTextColor(TFT_BLACK, color);
+  // canvas->setTextDatum(middle_center);
+  // canvas->drawString(text, x + w / 2, y + h / 2);
+  canvas->drawRoundRect(x, y, w, h, 3, TFT_SILVER);
 }
 
-inline void draw_sensor_indicator(M5Canvas *canvas, int x, int y, Color color)
+inline void draw_sensor_indicator(M5Canvas *canvas, int x, int y, int btColorIndex)
 {
   // TODO distance
-  int w = 24;
+  int w = 18;
   int h = 11;
   y -= h / 2;
 
-  if (color != Color::NONE)
+  if (btColorIndex != BtNumColors - 1)
   {
-    for (int i = 0; i < BtNumColors; i++)
-    {
-      if (BtColors[i].color == color)
-      {
-        canvas->fillRoundRect(x, y, w, h, 3, BtColors[i].rgb565);
-        // canvas->setTextColor(TFT_SILVER, BtColors[i].rgb565);
-        // canvas->setTextSize(1.0);
-        // canvas->setTextDatum(middle_center);
-        // canvas->drawString(LegoinoCommon::ColorStringFromColor(BtColors[i].color).c_str(), x + w / 2, y + h / 2);
-        break;
-      }
-    }
+    canvas->fillRoundRect(x, y, w, h, 3, BtColors[btColorIndex].rgb565);
+    // canvas->setTextColor(TFT_SILVER, BtColors[i].rgb565);
+    // canvas->setTextSize(1.0);
+    // canvas->setTextDatum(middle_center);
+    // canvas->drawString(LegoinoCommon::ColorStringFromColor(BtColors[i].color).c_str(), x + w / 2, y + h / 2);
   }
 
   canvas->drawRoundRect(x, y, w, h, 3, TFT_SILVER);
