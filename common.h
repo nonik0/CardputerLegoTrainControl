@@ -15,27 +15,8 @@ const unsigned short COLOR_BLUEGRAY = 0x0B0C;
 const unsigned short COLOR_BLUE = 0x026E;
 const unsigned short COLOR_PURPLE = 0x7075;
 
-struct ColorMapping
-{
-  Color color;
-  unsigned short rgb565;
-};
-
-// TODO: investigate colors
-const ColorMapping BtColors[] = {
-    {Color::RED, TFT_RED},
-    {Color::ORANGE, COLOR_ORANGE},
-    {Color::YELLOW, TFT_YELLOW},
-    {Color::GREEN, TFT_GREEN},
-    {Color::CYAN, TFT_CYAN},
-    {Color::LIGHTBLUE, 0x9E7F},
-    {Color::BLUE, TFT_BLUE},
-    {Color::PURPLE, TFT_PURPLE},
-    {Color::PINK, TFT_PINK},
-    {Color::WHITE, TFT_WHITE},
-    {Color::BLACK, TFT_BLACK},
-};
-const unsigned short BtNumColors = sizeof(BtColors) / sizeof(ColorMapping);
+// index maps/casts to Legoino Color enum
+const unsigned short BtColors[] = {TFT_BLACK, TFT_PINK, TFT_PURPLE, TFT_BLUE, 0x9E7F, TFT_CYAN, TFT_GREEN, TFT_YELLOW, COLOR_ORANGE, TFT_RED, TFT_WHITE};
 
 enum Port
 {
@@ -75,7 +56,7 @@ struct Button
 struct State
 {
   bool btConnected;
-  uint8_t btColorIndex;
+  Color btLedColor;
   byte btSensorPort;
   uint8_t btSensorStopFunction;
   byte irChannel;

@@ -27,12 +27,13 @@ const short BtColorInitWait = 500;
 
 // hub state
 Lpf2Hub btTrainCtl;
+bool btInit = false;
 short btPortASpd = 0;
 short btPortBSpd = 0;
 unsigned long btDisconnectDelay; // debounce disconnects
 volatile Action btButtonAction = NoAction;
 unsigned long btButtonDebounce = 0; // debounce button presses
-volatile uint8_t btLedColorIndex = 0;
+volatile Color btLedColor = Color::ORANGE;
 unsigned short btLedColorDelay = 0;
 
 // color/distance sensor
@@ -40,10 +41,11 @@ bool btSensorInit = false;
 byte btSensorPort = NO_SENSOR_FOUND; // set to A or B if detected
 byte btMotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if detected
 volatile Action btSensorAction = NoAction;
-Color btSensorColor = Color::NONE;
-volatile uint8_t btSensorColorIndex = BtNumColors - 1; // detected color by sensor
-unsigned long btSensorDebounce = 0;                    // debounce sensor color changes
-uint8_t btSensorStopFunction = 0;                      // 0=infinite, >0=wait time in seconds
+volatile Color btSensorColor = Color::NONE; // detected color by sensor
+unsigned long btSensorDebounce = 0;         // debounce sensor color changes
+
+// Color btSensorStopColor = Color::RED;
+uint8_t btSensorStopFunction = 0; // 0=infinite, >0=wait time in seconds
 unsigned long btSensorStopDelay = 0;
 short btSensorStopSavedSpd = 0; // saved speed before stopping
 
@@ -164,7 +166,6 @@ void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *pData)
 {
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
-  int detectedColorIndex = -1;
 
   if (deviceType != DeviceType::COLOR_DISTANCE_SENSOR)
   {
@@ -180,22 +181,10 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
     return;
   }
 
-  // get color index
-  for (detectedColorIndex = 0; detectedColorIndex < BtNumColors; detectedColorIndex++)
-  {
-    if (BtColors[detectedColorIndex].color == color)
-    {
-      break;
-    }
-  }
-
   USBSerial.print("Color: ");
   USBSerial.println(LegoinoCommon::ColorStringFromColor(color).c_str());
-  USBSerial.print("Color Index: ");
-  USBSerial.println(detectedColorIndex);
 
   btSensorColor = color;
-  btSensorColorIndex = detectedColorIndex;
   btSensorDebounce = millis() + 200;
   redraw = true;
 
@@ -205,8 +194,8 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
     return;
   }
 
-  btLedColorIndex = detectedColorIndex; // TODO: what to do for buttons/leds/indicators?
-  trainCtl->setLedColor(BtColors[btLedColorIndex].color);
+  btLedColor = color; // TODO: what to do for buttons/leds/indicators?
+  trainCtl->setLedColor(color);
 
   // trigger actions for specific colors, TODO: configurable colors?
   Action action;
@@ -263,7 +252,7 @@ void checkForMenuBoot()
 
 void btConnectionToggle()
 {
-  if (!btTrainCtl.isConnected())
+  if (!btInit && !btTrainCtl.isConnected())
   {
     if (!btTrainCtl.isConnecting())
     {
@@ -277,10 +266,12 @@ void btConnectionToggle()
     if (btTrainCtl.isConnecting() && btTrainCtl.connectHub())
     {
       // if first time connecting, wait a bit otherwise won't work
+      btInit = true;
+      btLedColor = (Color)(millis() % Color::NUM_COLORS); // ranoom color
       if (btLedColorDelay == 0)
         btLedColorDelay = millis() + BtColorInitWait;
       else
-        btTrainCtl.setLedColor(BtColors[btLedColorIndex].color);
+        btTrainCtl.setLedColor(btLedColor);
 
       btTrainCtl.activateHubPropertyUpdate(HubPropertyReference::BUTTON, buttonCallback);
     }
@@ -291,6 +282,7 @@ void btConnectionToggle()
   {
     btTrainCtl.shutDownHub();
     btPortASpd = btPortBSpd = 0;
+    btMotorPort = NO_SENSOR_FOUND;
     btSensorPort = NO_SENSOR_FOUND;
   }
 }
@@ -307,9 +299,9 @@ void handle_button_press(Button *button)
     break;
   case BtColor:
     // can change colors while not connected to choose initial color
-    btLedColorIndex = (btLedColorIndex + 1) % BtNumColors;
+    btLedColor = (Color)((btLedColor + 1) % Color::NUM_COLORS);
     if (btTrainCtl.isConnected())
-      btTrainCtl.setLedColor(BtColors[btLedColorIndex].color);
+      btTrainCtl.setLedColor(btLedColor);
     break;
   case IrChannel:
     irChannel = (irChannel + 1) % 4;
@@ -557,13 +549,9 @@ void draw()
   canvas.drawString("BT", c1 + bw / 2, bty + bw / 2);
   canvas.drawString("IR", c6 + bw / 2, iry + bw / 2);
 
-  if (btTrainCtl.isConnected())
-  {
-    draw_connected_indicator(&canvas, hx + om, hy + hh / 2, btTrainCtl.isConnected());
-
-    if (btSensorPort != NO_SENSOR_FOUND)
-      draw_sensor_indicator(&canvas, hx + om + om + 18, hy + hh / 2, btSensorColorIndex);
-  }
+  draw_connected_indicator(&canvas, hx + om, hy + hh / 2, btInit);
+  if (btSensorPort != NO_SENSOR_FOUND)
+    draw_sensor_indicator(&canvas, hx + om + om + 18, hy + hh / 2, btSensorColor);
   draw_battery_indicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
 
   // draw labels
@@ -577,7 +565,7 @@ void draw()
   canvas.drawString("CH", c6 + bw / 2, r2 - 2);
 
   // draw all layout for remotes
-  State state = {btTrainCtl.isConnected(), btLedColorIndex, btSensorPort, btSensorStopFunction, irChannel};
+  State state = {btTrainCtl.isConnected(), btLedColor, btSensorPort, btSensorStopFunction, irChannel};
   for (auto button : buttons)
   {
     unsigned short color = get_button_color(&button);
@@ -667,10 +655,16 @@ void loop()
       redraw = true;
     }
 
+    if (btInit && !btTrainCtl.isConnected())
+    {
+      btInit = false;
+      redraw = true;
+    }
+
     if (btLedColorDelay > 0 && millis() > btLedColorDelay && btTrainCtl.isConnected())
     {
       btLedColorDelay = -1;
-      btTrainCtl.setLedColor(BtColors[btLedColorIndex].color);
+      btTrainCtl.setLedColor(btLedColor);
     }
 
     // bt sensor delayed start after stop
@@ -704,7 +698,7 @@ void loop()
         // btTrainCtl.activatePortDevice(btSensorPort, sensorCallback);
         btTrainCtl.activatePortDevice((byte)PoweredUpHubPort::B, sensorCallback);
         btMotorPort = btSensorPort == BtPortA ? BtPortB : BtPortA;
-        btSensorColorIndex = Color::NONE;
+        btSensorColor = Color::NONE;
         btSensorInit = true;
         redraw = true;
       }

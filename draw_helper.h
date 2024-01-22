@@ -39,16 +39,16 @@ inline void draw_connected_indicator(M5Canvas *canvas, int x, int y, bool connec
   canvas->drawRoundRect(x, y, w, h, 3, TFT_SILVER);
 }
 
-inline void draw_sensor_indicator(M5Canvas *canvas, int x, int y, int btColorIndex)
+inline void draw_sensor_indicator(M5Canvas *canvas, int x, int y, Color color)
 {
   // TODO distance
   int w = 18;
   int h = 11;
   y -= h / 2;
 
-  if (btColorIndex != BtNumColors - 1)
+  if (color != Color::NONE)
   {
-    canvas->fillRoundRect(x, y, w, h, 3, BtColors[btColorIndex].rgb565);
+    canvas->fillRoundRect(x, y, w, h, 3, BtColors[color]);
     // canvas->setTextColor(TFT_SILVER, BtColors[i].rgb565);
     // canvas->setTextSize(1.0);
     // canvas->setTextDatum(middle_center);
@@ -88,10 +88,11 @@ inline void draw_power_symbol(M5Canvas *canvas, int x, int y, bool isConnected)
   canvas->fillRect(x - 1, y - 9, 3, 9, color);
 }
 
-inline void draw_bt_color_indicator(M5Canvas *canvas, int x, int y, int btColorIndex)
+inline void draw_bt_color_indicator(M5Canvas *canvas, int x, int y, Color color)
 {
   int w = 17;
-  canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[btColorIndex].rgb565);
+  if (color != Color::NONE)
+    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
 }
 
 inline void draw_speedup_symbol(M5Canvas *canvas, int x, int y)
@@ -154,7 +155,7 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     draw_power_symbol(canvas, x, y, state.btConnected);
     break;
   case Action::BtColor:
-    draw_bt_color_indicator(canvas, x, y, state.btColorIndex);
+    draw_bt_color_indicator(canvas, x, y, state.btLedColor);
     break;
   case Action::IrChannel:
     draw_ir_channel_indicator(canvas, x, y, state.irChannel, button.pressed);
