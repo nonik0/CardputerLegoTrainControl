@@ -58,6 +58,9 @@ struct State
   bool btConnected;
   Color btLedColor;
   byte btSensorPort;
+  Color btSensorSpdUpColor;
+  Color btSensorStopColor;
+  Color btSensorSpdDnColor;
   uint8_t btSensorStopFunction;
   byte irChannel;
 };

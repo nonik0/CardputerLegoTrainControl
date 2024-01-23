@@ -10,10 +10,8 @@
 #define IR_TX_PIN 44
 #define NO_SENSOR_FOUND 0xFF
 
-unsigned short COLOR_GREYORANGEDIM =
-    interpolateColors(COLOR_LIGHTGRAY, COLOR_ORANGE, 25);
-unsigned short COLOR_GREYORANGEBRIGHT =
-    interpolateColors(COLOR_LIGHTGRAY, COLOR_ORANGE, 75);
+unsigned short COLOR_GREYORANGEDIM = interpolateColors(COLOR_LIGHTGRAY, COLOR_ORANGE, 25);
+unsigned short COLOR_GREYORANGEBRIGHT = interpolateColors(COLOR_LIGHTGRAY, COLOR_ORANGE, 75);
 
 M5Canvas canvas(&M5Cardputer.Display);
 
@@ -43,8 +41,10 @@ byte btMotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if detect
 volatile Action btSensorAction = NoAction;
 volatile Color btSensorColor = Color::NONE; // detected color by sensor
 unsigned long btSensorDebounce = 0;         // debounce sensor color changes
-
-// Color btSensorStopColor = Color::RED;
+Color btSensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
+Color btSensorSpdUpColor = Color::GREEN;
+Color btSensorStopColor = Color::RED;
+Color btSensorSpdDnColor = Color::YELLOW;
 uint8_t btSensorStopFunction = 0; // 0=infinite, >0=wait time in seconds
 unsigned long btSensorStopDelay = 0;
 short btSensorStopSavedSpd = 0; // saved speed before stopping
@@ -124,6 +124,16 @@ Button buttons[] = {
 };
 uint8_t buttonCount = sizeof(buttons) / sizeof(Button);
 
+bool isIgnoredColor(Color color)
+{
+  for (int i = 0; i < sizeof(btSensorIgnoreColors) / sizeof(Color); i++)
+  {
+    if (color == btSensorIgnoreColors[i])
+      return true;
+  }
+  return false;
+}
+
 void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 {
   Lpf2Hub *myHub = (Lpf2Hub *)hub;
@@ -189,7 +199,7 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
   redraw = true;
 
   // ignore "ground" or noisy colors: TODO: configurable colors to ignore, dependent on env
-  if (color == Color::BLACK || color == Color::BLUE)
+  if (isIgnoredColor(color))
   {
     return;
   }
@@ -199,22 +209,24 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
 
   // trigger actions for specific colors, TODO: configurable colors?
   Action action;
-  switch (color)
+  if (color == btSensorSpdUpColor)
   {
-  case Color::GREEN:
     btSensorAction = SpdUp;
-    break;
-  case Color::RED:
+  }
+  else if (color == btSensorStopColor)
+  {
     btSensorAction = Brake;
     // setup trigger to start again after a delay
     btSensorStopDelay = millis() + btSensorStopFunction * 1000;
     btSensorStopSavedSpd = btMotorPort == BtPortA ? btPortASpd : btPortBSpd;
     btSensorStopSavedSpd -= BtSpdInc; // account for increment
-    break;
-  case Color::YELLOW:
+  }
+  else if (color == btSensorSpdDnColor)
+  {
     btSensorAction = SpdDn;
-    break;
-  default:
+  }
+  else
+  {
     return;
   }
 
@@ -281,9 +293,17 @@ void btConnectionToggle()
   else if (btDisconnectDelay < millis())
   {
     btTrainCtl.shutDownHub();
+    delay(200);
+    btInit = false;
+    btSensorInit = false;
     btPortASpd = btPortBSpd = 0;
     btMotorPort = NO_SENSOR_FOUND;
     btSensorPort = NO_SENSOR_FOUND;
+    btSensorSpdUpColor = Color::GREEN;
+    btSensorStopColor = Color::RED;
+    btSensorSpdDnColor = Color::YELLOW;
+    btSensorStopFunction = 0;
+    btSensorStopDelay = 0;
   }
 }
 
@@ -318,7 +338,13 @@ void handle_button_press(Button *button)
         break;
       if (btSensorPort == BtPortA)
       {
-        // TODO
+        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+        {
+          do
+          {
+            btSensorSpdUpColor = (Color)((btSensorSpdUpColor + 1) % Color::NUM_COLORS);
+          } while (isIgnoredColor(btSensorSpdUpColor) || btSensorSpdUpColor == btSensorSpdDnColor || btSensorSpdUpColor == btSensorStopColor);
+        }
       }
       else
       {
@@ -331,7 +357,13 @@ void handle_button_press(Button *button)
         break;
       if (btSensorPort == BtPortB)
       {
-        // TODO
+        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+        {
+          do
+          {
+            btSensorSpdUpColor = (Color)((btSensorSpdUpColor + 1) % Color::NUM_COLORS);
+          } while (isIgnoredColor(btSensorSpdUpColor) || btSensorSpdUpColor == btSensorSpdDnColor || btSensorSpdUpColor == btSensorStopColor);
+        }
       }
       else
       {
@@ -373,14 +405,24 @@ void handle_button_press(Button *button)
         break;
       if (btSensorPort == BtPortA)
       {
-        if (btSensorStopFunction == 0)
-          btSensorStopFunction = 2;
-        else if (btSensorStopFunction == 2)
-          btSensorStopFunction = 5;
-        else if (btSensorStopFunction == 5)
-          btSensorStopFunction = 10;
+        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+        {
+          do
+          {
+            btSensorStopColor = (Color)((btSensorStopColor + 1) % Color::NUM_COLORS);
+          } while (isIgnoredColor(btSensorStopColor) || btSensorStopColor == btSensorSpdUpColor || btSensorStopColor == btSensorSpdDnColor);
+        }
         else
-          btSensorStopFunction = 0;
+        {
+          if (btSensorStopFunction == 0)
+            btSensorStopFunction = 2;
+          else if (btSensorStopFunction == 2)
+            btSensorStopFunction = 5;
+          else if (btSensorStopFunction == 5)
+            btSensorStopFunction = 10;
+          else
+            btSensorStopFunction = 0;
+        }
       }
       else
       {
@@ -393,14 +435,24 @@ void handle_button_press(Button *button)
         break;
       if (btSensorPort == BtPortB)
       {
-        if (btSensorStopFunction == 0)
-          btSensorStopFunction = 2;
-        else if (btSensorStopFunction == 2)
-          btSensorStopFunction = 5;
-        else if (btSensorStopFunction == 5)
-          btSensorStopFunction = 10;
+        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+        {
+          do
+          {
+            btSensorStopColor = (Color)((btSensorStopColor + 1) % Color::NUM_COLORS);
+          } while (isIgnoredColor(btSensorStopColor) || btSensorStopColor == btSensorSpdUpColor || btSensorStopColor == btSensorSpdDnColor);
+        }
         else
-          btSensorStopFunction = 0;
+        {
+          if (btSensorStopFunction == 0)
+            btSensorStopFunction = 2;
+          else if (btSensorStopFunction == 2)
+            btSensorStopFunction = 5;
+          else if (btSensorStopFunction == 5)
+            btSensorStopFunction = 10;
+          else
+            btSensorStopFunction = 0;
+        }
       }
       else
       {
@@ -426,7 +478,13 @@ void handle_button_press(Button *button)
         break;
       if (btSensorPort == BtPortA)
       {
-        // TODO
+        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+        {
+          do
+          {
+            btSensorSpdDnColor = (Color)((btSensorSpdDnColor + 1) % Color::NUM_COLORS);
+          } while (isIgnoredColor(btSensorSpdDnColor) || btSensorSpdDnColor == btSensorSpdUpColor || btSensorSpdDnColor == btSensorStopColor);
+        }
       }
       else
       {
@@ -439,7 +497,13 @@ void handle_button_press(Button *button)
         break;
       if (btSensorPort == BtPortB)
       {
-        // TODO
+        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+        {
+          do
+          {
+            btSensorSpdDnColor = (Color)((btSensorSpdDnColor + 1) % Color::NUM_COLORS);
+          } while (isIgnoredColor(btSensorSpdDnColor) || btSensorSpdDnColor == btSensorSpdUpColor || btSensorSpdDnColor == btSensorStopColor);
+        }
       }
       else
       {
@@ -565,7 +629,7 @@ void draw()
   canvas.drawString("CH", c6 + bw / 2, r2 - 2);
 
   // draw all layout for remotes
-  State state = {btTrainCtl.isConnected(), btLedColor, btSensorPort, btSensorStopFunction, irChannel};
+  State state = {btInit, btLedColor, btSensorPort, btSensorSpdUpColor, btSensorStopColor, btSensorSpdDnColor, btSensorStopFunction, irChannel};
   for (auto button : buttons)
   {
     unsigned short color = get_button_color(&button);
@@ -655,52 +719,55 @@ void loop()
       redraw = true;
     }
 
-    if (btInit && !btTrainCtl.isConnected())
+    if (btInit)
     {
-      btInit = false;
-      redraw = true;
-    }
-
-    if (btLedColorDelay > 0 && millis() > btLedColorDelay && btTrainCtl.isConnected())
-    {
-      btLedColorDelay = -1;
-      btTrainCtl.setLedColor(btLedColor);
-    }
-
-    // bt sensor delayed start after stop
-    if (btSensorStopFunction > 0 && btSensorStopDelay > 0 && millis() > btSensorStopDelay)
-    {
-      btSensorStopDelay = 0;
-      btSensorAction = SpdUp;
-      if (btMotorPort == BtPortA)
-        btPortASpd = btSensorStopSavedSpd;
-      else
-        btPortBSpd = btSensorStopSavedSpd;
-
-      // also show press for sensor button
-      for (int i = 0; i < buttonCount; i++)
+      if (!btTrainCtl.isConnected())
       {
-        if (buttons[i].action == Brake && buttons[i].port == btSensorPort)
-        {
-          buttons[i].pressed = true;
-          break;
-        }
-      }
-      return; // TODO: make sure OK
-    }
-
-    // sensor takes a little time to show up
-    if (!btSensorInit) // TODO: timeout for checking for sensor?
-    {
-      btSensorPort = btTrainCtl.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
-      if (btSensorPort == BtPortA || btSensorPort == BtPortB)
-      {
-        // btTrainCtl.activatePortDevice(btSensorPort, sensorCallback);
-        btTrainCtl.activatePortDevice((byte)PoweredUpHubPort::B, sensorCallback);
-        btMotorPort = btSensorPort == BtPortA ? BtPortB : BtPortA;
-        btSensorColor = Color::NONE;
-        btSensorInit = true;
+        btInit = false;
         redraw = true;
+      }
+      else
+      {
+        if (!btSensorInit) // TODO: timeout for checking for sensor?
+        {
+          btSensorPort = btTrainCtl.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
+          if (btSensorPort == BtPortA || btSensorPort == BtPortB)
+          {
+            btTrainCtl.activatePortDevice(btSensorPort, sensorCallback);
+            btMotorPort = btSensorPort == BtPortA ? BtPortB : BtPortA;
+            btSensorColor = Color::NONE;
+            btSensorInit = true;
+            redraw = true;
+          }
+        }
+
+        if (btLedColorDelay > 0 && millis() > btLedColorDelay && btTrainCtl.isConnected())
+        {
+          btLedColorDelay = -1;
+          btTrainCtl.setLedColor(btLedColor);
+        }
+
+        // bt sensor delayed start after stop
+        if (btSensorStopFunction > 0 && btSensorStopDelay > 0 && millis() > btSensorStopDelay)
+        {
+          btSensorStopDelay = 0;
+          btSensorAction = SpdUp;
+          if (btMotorPort == BtPortA)
+            btPortASpd = btSensorStopSavedSpd;
+          else
+            btPortBSpd = btSensorStopSavedSpd;
+
+          // also show press for sensor button
+          for (int i = 0; i < buttonCount; i++)
+          {
+            if (buttons[i].action == Brake && buttons[i].port == btSensorPort)
+            {
+              buttons[i].pressed = true;
+              break;
+            }
+          }
+          return; // TODO: make sure OK
+        }
       }
     }
   }

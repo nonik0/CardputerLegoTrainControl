@@ -115,22 +115,26 @@ inline void draw_speeddn_symbol(M5Canvas *canvas, int x, int y)
   canvas->fillTriangle(x, y + h / 2, x + w, y - h / 2, x - w, y - h / 2, TFT_SILVER);
 }
 
-inline void draw_color_symbol(M5Canvas *canvas, int x, int y, const int &color)
+inline void draw_color_symbol(M5Canvas *canvas, int x, int y, Color color)
 {
   int w = 17;
-  canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, color);
+  if (color != Color::NONE)
+    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
 }
 
-inline void draw_sensor_stop_symbol(M5Canvas *canvas, int x, int y, const int &color, uint8_t stopFunction)
+inline void draw_sensor_stop_symbol(M5Canvas *canvas, int x, int y, Color color, uint8_t stopFunction)
 {
   int w = 17;
-  canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, color);
-  if (stopFunction > 0)
+  if (color != Color::NONE)
   {
-    canvas->setTextColor(TFT_SILVER, color);
-    canvas->setTextDatum(middle_center);
-    canvas->setTextSize(1);
-    canvas->drawString(String(stopFunction), x + 1, y + 1);
+    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
+    if (stopFunction > 0)
+    {
+      canvas->setTextColor(TFT_SILVER, BtColors[color]);
+      canvas->setTextDatum(middle_center);
+      canvas->setTextSize(1);
+      canvas->drawString(String(stopFunction), x + 1, y + 1);
+    }
   }
 }
 
@@ -162,17 +166,17 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     break;
   case Action::SpdUp:
     button.port == state.btSensorPort
-        ? draw_color_symbol(canvas, x, y, TFT_GREEN)
+        ? draw_color_symbol(canvas, x, y, state.btSensorSpdUpColor)
         : draw_speedup_symbol(canvas, x, y);
     break;
   case Action::Brake:
     button.port == state.btSensorPort
-        ? draw_sensor_stop_symbol(canvas, x, y, TFT_RED, state.btSensorStopFunction)
+        ? draw_sensor_stop_symbol(canvas, x, y, state.btSensorStopColor, state.btSensorStopFunction)
         : draw_stop_symbol(canvas, x, y);
     break;
   case Action::SpdDn:
     button.port == state.btSensorPort
-        ? draw_color_symbol(canvas, x, y, TFT_YELLOW)
+        ? draw_color_symbol(canvas, x, y, state.btSensorSpdDnColor)
         : draw_speeddn_symbol(canvas, x, y);
     break;
   default:
