@@ -48,7 +48,7 @@ Color btSensorSpdDnColor = Color::YELLOW;
 uint8_t btSensorStopFunction = 0; // 0=infinite, >0=wait time in seconds
 unsigned long btSensorStopDelay = 0;
 short btSensorStopSavedSpd = 0; // saved speed before stopping
-
+// TODO: disable sensor actions
 volatile bool redraw = false;
 
 // IR train control state
@@ -134,6 +134,17 @@ bool isIgnoredColor(Color color)
   return false;
 }
 
+inline void resumeTrainMotion()
+{
+  btSensorStopDelay = 0;
+  btSensorAction = btSensorStopSavedSpd > 0 ? SpdUp : SpdDn;
+  short btSpdAdjust = btSensorStopSavedSpd > 0 ? -BtSpdInc : BtSpdInc;
+  if (btMotorPort == BtPortA)
+    btPortASpd = btSensorStopSavedSpd + btSpdAdjust;
+  else
+    btPortBSpd = btSensorStopSavedSpd + btSpdAdjust;
+}
+
 void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 {
   Lpf2Hub *myHub = (Lpf2Hub *)hub;
@@ -150,12 +161,7 @@ void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
   {
     if (btSensorStopDelay > 0)
     {
-      btSensorStopDelay = 0;
-      btSensorAction = SpdUp;
-      if (btMotorPort == BtPortA)
-        btPortASpd = btSensorStopSavedSpd;
-      else
-        btPortBSpd = btSensorStopSavedSpd;
+      resumeTrainMotion();
 
       // for (int i = 0; i < buttonCount; i++)
       // {
@@ -191,23 +197,20 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
     return;
   }
 
-  USBSerial.print("Color: ");
-  USBSerial.println(LegoinoCommon::ColorStringFromColor(color).c_str());
-
   btSensorColor = color;
   btSensorDebounce = millis() + 200;
   redraw = true;
 
-  // ignore "ground" or noisy colors: TODO: configurable colors to ignore, dependent on env
+  // ignore "ground" or noisy colors
   if (isIgnoredColor(color))
   {
     return;
   }
 
-  btLedColor = color; // TODO: what to do for buttons/leds/indicators?
+  btLedColor = color;
   trainCtl->setLedColor(color);
 
-  // trigger actions for specific colors, TODO: configurable colors?
+  // trigger actions for specific colors
   Action action;
   if (color == btSensorSpdUpColor)
   {
@@ -215,11 +218,10 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
   }
   else if (color == btSensorStopColor)
   {
+    // resumed by calling resumeTrainMotion() after delay
     btSensorAction = Brake;
-    // setup trigger to start again after a delay
     btSensorStopDelay = millis() + btSensorStopFunction * 1000;
     btSensorStopSavedSpd = btMotorPort == BtPortA ? btPortASpd : btPortBSpd;
-    btSensorStopSavedSpd -= BtSpdInc; // account for increment
   }
   else if (color == btSensorSpdDnColor)
   {
@@ -277,14 +279,10 @@ void btConnectionToggle()
 
     if (btTrainCtl.isConnecting() && btTrainCtl.connectHub())
     {
-      // if first time connecting, wait a bit otherwise won't work
       btInit = true;
-      btLedColor = (Color)(millis() % Color::NUM_COLORS); // ranoom color
-      if (btLedColorDelay == 0)
-        btLedColorDelay = millis() + BtColorInitWait;
-      else
-        btTrainCtl.setLedColor(btLedColor);
-
+      btLedColor = (Color)(millis() % Color::NUM_COLORS); // "random" color
+      btLedColorDelay = millis() + BtColorInitWait; // hacky but delayed color set (do now and later)
+      btTrainCtl.setLedColor(btLedColor);
       btTrainCtl.activateHubPropertyUpdate(HubPropertyReference::BUTTON, buttonCallback);
     }
 
@@ -318,10 +316,18 @@ void handle_button_press(Button *button)
     btConnectionToggle();
     break;
   case BtColor:
-    // can change colors while not connected to choose initial color
-    btLedColor = (Color)((btLedColor + 1) % Color::NUM_COLORS);
-    if (btTrainCtl.isConnected())
-      btTrainCtl.setLedColor(btLedColor);
+    // function like hub button
+    if (btSensorStopDelay > 0)
+    {
+      resumeTrainMotion();
+    }
+    else
+    {
+      // can change colors while not connected to choose initial color
+      btLedColor = (Color)((btLedColor + 1) % Color::NUM_COLORS);
+      if (btTrainCtl.isConnected())
+        btTrainCtl.setLedColor(btLedColor);
+    }
     break;
   case IrChannel:
     irChannel = (irChannel + 1) % 4;
@@ -678,7 +684,7 @@ void loop()
     }
   }
 
-  // sensor triggered action
+  // sensor or button triggered action
   if (btSensorAction != NoAction || btButtonAction != NoAction)
   {
     for (int i = 0; i < buttonCount; i++)
@@ -743,19 +749,14 @@ void loop()
 
         if (btLedColorDelay > 0 && millis() > btLedColorDelay && btTrainCtl.isConnected())
         {
-          btLedColorDelay = -1;
+          btLedColorDelay = 0;
           btTrainCtl.setLedColor(btLedColor);
         }
 
         // bt sensor delayed start after stop
         if (btSensorStopFunction > 0 && btSensorStopDelay > 0 && millis() > btSensorStopDelay)
         {
-          btSensorStopDelay = 0;
-          btSensorAction = SpdUp;
-          if (btMotorPort == BtPortA)
-            btPortASpd = btSensorStopSavedSpd;
-          else
-            btPortBSpd = btSensorStopSavedSpd;
+          resumeTrainMotion();
 
           // also show press for sensor button
           for (int i = 0; i < buttonCount; i++)
