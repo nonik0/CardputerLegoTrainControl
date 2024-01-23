@@ -19,7 +19,7 @@ Port B control|r, d, x
 Port control actions are the speed up, stop, and speed down actions, respectively.
 
 ### Bluetooth Control with Sensor:
-Sensor Function|Default Color|Key Mapping
+Button Function|Default Color|Sensor Function
 ---|---|---
 Speed Up|green|Increment motor speed, TBD
 Stop|red|stop until interrupt (button on train or LED key), wait 2s/5s/10s and continue
@@ -27,7 +27,7 @@ Speed Down|yellow|Decrement motor speed, TBD
 
 When a distance/color sensor is plugged into the hub, it will be auto-detected. The corresponding buttons for the sensor's port will change to the colors that trigger the sensor functions. Pressing the button for the sensor function will toggle the function (i.e. if sensor is on channel B, pressing 'd' key will toggle the sensor's stop function). The trigger colors can also be changed by holding the fn key and pressing a sensor function button (e.g. if sensor is on port B, press fn+d to change sensor stop function's trigger color)
 
-###IR Control:
+### IR Control:
 Function|Key Mapping
 ---|---
 Red Port Control|i, j, n
