@@ -9,6 +9,7 @@ Thanks to the [Legoino library](https://github.com/corneliusmunz/legoino) for ma
 The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard to aid memory.
 
 ### Bluetooth Control:
+![btControl](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/5bf50171-f444-4a10-8230-2677134f0437)
 Function|Key Mapping
 ---|---
 BT toggle connection|esc
@@ -19,6 +20,7 @@ Port B control|r, d, x
 Port control actions are the speed up, stop, and speed down actions, respectively.
 
 ### Bluetooth Control with Sensor:
+![btControlWithSensor](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/c2dd324b-3905-4366-8ffa-ee84e73a4140)
 Button Function|Default Color|Sensor Function
 ---|---|---
 Speed Up|green|Increment motor speed, TBD
@@ -28,6 +30,7 @@ Speed Down|yellow|Decrement motor speed, TBD
 When a distance/color sensor is plugged into the hub, it will be auto-detected. The corresponding buttons for the sensor's port will change to the colors that trigger the sensor functions. Pressing the button for the sensor function will toggle the function (i.e. if sensor is on channel B, pressing 'd' key will toggle the sensor's stop function). The trigger colors can also be changed by holding the fn key and pressing a sensor function button (e.g. if sensor is on port B, press fn+d to change sensor stop function's trigger color)
 
 ### IR Control:
+![irControl](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/73e08288-a04e-4e22-aecf-69632ee6648b)
 Function|Key Mapping
 ---|---
 Red Port Control|i, j, n
