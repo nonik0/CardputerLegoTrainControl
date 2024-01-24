@@ -612,7 +612,7 @@ void draw()
   canvas.setTextColor(TFT_SILVER, COLOR_DARKGRAY);
   canvas.setTextDatum(middle_center);
   canvas.setTextSize(1.25);
-  canvas.drawString("Lego Train Remote", w / 2, hy + hh / 2);
+  canvas.drawString("Lego Train Control", w / 2, hy + hh / 2);
 
   canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas.setTextSize(1.8);
