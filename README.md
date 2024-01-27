@@ -38,3 +38,12 @@ Blue Port Control|o, k, n
 Switch Channel|ok/enter
 
 Port control actions are the speed up, stop, and speed down actions, respectively.
+
+## Ideas
+- track speed to increment speed as battery voltage falls
+-- use calibration tiles and measure time between
+-- track average period between colors/actions
+- toggle to replace IR with second BT control
+- secondary device for making train noises (M5 Atom Echo + battery?)
+- add support for controlling 2 BT trains
+-- longer term potentially connect to several devices, can "page" through connected remotes, showing two at time, or more potentially? great for controlling whole setup with switches, multiple trains, etc.

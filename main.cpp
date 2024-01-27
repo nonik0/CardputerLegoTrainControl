@@ -14,6 +14,9 @@ unsigned short COLOR_GREYORANGEDIM = interpolateColors(COLOR_LIGHTGRAY, COLOR_OR
 unsigned short COLOR_GREYORANGEBRIGHT = interpolateColors(COLOR_LIGHTGRAY, COLOR_ORANGE, 75);
 
 M5Canvas canvas(&M5Cardputer.Display);
+uint8_t brightness = 100;
+unsigned long lastKeyPressMillis = 0;
+const unsigned long KeyboardDebounce = 200;
 
 // bluetooth train control constants
 const byte BtPortA = (byte)PoweredUpHubPort::A;
@@ -22,23 +25,26 @@ const int BtMaxSpeed = 100;
 const short BtSpdInc = 10; // TODO configurable
 const short BtConnWait = 100;
 const short BtColorInitWait = 500;
+const int BtInactiveTimeoutMs = 5 * 60 * 1000;
+const short BtDistanceStopThreshold = 100; // when train is "picked up"
 
 // hub state
 Lpf2Hub btTrainCtl;
 bool btInit = false;
 short btPortASpd = 0;
 short btPortBSpd = 0;
-unsigned long btDisconnectDelay; // debounce disconnects
-volatile Action btButtonAction = NoAction;
+unsigned long btDisconnectDelay;    // debounce disconnects
 unsigned long btButtonDebounce = 0; // debounce button presses
 volatile Color btLedColor = Color::ORANGE;
 unsigned short btLedColorDelay = 0;
+unsigned long btLastAction = 0; // track for auto-disconnect
+volatile Action btAutoAction = NoAction;
 
 // color/distance sensor
 bool btSensorInit = false;
 byte btSensorPort = NO_SENSOR_FOUND; // set to A or B if detected
 byte btMotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if detected
-volatile Action btSensorAction = NoAction;
+short distanceMovingAverage = 0;
 volatile Color btSensorColor = Color::NONE; // detected color by sensor
 unsigned long btSensorDebounce = 0;         // debounce sensor color changes
 Color btSensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
@@ -48,7 +54,6 @@ Color btSensorSpdDnColor = Color::YELLOW;
 uint8_t btSensorStopFunction = 0; // 0=infinite, >0=wait time in seconds
 unsigned long btSensorStopDelay = 0;
 short btSensorStopSavedSpd = 0; // saved speed before stopping
-// TODO: disable sensor actions
 volatile bool redraw = false;
 
 // IR train control state
@@ -137,7 +142,7 @@ bool isIgnoredColor(Color color)
 inline void resumeTrainMotion()
 {
   btSensorStopDelay = 0;
-  btSensorAction = btSensorStopSavedSpd > 0 ? SpdUp : SpdDn;
+  btAutoAction = btSensorStopSavedSpd > 0 ? SpdUp : SpdDn;
   short btSpdAdjust = btSensorStopSavedSpd > 0 ? -BtSpdInc : BtSpdInc;
   if (btMotorPort == BtPortA)
     btPortASpd = btSensorStopSavedSpd + btSpdAdjust;
@@ -163,18 +168,18 @@ void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
     {
       resumeTrainMotion();
 
-      // for (int i = 0; i < buttonCount; i++)
-      // {
-      //   if (buttons[i].action == BtColor)
-      //   {
-      //     buttons[i].pressed = true;
-      //     break;
-      //   }
-      // }
+      for (int i = 0; i < buttonCount; i++)
+      {
+        if (buttons[i].action == BtColor)
+        {
+          buttons[i].pressed = true;
+          break;
+        }
+      }
     }
     else
     {
-      btButtonAction = BtColor;
+      btAutoAction = BtColor;
     }
   }
 }
@@ -191,8 +196,22 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
   int distance = trainCtl->parseDistance(pData);
   Color color = static_cast<Color>(trainCtl->parseColor(pData));
 
+  // track moving average of distance to random noisy spikes, turn off motor if not on track
+  distanceMovingAverage = (distanceMovingAverage * 3 + distance) >> 2; // I bet compiler does this anyway for dividing by 4
+  if (distanceMovingAverage > BtDistanceStopThreshold &&
+      (btMotorPort == BtPortA && btPortASpd != 0 ||
+       btMotorPort == BtPortB && btPortBSpd != 0))
+  {
+    USBSerial.println("off track, distance moving avg: " + String(distance));
+
+    btAutoAction = Brake;
+    btSensorStopDelay = 0;
+    btSensorStopSavedSpd = 0;
+    return;
+  }
+
   // filter noise
-  if (color == btSensorColor || distance > 35 || millis() < btSensorDebounce)
+  if (color == btSensorColor || millis() < btSensorDebounce)
   {
     return;
   }
@@ -214,18 +233,21 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
   Action action;
   if (color == btSensorSpdUpColor)
   {
-    btSensorAction = SpdUp;
+    USBSerial.println("bt action: spdup");
+    btAutoAction = SpdUp;
   }
   else if (color == btSensorStopColor)
   {
     // resumed by calling resumeTrainMotion() after delay
-    btSensorAction = Brake;
+    USBSerial.println("bt action: brake");
+    btAutoAction = Brake;
     btSensorStopDelay = millis() + btSensorStopFunction * 1000;
     btSensorStopSavedSpd = btMotorPort == BtPortA ? btPortASpd : btPortBSpd;
   }
   else if (color == btSensorSpdDnColor)
   {
-    btSensorAction = SpdDn;
+    USBSerial.println("bt action: spddn");
+    btAutoAction = SpdDn;
   }
   else
   {
@@ -235,7 +257,7 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
   // also show press for sensor button
   for (int i = 0; i < buttonCount; i++)
   {
-    if (buttons[i].action == btSensorAction && buttons[i].port == btSensorPort)
+    if (buttons[i].action == btAutoAction && buttons[i].port == btSensorPort)
     {
       buttons[i].pressed = true;
       break;
@@ -281,7 +303,7 @@ void btConnectionToggle()
     {
       btInit = true;
       btLedColor = (Color)(millis() % Color::NUM_COLORS); // "random" color
-      btLedColorDelay = millis() + BtColorInitWait; // hacky but delayed color set (do now and later)
+      btLedColorDelay = millis() + BtColorInitWait;       // hacky but delayed color set (do now and later)
       btTrainCtl.setLedColor(btLedColor);
       btTrainCtl.activateHubPropertyUpdate(HubPropertyReference::BUTTON, buttonCallback);
     }
@@ -324,7 +346,7 @@ void handle_button_press(Button *button)
     else
     {
       // can change colors while not connected to choose initial color
-      btLedColor = (Color)((btLedColor + 1) % Color::NUM_COLORS);
+      btLedColor = (Color)(1 + (btLedColor + 1) % (Color::NUM_COLORS - 1)); // skip black=0
       if (btTrainCtl.isConnected())
         btTrainCtl.setLedColor(btLedColor);
     }
@@ -555,6 +577,7 @@ unsigned short get_button_color(Button *button)
 
   if (btSensorPort == button->port)
   {
+    // TODO: try button with different background color
     return button->color;
   }
 
@@ -655,7 +678,7 @@ void setup()
   checkForMenuBoot();
 
   M5Cardputer.Display.setRotation(1);
-  M5Cardputer.Display.setBrightness(100);
+  M5Cardputer.Display.setBrightness(brightness);
   canvas.createSprite(w, h);
 
   // workaround for Legoino PowerFunctions ctor (don't want to put on heap)
@@ -672,8 +695,10 @@ void loop()
   bool actionTaken = false;
 
   // keyboard triggered action
-  if (M5Cardputer.Keyboard.isChange())
+  if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed() && millis() - lastKeyPressMillis > KeyboardDebounce)
   {
+    lastKeyPressMillis = millis();
+
     for (int i = 0; i < buttonCount; i++)
     {
       if (M5Cardputer.Keyboard.isKeyPressed(buttons[i].key))
@@ -682,23 +707,26 @@ void loop()
         actionTaken = true;
       }
     }
+
+    if (M5Cardputer.Keyboard.isKeyPressed('.') || M5Cardputer.Keyboard.isKeyPressed(';'))
+    {
+      brightness = M5Cardputer.Keyboard.isKeyPressed('.')
+                       ? max(0, brightness - 10)
+                       : min(100, brightness + 10);
+      USBSerial.println("brightness: " + String(brightness));
+      M5Cardputer.Display.setBrightness(brightness);
+    }
   }
 
   // sensor or button triggered action
-  if (btSensorAction != NoAction || btButtonAction != NoAction)
+  if (btAutoAction != NoAction)
   {
     for (int i = 0; i < buttonCount; i++)
     {
-      if (btSensorAction == buttons[i].action && btMotorPort == buttons[i].port)
+      if (buttons[i].action == btAutoAction && (buttons[i].port == None || buttons[i].port == btMotorPort))
       {
         handle_button_press(&buttons[i]);
-        btSensorAction = NoAction;
-        actionTaken = true;
-      }
-      else if (btButtonAction == buttons[i].action)
-      {
-        handle_button_press(&buttons[i]);
-        btButtonAction = NoAction;
+        btAutoAction = NoAction;
         actionTaken = true;
       }
     }
@@ -712,6 +740,7 @@ void loop()
     for (int i = 0; i < buttonCount; i++)
       buttons[i].pressed = false;
     redraw = true;
+    btLastAction = millis();
   }
 
   // update loop for system bar redraws, etc
@@ -768,6 +797,14 @@ void loop()
             }
           }
           return; // TODO: make sure OK
+        }
+
+        if (millis() - btLastAction > BtInactiveTimeoutMs &&
+            (btMotorPort == BtPortA && btPortASpd == 0 ||
+             btMotorPort == BtPortB && btPortBSpd == 0))
+        {
+          btConnectionToggle();
+          redraw = true;
         }
       }
     }
