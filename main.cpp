@@ -346,7 +346,10 @@ void handle_button_press(Button *button)
     else
     {
       // can change colors while not connected to choose initial color
-      btLedColor = (Color)(1 + (btLedColor + 1) % (Color::NUM_COLORS - 1)); // skip black=0
+      btLedColor = (btLedColor == Color(1))
+                       ? Color(Color::NUM_COLORS - 1)
+                       : (Color)(btLedColor - 1);
+      USBSerial.println("bt color: " + String(btLedColor));
       if (btTrainCtl.isConnected())
         btTrainCtl.setLedColor(btLedColor);
     }
@@ -370,7 +373,9 @@ void handle_button_press(Button *button)
         {
           do
           {
-            btSensorSpdUpColor = (Color)((btSensorSpdUpColor + 1) % Color::NUM_COLORS);
+            btSensorSpdUpColor = (btSensorSpdUpColor == Color::BLACK)
+                                     ? Color(Color::NUM_COLORS - 1)
+                                     : (Color)(btSensorSpdUpColor - 1);
           } while (isIgnoredColor(btSensorSpdUpColor) || btSensorSpdUpColor == btSensorSpdDnColor || btSensorSpdUpColor == btSensorStopColor);
         }
       }
@@ -389,7 +394,9 @@ void handle_button_press(Button *button)
         {
           do
           {
-            btSensorSpdUpColor = (Color)((btSensorSpdUpColor + 1) % Color::NUM_COLORS);
+            btSensorSpdUpColor = (btSensorSpdUpColor == Color::BLACK)
+                                     ? Color(Color::NUM_COLORS - 1)
+                                     : (Color)(btSensorSpdUpColor - 1);
           } while (isIgnoredColor(btSensorSpdUpColor) || btSensorSpdUpColor == btSensorSpdDnColor || btSensorSpdUpColor == btSensorStopColor);
         }
       }
@@ -437,7 +444,9 @@ void handle_button_press(Button *button)
         {
           do
           {
-            btSensorStopColor = (Color)((btSensorStopColor + 1) % Color::NUM_COLORS);
+            btSensorStopColor = (btSensorStopColor == Color::BLACK)
+                                    ? Color(Color::NUM_COLORS - 1)
+                                    : (Color)(btSensorStopColor - 1);
           } while (isIgnoredColor(btSensorStopColor) || btSensorStopColor == btSensorSpdUpColor || btSensorStopColor == btSensorSpdDnColor);
         }
         else
@@ -467,7 +476,9 @@ void handle_button_press(Button *button)
         {
           do
           {
-            btSensorStopColor = (Color)((btSensorStopColor + 1) % Color::NUM_COLORS);
+            btSensorStopColor = (btSensorStopColor == Color::BLACK)
+                                    ? Color(Color::NUM_COLORS - 1)
+                                    : (Color)(btSensorStopColor - 1);
           } while (isIgnoredColor(btSensorStopColor) || btSensorStopColor == btSensorSpdUpColor || btSensorStopColor == btSensorSpdDnColor);
         }
         else
@@ -510,7 +521,9 @@ void handle_button_press(Button *button)
         {
           do
           {
-            btSensorSpdDnColor = (Color)((btSensorSpdDnColor + 1) % Color::NUM_COLORS);
+            btSensorSpdDnColor = (btSensorSpdDnColor == Color::BLACK)
+                                     ? Color(Color::NUM_COLORS - 1)
+                                     : (Color)(btSensorSpdDnColor - 1);
           } while (isIgnoredColor(btSensorSpdDnColor) || btSensorSpdDnColor == btSensorSpdUpColor || btSensorSpdDnColor == btSensorStopColor);
         }
       }
@@ -529,7 +542,9 @@ void handle_button_press(Button *button)
         {
           do
           {
-            btSensorSpdDnColor = (Color)((btSensorSpdDnColor + 1) % Color::NUM_COLORS);
+            btSensorSpdDnColor = (btSensorSpdDnColor == Color::BLACK)
+                                     ? Color(Color::NUM_COLORS - 1)
+                                     : (Color)(btSensorSpdDnColor - 1);
           } while (isIgnoredColor(btSensorSpdDnColor) || btSensorSpdDnColor == btSensorSpdUpColor || btSensorSpdDnColor == btSensorStopColor);
         }
       }
