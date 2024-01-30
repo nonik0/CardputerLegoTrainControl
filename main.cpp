@@ -19,8 +19,6 @@ unsigned long lastKeyPressMillis = 0;
 const unsigned long KeyboardDebounce = 200;
 
 // bluetooth train control constants
-const byte BtPortA = (byte)PoweredUpHubPort::A;
-const byte BtPortB = (byte)PoweredUpHubPort::B;
 const int BtMaxSpeed = 100;
 const short BtSpdInc = 10; // TODO configurable
 const short BtConnWait = 100;
@@ -31,8 +29,7 @@ const short BtDistanceStopThreshold = 100; // when train is "picked up"
 Lpf2Hub btTrainCtl;
 bool btInit = false;
 volatile int btRssi = -1000;
-short btPortASpd = 0;
-short btPortBSpd = 0;
+short btPortSpeed[2] = {0, 0};
 unsigned long btDisconnectDelay;    // debounce disconnects
 unsigned long btButtonDebounce = 0; // debounce button presses
 volatile Color btLedColor = Color::ORANGE;
@@ -59,15 +56,12 @@ short btSensorStopSavedSpd = 0; // saved speed before stopping
 volatile bool redraw = false;
 
 // IR train control state
-const PowerFunctionsPort IrPortR = PowerFunctionsPort::RED;
-const PowerFunctionsPort IrPortB = PowerFunctionsPort::BLUE;
 const int IrMaxSpeed = 105;
 const short IrSpdInc = 15; // hacky but to match 7 levels
 PowerFunctions irTrainCtl(IR_TX_PIN);
 bool irTrackState = false;
 byte irChannel = 0;
-short irPortRSpd = 0;
-short irPortBSpd = 0;
+short irPortSpeed[2] = {0, 0};
 
 // system bar state
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
@@ -112,22 +106,22 @@ int irw = 3 * bw + im + 3 * om;
 int irh = rh - im - om;
 
 Button buttons[] = {
-    {'`', c1, (r1 + r2) / 2, bw, bw, None, BtConnection, COLOR_LIGHTGRAY, false},
-    {KEY_TAB, c1, (r2 + r3) / 2, bw, bw, None, BtColor, COLOR_LIGHTGRAY, false},
-    {'e', c2, r1, bw, bw, BtA, SpdUp, COLOR_LIGHTGRAY, false},
-    {'s', c2, r2, bw, bw, BtA, Brake, COLOR_LIGHTGRAY, false},
-    {'z', c2, r3, bw, bw, BtA, SpdDn, COLOR_LIGHTGRAY, false},
-    {'r', c3, r1, bw, bw, BtB, SpdUp, COLOR_LIGHTGRAY, false},
-    {'d', c3, r2, bw, bw, BtB, Brake, COLOR_LIGHTGRAY, false},
-    {'x', c3, r3, bw, bw, BtB, SpdDn, COLOR_LIGHTGRAY, false},
-    {'i', c4, r1, bw, bw, IrR, SpdUp, COLOR_LIGHTGRAY, false},
-    {'j', c4, r2, bw, bw, IrR, Brake, COLOR_LIGHTGRAY, false},
-    {'n', c4, r3, bw, bw, IrR, SpdDn, COLOR_LIGHTGRAY, false},
-    {'o', c5, r1, bw, bw, IrB, SpdUp, COLOR_LIGHTGRAY, false},
-    {'k', c5, r2, bw, bw, IrB, Brake, COLOR_LIGHTGRAY, false},
-    {'m', c5, r3, bw, bw, IrB, SpdDn, COLOR_LIGHTGRAY, false},
-    {KEY_BACKSPACE, 0, 0, 0, 0, None, IrTrackState, COLOR_LIGHTGRAY, false},
-    {KEY_ENTER, c6, r2, bw, bw, None, IrChannel, COLOR_LIGHTGRAY, false},
+    {'`', c1, (r1 + r2) / 2, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {KEY_TAB, c1, (r2 + r3) / 2, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtColor, COLOR_LIGHTGRAY, false},
+    {'e', c2, r1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
+    {'s', c2, r2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
+    {'z', c2, r3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {'r', c3, r1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
+    {'d', c3, r2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, Brake, COLOR_LIGHTGRAY, false},
+    {'x', c3, r3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdDn, COLOR_LIGHTGRAY, false},
+    {'i', c4, r1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdUp, COLOR_LIGHTGRAY, false},
+    {'j', c4, r2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, Brake, COLOR_LIGHTGRAY, false},
+    {'n', c4, r3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdDn, COLOR_LIGHTGRAY, false},
+    {'o', c5, r1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdUp, COLOR_LIGHTGRAY, false},
+    {'k', c5, r2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, Brake, COLOR_LIGHTGRAY, false},
+    {'m', c5, r3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdDn, COLOR_LIGHTGRAY, false},
+    {KEY_BACKSPACE, 0, 0, 0, 0, RemoteDevice::PowerFunctionsIR, 0xFF, IrTrackState, COLOR_LIGHTGRAY, false},
+    {KEY_ENTER, c6, r2, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
 };
 uint8_t buttonCount = sizeof(buttons) / sizeof(Button);
 
@@ -146,10 +140,7 @@ inline void resumeTrainMotion()
   btSensorStopDelay = 0;
   btAutoAction = btSensorStopSavedSpd > 0 ? SpdUp : SpdDn;
   short btSpdAdjust = btSensorStopSavedSpd > 0 ? -BtSpdInc : BtSpdInc;
-  if (btMotorPort == BtPortA)
-    btPortASpd = btSensorStopSavedSpd + btSpdAdjust;
-  else
-    btPortBSpd = btSensorStopSavedSpd + btSpdAdjust;
+  btPortSpeed[btMotorPort] = btSensorStopSavedSpd + btSpdAdjust;
 }
 
 void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
@@ -220,9 +211,7 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
 
   // track moving average of distance to random noisy spikes, turn off motor if not on track
   distanceMovingAverage = (distanceMovingAverage * 3 + distance) >> 2; // I bet compiler does this anyway for dividing by 4
-  if (distanceMovingAverage > BtDistanceStopThreshold &&
-      (btMotorPort == BtPortA && btPortASpd != 0 ||
-       btMotorPort == BtPortB && btPortBSpd != 0))
+  if (distanceMovingAverage > BtDistanceStopThreshold && btPortSpeed[btMotorPort] != 0)
   {
     log_w("off track, distance moving avg: %d", distance);
 
@@ -264,7 +253,7 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
     log_i("bt action: brake");
     btAutoAction = Brake;
     btSensorStopDelay = millis() + btSensorStopFunction * 1000;
-    btSensorStopSavedSpd = btMotorPort == BtPortA ? btPortASpd : btPortBSpd;
+    btSensorStopSavedSpd = btPortSpeed[btMotorPort];
   }
   else if (color == btSensorSpdDnColor)
   {
@@ -337,7 +326,7 @@ void btConnectionToggle()
     delay(200);
     btInit = false;
     btSensorInit = false;
-    btPortASpd = btPortBSpd = 0;
+    btPortSpeed[0] = btPortSpeed[1] = 0;
     btMotorPort = NO_SENSOR_FOUND;
     btSensorPort = NO_SENSOR_FOUND;
     btSensorSpdUpColor = Color::GREEN;
@@ -380,223 +369,100 @@ void handle_button_press(Button *button)
     break;
   case IrTrackState:
     irTrackState = !irTrackState;
-    irPortRSpd = irPortBSpd = 0;
+    irPortSpeed[(byte)PowerFunctionsPort::RED] = 0;
+    irPortSpeed[(byte)PowerFunctionsPort::BLUE] = 0;
     break;
   case SpdUp:
-    switch (button->port)
-    {
-    case BtA:
-      if (!btTrainCtl.isConnected())
-        break;
-      if (btSensorPort == BtPortA)
-      {
-        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
-        {
-          do
-          {
-            btSensorSpdUpColor = (btSensorSpdUpColor == Color::BLACK)
-                                     ? Color(Color::NUM_COLORS - 1)
-                                     : (Color)(btSensorSpdUpColor - 1);
-          } while (isIgnoredColor(btSensorSpdUpColor) || btSensorSpdUpColor == btSensorSpdDnColor || btSensorSpdUpColor == btSensorStopColor);
-        }
-      }
-      else
-      {
-        btPortASpd = min(BtMaxSpeed, btPortASpd + BtSpdInc);
-        btTrainCtl.setBasicMotorSpeed(BtPortA, btPortASpd);
-      }
-      break;
-    case BtB:
-      if (!btTrainCtl.isConnected())
-        break;
-      if (btSensorPort == BtPortB)
-      {
-        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
-        {
-          do
-          {
-            btSensorSpdUpColor = (btSensorSpdUpColor == Color::BLACK)
-                                     ? Color(Color::NUM_COLORS - 1)
-                                     : (Color)(btSensorSpdUpColor - 1);
-          } while (isIgnoredColor(btSensorSpdUpColor) || btSensorSpdUpColor == btSensorSpdDnColor || btSensorSpdUpColor == btSensorStopColor);
-        }
-      }
-      else
-      {
-        btPortBSpd = min(BtMaxSpeed, btPortBSpd + BtSpdInc);
-        btTrainCtl.setBasicMotorSpeed(BtPortB, btPortBSpd);
-      }
-      break;
-    case IrR:
-      irPortRSpd = min(IrMaxSpeed, irPortRSpd + IrSpdInc);
-      if (irTrackState)
-      {
-        pwm = irTrainCtl.speedToPwm(irPortRSpd);
-        irTrainCtl.single_pwm(IrPortR, pwm, irChannel);
-      }
-      else
-      {
-        irTrainCtl.single_increment(IrPortR, irChannel);
-      }
-      break;
-    case IrB:
-      irPortBSpd = min(IrMaxSpeed, irPortBSpd + IrSpdInc);
-      if (irTrackState)
-      {
-        pwm = irTrainCtl.speedToPwm(irPortBSpd);
-        irTrainCtl.single_pwm(IrPortB, pwm, irChannel);
-      }
-      else
-      {
-        irTrainCtl.single_increment(IrPortB, irChannel);
-      }
-      break;
-    }
-    break;
   case Brake:
-    switch (button->port)
-    {
-    case BtA:
-      if (!btTrainCtl.isConnected())
-        break;
-      if (btSensorPort == BtPortA)
-      {
-        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
-        {
-          do
-          {
-            btSensorStopColor = (btSensorStopColor == Color::BLACK)
-                                    ? Color(Color::NUM_COLORS - 1)
-                                    : (Color)(btSensorStopColor - 1);
-          } while (isIgnoredColor(btSensorStopColor) || btSensorStopColor == btSensorSpdUpColor || btSensorStopColor == btSensorSpdDnColor);
-        }
-        else
-        {
-          if (btSensorStopFunction == 0)
-            btSensorStopFunction = 2;
-          else if (btSensorStopFunction == 2)
-            btSensorStopFunction = 5;
-          else if (btSensorStopFunction == 5)
-            btSensorStopFunction = 10;
-          else
-            btSensorStopFunction = 0;
-        }
-      }
-      else
-      {
-        btPortASpd = 0;
-        btTrainCtl.stopBasicMotor(BtPortA);
-      }
-      break;
-    case BtB:
-      if (!btTrainCtl.isConnected())
-        break;
-      if (btSensorPort == BtPortB)
-      {
-        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
-        {
-          do
-          {
-            btSensorStopColor = (btSensorStopColor == Color::BLACK)
-                                    ? Color(Color::NUM_COLORS - 1)
-                                    : (Color)(btSensorStopColor - 1);
-          } while (isIgnoredColor(btSensorStopColor) || btSensorStopColor == btSensorSpdUpColor || btSensorStopColor == btSensorSpdDnColor);
-        }
-        else
-        {
-          if (btSensorStopFunction == 0)
-            btSensorStopFunction = 2;
-          else if (btSensorStopFunction == 2)
-            btSensorStopFunction = 5;
-          else if (btSensorStopFunction == 5)
-            btSensorStopFunction = 10;
-          else
-            btSensorStopFunction = 0;
-        }
-      }
-      else
-      {
-        btPortBSpd = 0;
-        btTrainCtl.stopBasicMotor(BtPortB);
-      }
-      break;
-    case IrR:
-      irPortRSpd = 0;
-      irTrainCtl.single_pwm(IrPortR, PowerFunctionsPwm::BRAKE, irChannel);
-      break;
-    case IrB:
-      irPortBSpd = 0;
-      irTrainCtl.single_pwm(IrPortB, PowerFunctionsPwm::BRAKE, irChannel);
-      break;
-    }
-    break;
   case SpdDn:
-    switch (button->port)
+    switch (button->device)
     {
-    case BtA:
+    case RemoteDevice::PoweredUpHub:
       if (!btTrainCtl.isConnected())
         break;
-      if (btSensorPort == BtPortA)
+
+      if (button->port == btSensorPort)
       {
         if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
         {
-          do
+          switch (button->action)
           {
-            btSensorSpdDnColor = (btSensorSpdDnColor == Color::BLACK)
-                                     ? Color(Color::NUM_COLORS - 1)
-                                     : (Color)(btSensorSpdDnColor - 1);
-          } while (isIgnoredColor(btSensorSpdDnColor) || btSensorSpdDnColor == btSensorSpdUpColor || btSensorSpdDnColor == btSensorStopColor);
+          case SpdUp:
+            do
+            {
+              btSensorSpdUpColor = (btSensorSpdUpColor == Color::BLACK)
+                                       ? Color(Color::NUM_COLORS - 1)
+                                       : (Color)(btSensorSpdUpColor - 1);
+            } while (isIgnoredColor(btSensorSpdUpColor) || btSensorSpdUpColor == btSensorSpdDnColor || btSensorSpdUpColor == btSensorStopColor);
+            break;
+          case Brake:
+            do
+            {
+              btSensorStopColor = (btSensorStopColor == Color::BLACK)
+                                      ? Color(Color::NUM_COLORS - 1)
+                                      : (Color)(btSensorStopColor - 1);
+            } while (isIgnoredColor(btSensorStopColor) || btSensorStopColor == btSensorSpdUpColor || btSensorStopColor == btSensorSpdDnColor);
+            break;
+          case SpdDn:
+            do
+            {
+              btSensorSpdDnColor = (btSensorSpdDnColor == Color::BLACK)
+                                       ? Color(Color::NUM_COLORS - 1)
+                                       : (Color)(btSensorSpdDnColor - 1);
+            } while (isIgnoredColor(btSensorSpdDnColor) || btSensorSpdDnColor == btSensorSpdUpColor || btSensorSpdDnColor == btSensorStopColor);
+            break;
+          }
         }
       }
       else
       {
-        btPortASpd = max(-BtMaxSpeed, btPortASpd - BtSpdInc);
-        btTrainCtl.setBasicMotorSpeed(BtPortA, btPortASpd);
-      }
-      break;
-    case BtB:
-      if (!btTrainCtl.isConnected())
-        break;
-      if (btSensorPort == BtPortB)
-      {
-        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+        switch (button->action)
         {
-          do
-          {
-            btSensorSpdDnColor = (btSensorSpdDnColor == Color::BLACK)
-                                     ? Color(Color::NUM_COLORS - 1)
-                                     : (Color)(btSensorSpdDnColor - 1);
-          } while (isIgnoredColor(btSensorSpdDnColor) || btSensorSpdDnColor == btSensorSpdUpColor || btSensorSpdDnColor == btSensorStopColor);
+        case SpdUp:
+          btPortSpeed[button->port] = min(BtMaxSpeed, btPortSpeed[button->port] + BtSpdInc);
+          break;
+        case Brake:
+          btPortSpeed[button->port] = 0;
+          break;
+        case SpdDn:
+          btPortSpeed[button->port] = max(-BtMaxSpeed, btPortSpeed[button->port] - BtSpdInc);
+          break;
         }
+        btTrainCtl.setBasicMotorSpeed(button->port, btPortSpeed[button->port]);
       }
-      else
-      {
-        btPortBSpd = max(-BtMaxSpeed, btPortBSpd - BtSpdInc);
-        btTrainCtl.setBasicMotorSpeed(BtPortB, btPortBSpd);
-      }
-      break;
-    case IrR:
+    case RemoteDevice::PowerFunctionsIR:
       if (irTrackState)
       {
-        irPortRSpd = max(-IrMaxSpeed, irPortRSpd - IrSpdInc);
-        pwm = irTrainCtl.speedToPwm(irPortRSpd);
-        irTrainCtl.single_pwm(IrPortR, pwm, irChannel);
+        switch (button->action)
+        {
+        case SpdUp:
+          irPortSpeed[button->port] = min(IrMaxSpeed, irPortSpeed[button->port] + IrSpdInc);
+          break;
+        case Brake:
+          irPortSpeed[button->port] = 0;
+          break;
+        case SpdDn:
+          irPortSpeed[button->port] = max(-IrMaxSpeed, irPortSpeed[button->port] - IrSpdInc);
+          break;
+        }
+
+        pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
+        irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
       }
       else
       {
-        irTrainCtl.single_decrement(IrPortR, irChannel);
-      }
-      break;
-    case IrB:
-      if (irTrackState)
-      {
-        irPortBSpd = max(-IrMaxSpeed, irPortBSpd - IrSpdInc);
-        pwm = irTrainCtl.speedToPwm(irPortBSpd);
-        irTrainCtl.single_pwm(IrPortB, pwm, irChannel);
-      }
-      else
-      {
-        irTrainCtl.single_decrement(IrPortB, irChannel);
+        switch (button->action)
+        {
+        case SpdUp:
+          irTrainCtl.single_increment((PowerFunctionsPort)button->port, irChannel);
+          break;
+        case Brake:
+          irTrainCtl.single_pwm((PowerFunctionsPort)button->port, PowerFunctionsPwm::BRAKE, irChannel);
+          break;
+        case SpdDn:
+          irTrainCtl.single_decrement((PowerFunctionsPort)button->port, irChannel);
+          break;
+        }
       }
       break;
     }
@@ -611,6 +477,11 @@ unsigned short get_button_color(Button *button)
     return COLOR_ORANGE;
   }
 
+  if (btSensorPort == button->port)
+  {
+    return button->color;
+  }
+  
   // TODO: improve
   // if (btSensorPort == button->port)
   // {
@@ -634,10 +505,12 @@ unsigned short get_button_color(Button *button)
 
   if (button->action == Brake)
   {
-    if ((button->port == BtA && btPortASpd == 0) ||
-        (button->port == BtB && btPortBSpd == 0) ||
-        (button->port == IrR && irTrackState && irPortRSpd == 0) ||
-        (button->port == IrB && irTrackState && irPortBSpd == 0))
+    if ((button->device == RemoteDevice::PoweredUpHub &&
+         (button->port == (byte)PoweredUpHubPort::A && btPortSpeed[(byte)PoweredUpHubPort::A] == 0 ||
+          button->port == (byte)PoweredUpHubPort::B && btPortSpeed[(byte)PoweredUpHubPort::B] == 0)) ||
+        (irTrackState && button->device == RemoteDevice::PowerFunctionsIR &&
+         (button->port == (byte)PowerFunctionsPort::RED && irPortSpeed[(byte)PowerFunctionsPort::RED] == 0 ||
+          button->port == (byte)PowerFunctionsPort::BLUE && irPortSpeed[(byte)PowerFunctionsPort::BLUE] == 0)))
     {
       return COLOR_GREYORANGEDIM;
     }
@@ -646,19 +519,19 @@ unsigned short get_button_color(Button *button)
   if (button->action == SpdUp || button->action == SpdDn)
   {
     int speed = 0;
-    switch (button->port)
+    switch (button->device)
     {
-    case BtA:
-      speed = btPortASpd;
+    case RemoteDevice::PoweredUpHub:
+      speed = button->port == (byte)PoweredUpHubPort::A
+                  ? btPortSpeed[(byte)PoweredUpHubPort::A]
+                  : btPortSpeed[(byte)PoweredUpHubPort::B];
       break;
-    case BtB:
-      speed = btPortBSpd;
-      break;
-    case IrR:
-      speed = irTrackState ? irPortRSpd : 0;
-      break;
-    case IrB:
-      speed = irTrackState ? irPortBSpd : 0;
+    case RemoteDevice::PowerFunctionsIR:
+      speed = irTrackState
+                  ? button->port == (byte)PowerFunctionsPort::RED
+                        ? irPortSpeed[(byte)PowerFunctionsPort::RED]
+                        : irPortSpeed[(byte)PowerFunctionsPort::BLUE]
+                  : 0;
       break;
     }
 
@@ -830,10 +703,10 @@ void loop()
         if (!btSensorInit) // TODO: timeout for checking for sensor?
         {
           btSensorPort = btTrainCtl.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
-          if (btSensorPort == BtPortA || btSensorPort == BtPortB)
+          if (btSensorPort == (byte)PoweredUpHubPort::A || btSensorPort == (byte)PoweredUpHubPort::B)
           {
             btTrainCtl.activatePortDevice(btSensorPort, sensorCallback);
-            btMotorPort = btSensorPort == BtPortA ? BtPortB : BtPortA;
+            btMotorPort = btSensorPort == (byte)PoweredUpHubPort::A ? (byte)PoweredUpHubPort::B : (byte)PoweredUpHubPort::A;
             btSensorColor = Color::NONE;
             btSensorInit = true;
             redraw = true;
@@ -856,9 +729,7 @@ void loop()
           return; // TODO: make sure OK
         }
 
-        if (millis() - btLastAction > BtInactiveTimeoutMs &&
-            (btMotorPort == BtPortA && btPortASpd == 0 ||
-             btMotorPort == BtPortB && btPortBSpd == 0))
+        if (millis() - btLastAction > BtInactiveTimeoutMs && btPortSpeed[btMotorPort] == 0) // TODO: check both, only works with sensor?
         {
           btConnectionToggle();
           redraw = true;

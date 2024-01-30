@@ -203,17 +203,17 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     draw_ir_channel_indicator(canvas, x, y, state.irChannel, button.pressed);
     break;
   case Action::SpdUp:
-    button.port == state.btSensorPort
+    button.device == RemoteDevice::PoweredUpHub && button.port == state.btSensorPort
         ? draw_sensor_spdup_symbol(canvas, x, y, state.btSensorSpdUpColor, state.btSensorSpdUpFunction)
         : draw_speedup_symbol(canvas, x, y);
     break;
   case Action::Brake:
-    button.port == state.btSensorPort
+    button.device == RemoteDevice::PoweredUpHub && button.port == state.btSensorPort
         ? draw_sensor_spddn_symbol(canvas, x, y, state.btSensorStopColor, state.btSensorStopFunction)
         : draw_stop_symbol(canvas, x, y);
     break;
   case Action::SpdDn:
-    button.port == state.btSensorPort
+    button.device == RemoteDevice::PoweredUpHub && button.port == state.btSensorPort
         ? draw_sensor_spdup_symbol(canvas, x, y, state.btSensorSpdDnColor, state.btSensorSpdDnFunction)
         : draw_speeddn_symbol(canvas, x, y);
     break;

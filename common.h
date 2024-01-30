@@ -27,6 +27,14 @@ enum Port
   None
 };
 
+enum RemoteDevice
+{
+  PoweredUpHub,
+  PowerFunctionsIR,
+  SBrick,
+  CircuitCubes,
+};
+
 enum Action
 {
   BtConnection,
@@ -46,7 +54,8 @@ struct Button
   int y;
   int w;
   int h;
-  Port port;
+  RemoteDevice device;
+  byte port; // device-specific
   Action action;
   unsigned short color;
   bool pressed;
