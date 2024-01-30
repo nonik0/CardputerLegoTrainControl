@@ -24,19 +24,50 @@ inline unsigned short interpolateColors(unsigned short color1, unsigned short co
   return (unsigned short)((interpolatedRed << 11) | (interpolatedGreen << 5) | interpolatedBlue);
 }
 
-inline void draw_connected_indicator(M5Canvas *canvas, int x, int y, bool connected)
+inline void draw_rssi_indicator(M5Canvas *canvas, int x, int y, bool init, int rssi)
 {
-  int w = 18;
-  int h = 11;
-  y -= h / 2;
-  unsigned short color = connected ? TFT_GREEN : TFT_RED;
-  canvas->fillRoundRect(x, y, w, h, 3, color);
-  // String text = connected ? "CN" : "DC";
-  // canvas->setTextSize(1.0);
-  // canvas->setTextColor(TFT_BLACK, color);
-  // canvas->setTextDatum(middle_center);
-  // canvas->drawString(text, x + w / 2, y + h / 2);
-  canvas->drawRoundRect(x, y, w, h, 3, TFT_SILVER);
+  const uint8_t bar1 = 2, bar2 = 5, bar3 = 8, bar4 = 11;
+  const uint8_t barW = 3;
+  const uint8_t barY = y - bar4 / 2;
+  const uint8_t barSpace = 2;
+
+  if (!init)
+    rssi = -1000;
+
+  canvas->drawLine(x, barY, x, barY + bar4 - 1, TFT_SILVER);
+  canvas->drawTriangle(x - 3, barY, x + 3, barY, x, barY + 3, TFT_SILVER);
+
+  uint8_t barX = x + 4;
+  (rssi > -75)
+      ? canvas->fillRect(barX, barY + (bar4 - bar1), barW, bar1, COLOR_ORANGE)
+      : canvas->drawRect(barX, barY + (bar4 - bar1), barW, bar1, TFT_SILVER);
+
+  barX += barW + barSpace;
+  (rssi > -60)
+      ? canvas->fillRect(barX, barY + (bar4 - bar2), barW, bar2, COLOR_ORANGE)
+      : canvas->drawRect(barX, barY + (bar4 - bar2), barW, bar2, TFT_SILVER);
+
+  barX += barW + barSpace;
+  (rssi > -45)
+      ? canvas->fillRect(barX, barY + (bar4 - bar3), barW, bar3, COLOR_ORANGE)
+      : canvas->drawRect(barX, barY + (bar4 - bar3), barW, bar3, TFT_SILVER);
+
+  barX += barW + barSpace;
+  (rssi > -30)
+      ? canvas->fillRect(barX, barY + (bar4 - bar4), barW, bar4, COLOR_ORANGE)
+      : canvas->drawRect(barX, barY + (bar4 - bar4), barW, bar4, TFT_SILVER);
+
+  if (!init)
+  {
+    int x1 = x + barW, x2 = x + 4 * (barSpace + barW) + barW;
+    int y1 = barY, y2 = barY + bar4;
+
+    for (int i = 0; i < barW; i++)
+    {
+      canvas->drawLine(x1 + i, y1, x2 - (barW - i), y2, TFT_RED);
+      canvas->drawLine(x2 - (barW - i), y1, x1 + i, y2, TFT_RED);
+    }
+  }
 }
 
 inline void draw_sensor_indicator(M5Canvas *canvas, int x, int y, Color color)
@@ -115,7 +146,7 @@ inline void draw_speeddn_symbol(M5Canvas *canvas, int x, int y)
   canvas->fillTriangle(x, y + h / 2, x + w, y - h / 2, x - w, y - h / 2, TFT_SILVER);
 }
 
-inline void draw_color_symbol(M5Canvas *canvas, int x, int y, Color color)
+inline void draw_sensor_spdup_symbol(M5Canvas *canvas, int x, int y, Color color, uint8_t spdupFunction)
 {
   int w = 17;
   if (color != Color::NONE)
@@ -127,7 +158,7 @@ inline void draw_sensor_stop_symbol(M5Canvas *canvas, int x, int y, Color color,
   int w = 17;
   if (color != Color::NONE)
   {
-    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
+    //canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
     if (stopFunction > 0)
     {
       canvas->setTextColor(TFT_SILVER, BtColors[color]);
@@ -136,6 +167,13 @@ inline void draw_sensor_stop_symbol(M5Canvas *canvas, int x, int y, Color color,
       canvas->drawString(String(stopFunction), x + 1, y + 1);
     }
   }
+}
+
+inline void draw_sensor_spddn_symbol(M5Canvas *canvas, int x, int y, Color color, uint8_t spddnFunction)
+{
+  int w = 17;
+  if (color != Color::NONE)
+    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
 }
 
 inline void draw_ir_channel_indicator(M5Canvas *canvas, int x, int y, byte irChannel, bool isPressed)
@@ -166,17 +204,17 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     break;
   case Action::SpdUp:
     button.port == state.btSensorPort
-        ? draw_color_symbol(canvas, x, y, state.btSensorSpdUpColor)
+        ? draw_sensor_spdup_symbol(canvas, x, y, state.btSensorSpdUpColor, state.btSensorSpdUpFunction)
         : draw_speedup_symbol(canvas, x, y);
     break;
   case Action::Brake:
     button.port == state.btSensorPort
-        ? draw_sensor_stop_symbol(canvas, x, y, state.btSensorStopColor, state.btSensorStopFunction)
+        ? draw_sensor_spddn_symbol(canvas, x, y, state.btSensorStopColor, state.btSensorStopFunction)
         : draw_stop_symbol(canvas, x, y);
     break;
   case Action::SpdDn:
     button.port == state.btSensorPort
-        ? draw_color_symbol(canvas, x, y, state.btSensorSpdDnColor)
+        ? draw_sensor_spdup_symbol(canvas, x, y, state.btSensorSpdDnColor, state.btSensorSpdDnFunction)
         : draw_speeddn_symbol(canvas, x, y);
     break;
   default:

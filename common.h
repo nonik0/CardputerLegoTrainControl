@@ -61,6 +61,8 @@ struct State
   Color btSensorSpdUpColor;
   Color btSensorStopColor;
   Color btSensorSpdDnColor;
+  uint8_t btSensorSpdUpFunction;
   uint8_t btSensorStopFunction;
+  uint8_t btSensorSpdDnFunction;
   byte irChannel;
 };
