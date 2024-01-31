@@ -1,3 +1,5 @@
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+
 #include <Arduino.h>
 #include <Lpf2Hub.h>
 #include <M5Cardputer.h>
@@ -6,6 +8,7 @@
 
 #include "common.h"
 #include "draw_helper.h"
+#include "SBrickHub.h"
 
 #define IR_TX_PIN 44
 #define NO_SENSOR_FOUND 0xFF
@@ -63,6 +66,17 @@ bool irTrackState = false;
 byte irChannel = 0;
 short irPortSpeed[2] = {0, 0};
 
+// SBrick state
+const short SBrickSpdInc = 35; // ~ 255 / 10
+SBrickHub sbrickHub;
+float sbrickBatteryV = 0;
+bool sbrickInit = false;
+volatile int sbrickRssi = -1000;
+short sbrickPortSpeed[4] = {0, 0, 0, 0};
+unsigned long sbrickDisconnectDelay; // debounce disconnects
+unsigned long sbrickLastAction = 0;  // track for auto-disconnect
+// volatile Action sbrickAutoAction = NoAction;
+
 // system bar state
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
 unsigned long updateDelay = 0;
@@ -105,6 +119,7 @@ int iry = ry + om;
 int irw = 3 * bw + im + 3 * om;
 int irh = rh - im - om;
 
+// TODO: support switching between different remotes
 Button buttons[] = {
     {'`', c1, (r1 + r2) / 2, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
     {KEY_TAB, c1, (r2 + r3) / 2, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtColor, COLOR_LIGHTGRAY, false},
@@ -114,14 +129,24 @@ Button buttons[] = {
     {'r', c3, r1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
     {'d', c3, r2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, Brake, COLOR_LIGHTGRAY, false},
     {'x', c3, r3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdDn, COLOR_LIGHTGRAY, false},
-    {'i', c4, r1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdUp, COLOR_LIGHTGRAY, false},
-    {'j', c4, r2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, Brake, COLOR_LIGHTGRAY, false},
-    {'n', c4, r3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdDn, COLOR_LIGHTGRAY, false},
-    {'o', c5, r1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdUp, COLOR_LIGHTGRAY, false},
-    {'k', c5, r2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, Brake, COLOR_LIGHTGRAY, false},
-    {'m', c5, r3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdDn, COLOR_LIGHTGRAY, false},
-    {KEY_BACKSPACE, 0, 0, 0, 0, RemoteDevice::PowerFunctionsIR, 0xFF, IrTrackState, COLOR_LIGHTGRAY, false},
-    {KEY_ENTER, c6, r2, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
+
+    {'i', c4, r1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, SpdUp, COLOR_LIGHTGRAY, false},
+    {'j', c4, r2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, Brake, COLOR_LIGHTGRAY, false},
+    {'n', c4, r3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {'o', c5, r1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, SpdUp, COLOR_LIGHTGRAY, false},
+    {'k', c5, r2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, Brake, COLOR_LIGHTGRAY, false},
+    {'m', c5, r3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, SpdDn, COLOR_LIGHTGRAY, false},
+    {KEY_BACKSPACE, c6, r2, bw, bw, RemoteDevice::SBrick, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+
+    //{KEY_ENTER, c6, r2, bw, bw, RemoteDevice::SBrick, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
+    // {'i', c4, r1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdUp, COLOR_LIGHTGRAY, false},
+    // {'j', c4, r2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, Brake, COLOR_LIGHTGRAY, false},
+    // {'n', c4, r3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdDn, COLOR_LIGHTGRAY, false},
+    // {'o', c5, r1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdUp, COLOR_LIGHTGRAY, false},
+    // {'k', c5, r2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, Brake, COLOR_LIGHTGRAY, false},
+    // {'m', c5, r3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdDn, COLOR_LIGHTGRAY, false},
+    // {KEY_BACKSPACE, 0, 0, 0, 0, RemoteDevice::PowerFunctionsIR, 0xFF, IrTrackState, COLOR_LIGHTGRAY, false},
+    // {KEY_ENTER, c6, r2, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
 };
 uint8_t buttonCount = sizeof(buttons) / sizeof(Button);
 
@@ -299,6 +324,8 @@ void checkForMenuBoot()
 
 void btConnectionToggle()
 {
+  log_d("btConnectionToggle");
+
   if (!btInit && !btTrainCtl.isConnected())
   {
     if (!btTrainCtl.isConnecting())
@@ -337,15 +364,54 @@ void btConnectionToggle()
   }
 }
 
+void sbrickConnectionToggle()
+{
+  log_d("sbrickConnectionToggle");
+
+  if (!sbrickInit && !sbrickHub.isConnected())
+  {
+    if (!sbrickHub.isConnecting())
+    {
+      // sbrickHub.init();
+      sbrickHub.init("88:6b:0f:80:35:b8"); // TODO: sbrick discovery
+    }
+
+    unsigned long exp = millis() + BtConnWait;
+    while (!sbrickHub.isConnecting() && exp > millis())
+      ;
+
+    if (sbrickHub.isConnecting() && sbrickHub.connectHub())
+    {
+      sbrickInit = true;
+    }
+
+    sbrickDisconnectDelay = millis() + 500;
+  }
+  else if (sbrickDisconnectDelay < millis())
+  {
+    sbrickHub.disconnectHub();
+    delay(200);
+    sbrickInit = false;
+    sbrickPortSpeed[0] = sbrickPortSpeed[1] = sbrickPortSpeed[2] = sbrickPortSpeed[3] = 0;
+  }
+}
+
 void handle_button_press(Button *button)
 {
   button->pressed = true;
 
-  PowerFunctionsPwm pwm;
   switch (button->action)
   {
   case BtConnection:
-    btConnectionToggle();
+    switch (button->device)
+    {
+    case RemoteDevice::PoweredUpHub:
+      btConnectionToggle();
+      break;
+    case RemoteDevice::SBrick:
+      sbrickConnectionToggle();
+      break;
+    }
     break;
   case BtColor:
     // function like hub button
@@ -413,6 +479,17 @@ void handle_button_press(Button *button)
             break;
           }
         }
+        else if (button->action == Brake)
+        {
+          if (btSensorStopFunction == 0)
+            btSensorStopFunction = 2;
+          else if (btSensorStopFunction == 2)
+            btSensorStopFunction = 5;
+          else if (btSensorStopFunction == 5)
+            btSensorStopFunction = 10;
+          else
+            btSensorStopFunction = 0;
+        }
       }
       else
       {
@@ -446,7 +523,7 @@ void handle_button_press(Button *button)
           break;
         }
 
-        pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
+        PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
         irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
       }
       else
@@ -465,6 +542,24 @@ void handle_button_press(Button *button)
         }
       }
       break;
+    case RemoteDevice::SBrick:
+      if (!sbrickHub.isConnected())
+        break;
+
+      switch (button->action)
+      {
+      case SpdUp:
+        sbrickPortSpeed[button->port] = min(SBRICK_MAX_CHANNEL_SPEED, sbrickPortSpeed[button->port] + SBrickSpdInc);
+        break;
+      case Brake:
+        sbrickPortSpeed[button->port] = 0;
+        break;
+      case SpdDn:
+        sbrickPortSpeed[button->port] = max(SBRICK_MIN_CHANNEL_SPEED, sbrickPortSpeed[button->port] - SBrickSpdInc);
+        break;
+      }
+
+      sbrickHub.setMotorSpeed(button->port, sbrickPortSpeed[button->port]);
     }
     break;
   }
@@ -477,11 +572,11 @@ unsigned short get_button_color(Button *button)
     return COLOR_ORANGE;
   }
 
-  if (btSensorPort == button->port)
+  if (button->device == RemoteDevice::PoweredUpHub && btSensorPort == button->port)
   {
     return button->color;
   }
-  
+
   // TODO: improve
   // if (btSensorPort == button->port)
   // {
@@ -505,12 +600,9 @@ unsigned short get_button_color(Button *button)
 
   if (button->action == Brake)
   {
-    if ((button->device == RemoteDevice::PoweredUpHub &&
-         (button->port == (byte)PoweredUpHubPort::A && btPortSpeed[(byte)PoweredUpHubPort::A] == 0 ||
-          button->port == (byte)PoweredUpHubPort::B && btPortSpeed[(byte)PoweredUpHubPort::B] == 0)) ||
-        (irTrackState && button->device == RemoteDevice::PowerFunctionsIR &&
-         (button->port == (byte)PowerFunctionsPort::RED && irPortSpeed[(byte)PowerFunctionsPort::RED] == 0 ||
-          button->port == (byte)PowerFunctionsPort::BLUE && irPortSpeed[(byte)PowerFunctionsPort::BLUE] == 0)))
+    if (button->device == RemoteDevice::PoweredUpHub && btPortSpeed[button->port] == 0 ||
+        button->device == RemoteDevice::SBrick && sbrickPortSpeed[button->port] == 0 ||
+        button->device == RemoteDevice::PowerFunctionsIR && irTrackState && irPortSpeed[button->port] == 0)
     {
       return COLOR_GREYORANGEDIM;
     }
@@ -522,24 +614,19 @@ unsigned short get_button_color(Button *button)
     switch (button->device)
     {
     case RemoteDevice::PoweredUpHub:
-      speed = button->port == (byte)PoweredUpHubPort::A
-                  ? btPortSpeed[(byte)PoweredUpHubPort::A]
-                  : btPortSpeed[(byte)PoweredUpHubPort::B];
+      speed = btPortSpeed[button->port];
+      break;
+    case RemoteDevice::SBrick:
+      speed = sbrickPortSpeed[button->port];
       break;
     case RemoteDevice::PowerFunctionsIR:
-      speed = irTrackState
-                  ? button->port == (byte)PowerFunctionsPort::RED
-                        ? irPortSpeed[(byte)PowerFunctionsPort::RED]
-                        : irPortSpeed[(byte)PowerFunctionsPort::BLUE]
-                  : 0;
+      speed = irTrackState ? irPortSpeed[button->port] : 0;
       break;
     }
 
-    if ((button->action == SpdUp && speed > 0) ||
-        (button->action == SpdDn && speed < 0))
+    if (button->action == SpdUp && speed > 0 || button->action == SpdDn && speed < 0)
     {
-      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT,
-                               abs(speed));
+      return interpolateColors(COLOR_GREYORANGEDIM, COLOR_GREYORANGEBRIGHT, abs(speed));
     }
   }
 
@@ -564,7 +651,8 @@ void draw()
   canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas.setTextSize(1.8);
   canvas.drawString("BT", c1 + bw / 2, bty + bw / 2);
-  canvas.drawString("IR", c6 + bw / 2, iry + bw / 2);
+  // canvas.drawString("IR", c6 + bw / 2, iry + bw / 2);
+  canvas.drawString("SB", c6 + bw / 2, iry + bw / 2);
 
   draw_rssi_indicator(&canvas, hx + om, hy + hh / 2, btInit, btRssi);
   if (btSensorPort != NO_SENSOR_FOUND)
@@ -577,14 +665,17 @@ void draw()
   canvas.setTextSize(1);
   canvas.drawString("A", c2 + bw / 2, r1 - 2);
   canvas.drawString("B", c3 + bw / 2, r1 - 2);
-  canvas.drawString("RED", c4 + bw / 2, r1 - 2);
-  canvas.drawString("BLUE", c5 + bw / 2, r1 - 2);
-  canvas.drawString("CH", c6 + bw / 2, r2 - 2);
+  // canvas.drawString("RED", c4 + bw / 2, r1 - 2);
+  // canvas.drawString("BLUE", c5 + bw / 2, r1 - 2);
+  canvas.drawString("A", c4 + bw / 2, r1 - 2);
+  canvas.drawString("B", c5 + bw / 2, r1 - 2);
+  // canvas.drawString("CH", c6 + bw / 2, r2 - 2);
 
   // draw all layout for remotes
   State state = {btInit, btLedColor, btSensorPort,
                  btSensorSpdUpColor, btSensorStopColor, btSensorSpdDnColor,
                  btSensorSpdUpFunction, btSensorStopFunction, btSensorSpdDnFunction,
+                 sbrickInit,
                  irChannel};
   for (auto button : buttons)
   {
@@ -734,6 +825,39 @@ void loop()
           btConnectionToggle();
           redraw = true;
         }
+      }
+    }
+
+    if (sbrickInit)
+    {
+      if (!sbrickHub.isConnected())
+      {
+        sbrickInit = false;
+        redraw = true;
+      }
+      else
+      {
+        int newBatteryV = M5Cardputer.Power.getBatteryLevel();
+        if (newBatteryV != sbrickBatteryV)
+        {
+          log_i("sbrick battery %d", newBatteryV);
+          sbrickBatteryV = newBatteryV;
+          redraw = true;
+        }
+
+        // disable for now
+        // if (sbrickHub.getWatchdogTimeout()) {
+        //   log_i("disabling sbrick watchdog");
+        //   USBSerial.println("OVER SERIAL disabling sbrick watchdog");
+        //   sbrickHub.setWatchdogTimeout(0);
+        // }
+
+        // TODO remote action specific or any action of cardputer resets timer?
+        // if (millis() - sbrickLastAction > BtInactiveTimeoutMs)
+        // {
+        //   sbrickConnectionToggle();
+        //   redraw = true;
+        // }
       }
     }
   }

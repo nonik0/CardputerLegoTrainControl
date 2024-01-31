@@ -38,17 +38,17 @@ inline void draw_rssi_indicator(M5Canvas *canvas, int x, int y, bool init, int r
   canvas->drawTriangle(x - 3, barY, x + 3, barY, x, barY + 3, TFT_SILVER);
 
   uint8_t barX = x + 4;
-  (rssi > -75)
+  (rssi > -90)
       ? canvas->fillRect(barX, barY + (bar4 - bar1), barW, bar1, COLOR_ORANGE)
       : canvas->drawRect(barX, barY + (bar4 - bar1), barW, bar1, TFT_SILVER);
 
   barX += barW + barSpace;
-  (rssi > -60)
+  (rssi > -70)
       ? canvas->fillRect(barX, barY + (bar4 - bar2), barW, bar2, COLOR_ORANGE)
       : canvas->drawRect(barX, barY + (bar4 - bar2), barW, bar2, TFT_SILVER);
 
   barX += barW + barSpace;
-  (rssi > -45)
+  (rssi > -50)
       ? canvas->fillRect(barX, barY + (bar4 - bar3), barW, bar3, COLOR_ORANGE)
       : canvas->drawRect(barX, barY + (bar4 - bar3), barW, bar3, TFT_SILVER);
 
@@ -158,7 +158,7 @@ inline void draw_sensor_stop_symbol(M5Canvas *canvas, int x, int y, Color color,
   int w = 17;
   if (color != Color::NONE)
   {
-    //canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
+    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
     if (stopFunction > 0)
     {
       canvas->setTextColor(TFT_SILVER, BtColors[color]);
@@ -184,8 +184,6 @@ inline void draw_ir_channel_indicator(M5Canvas *canvas, int x, int y, byte irCha
   canvas->drawString(String(irChannel + 1), x, y);
 }
 
-// inline void draw_button_symbol(M5Canvas *canvas, Action action, int x, int y,
-//                                State *state)
 inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
 {
   int x = button.x + button.w / 2;
@@ -194,7 +192,15 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
   switch (button.action)
   {
   case Action::BtConnection:
-    draw_power_symbol(canvas, x, y, state.btConnected);
+    switch (button.device)
+    {
+    case RemoteDevice::PoweredUpHub:
+      draw_power_symbol(canvas, x, y, state.btConnected);
+      break;
+    case RemoteDevice::SBrick:
+      draw_power_symbol(canvas, x, y, state.sBrickConnected);
+      break;
+    }
     break;
   case Action::BtColor:
     draw_bt_color_indicator(canvas, x, y, state.btLedColor);
@@ -209,7 +215,7 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     break;
   case Action::Brake:
     button.device == RemoteDevice::PoweredUpHub && button.port == state.btSensorPort
-        ? draw_sensor_spddn_symbol(canvas, x, y, state.btSensorStopColor, state.btSensorStopFunction)
+        ? draw_sensor_stop_symbol(canvas, x, y, state.btSensorStopColor, state.btSensorStopFunction)
         : draw_stop_symbol(canvas, x, y);
     break;
   case Action::SpdDn:

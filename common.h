@@ -73,5 +73,6 @@ struct State
   uint8_t btSensorSpdUpFunction;
   uint8_t btSensorStopFunction;
   uint8_t btSensorSpdDnFunction;
+  bool sBrickConnected;
   byte irChannel;
 };
