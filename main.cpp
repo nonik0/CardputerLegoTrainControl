@@ -29,33 +29,34 @@ const int BtInactiveTimeoutMs = 5 * 60 * 1000;
 const short BtDistanceStopThreshold = 100; // when train is "picked up"
 
 // hub state
-Lpf2Hub btTrainCtl;
-bool btInit = false;
-volatile int btRssi = -1000;
-short btPortSpeed[2] = {0, 0};
-unsigned long btDisconnectDelay;    // debounce disconnects
-unsigned long btButtonDebounce = 0; // debounce button presses
-volatile Color btLedColor = Color::ORANGE;
-unsigned short btLedColorDelay = 0;
-unsigned long btLastAction = 0; // track for auto-disconnect
-volatile Action btAutoAction = NoAction;
+Lpf2Hub lpfHub;
+bool lpfInit = false;
+volatile int lpfRssi = -1000;
+short lpfPortSpeed[2] = {0, 0};
+unsigned long lpfDisconnectDelay;    // debounce disconnects
+unsigned long lpfButtonDebounce = 0; // debounce button presses
+volatile Color lpfLedColor = Color::ORANGE;
+unsigned short lpfLedColorDelay = 0;
+unsigned long lpfLastAction = 0; // track for auto-disconnect
+volatile RemoteAction lpfAutoAction = NoAction;
 
 // color/distance sensor
-bool btSensorInit = false;
-byte btSensorPort = NO_SENSOR_FOUND; // set to A or B if detected
-byte btMotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if detected
+bool lpfSensorInit = false;
+byte lpfSensorPort = NO_SENSOR_FOUND; // set to A or B if detected
+byte lpfMotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if detected
 short distanceMovingAverage = 0;
-volatile Color btSensorColor = Color::NONE; // detected color by sensor
-unsigned long btSensorDebounce = 0;         // debounce sensor color changes
-Color btSensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
-Color btSensorSpdUpColor = Color::GREEN;
-Color btSensorStopColor = Color::RED;
-Color btSensorSpdDnColor = Color::YELLOW;
-int8_t btSensorSpdUpFunction = 0; // TBD
-int8_t btSensorStopFunction = 0;  // <0=disabled, 0=brake, >0=wait time in seconds
-int8_t btSensorSpdDnFunction = 0; // TBD
-unsigned long btSensorStopDelay = 0;
-short btSensorStopSavedSpd = 0; // saved speed before stopping
+volatile Color lpfSensorColor = Color::NONE; // detected color by sensor
+unsigned long lpfSensorDebounce = 0;         // debounce sensor color changes
+Color lpfSensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
+Color lpfSensorSpdUpColor = Color::GREEN;
+Color lpfSensorStopColor = Color::RED;
+Color lpfSensorSpdDnColor = Color::YELLOW;
+int8_t lpfSensorSpdUpFunction = 0; // TBD
+int8_t btSensorStopFunction = 0;   // <0=disabled, 0=brake, >0=wait time in seconds
+int8_t lpfSensorSpdDnFunction = 0; // TBD
+unsigned long lpfSensorStopDelay = 0;
+short lpfSensorStopSavedSpd = 0; // saved speed before stopping
+
 volatile bool redraw = false;
 
 // IR train control state
@@ -100,8 +101,11 @@ int rw = hw;
 int rh = h - hh - 3 * om;
 // rows and cols in main rectangle
 int r3 = h - 2 * om - im - bw;
+int r3_5 = r3 + bw / 2 + im; //(r3 + rh) / 2;
 int r2 = r3 - bw - im;
+int r2_5 = (r2 + r3) / 2;
 int r1 = r2 - bw - im;
+int r1_5 = (r1 + r2) / 2;
 int c3 = (w / 2) - 2 * om - bw;
 int c2 = c3 - bw - im;
 int c1 = c2 - bw - om;
@@ -119,43 +123,57 @@ int iry = ry + om;
 int irw = 3 * bw + im + 3 * om;
 int irh = rh - im - om;
 
-// TODO: support switching between different remotes
-Button buttons[] = {
-    {'`', c1, (r1 + r2) / 2, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
-    {KEY_TAB, c1, (r2 + r3) / 2, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtColor, COLOR_LIGHTGRAY, false},
-    {0xFF, c1, r3 + bw / 2 + im, bw, bw / 2 - im, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::LED, NoAction, COLOR_MEDGRAY, false},
-    {'e', c2, r1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
-    {'s', c2, r2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
-    {'z', c2, r3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
-    {'r', c3, r1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
-    {'d', c3, r2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, Brake, COLOR_LIGHTGRAY, false},
-    {'x', c3, r3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdDn, COLOR_LIGHTGRAY, false},
+int bwhh = bw / 2 - im;
 
-    {'i', c4, r1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, SpdUp, COLOR_LIGHTGRAY, false},
-    {'j', c4, r2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, Brake, COLOR_LIGHTGRAY, false},
-    {'n', c4, r3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, SpdDn, COLOR_LIGHTGRAY, false},
-    {'o', c5, r1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, SpdUp, COLOR_LIGHTGRAY, false},
-    {'k', c5, r2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, Brake, COLOR_LIGHTGRAY, false},
-    {'m', c5, r3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, SpdDn, COLOR_LIGHTGRAY, false},
-    {KEY_BACKSPACE, c6, r2, bw, bw, RemoteDevice::SBrick, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+Button lpfHubButtons[] = {
+    {AuxTop, AuxCol, Row1_5, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {AuxMid, AuxCol, Row2_5, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtColor, COLOR_LIGHTGRAY, false},
+    {NoTouchy, AuxCol, Row3_5, bw, bwhh, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::LED, NoAction, COLOR_MEDGRAY, false},
+    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
+    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
+    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, Brake, COLOR_LIGHTGRAY, false},
+    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdDn, COLOR_LIGHTGRAY, false}};
+uint8_t lpfButtonCount = sizeof(lpfHubButtons) / sizeof(Button);
 
-    //{KEY_ENTER, c6, r2, bw, bw, RemoteDevice::SBrick, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
-    // {'i', c4, r1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdUp, COLOR_LIGHTGRAY, false},
-    // {'j', c4, r2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, Brake, COLOR_LIGHTGRAY, false},
-    // {'n', c4, r3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdDn, COLOR_LIGHTGRAY, false},
-    // {'o', c5, r1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdUp, COLOR_LIGHTGRAY, false},
-    // {'k', c5, r2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, Brake, COLOR_LIGHTGRAY, false},
-    // {'m', c5, r3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdDn, COLOR_LIGHTGRAY, false},
-    // {KEY_BACKSPACE, 0, 0, 0, 0, RemoteDevice::PowerFunctionsIR, 0xFF, IrTrackState, COLOR_LIGHTGRAY, false},
-    // {KEY_ENTER, c6, r2, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
+Button sbrickHubButtons[] = {
+    {AuxTop, AuxCol, Row2, bw, bw, RemoteDevice::SBrick, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, SpdUp, COLOR_LIGHTGRAY, false},
+    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, Brake, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, SpdUp, COLOR_LIGHTGRAY, false},
+    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, Brake, COLOR_LIGHTGRAY, false},
+    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, SpdDn, COLOR_LIGHTGRAY, false},
 };
-uint8_t buttonCount = sizeof(buttons) / sizeof(Button);
+uint8_t sbrickButtonCount = sizeof(sbrickHubButtons) / sizeof(Button);
+
+Button powerFunctionsIrButtons[] = {
+    {AuxTop, AuxCol, Row2, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
+    {AuxMid, HiddenCol, HiddenRow, 0, 0, RemoteDevice::PowerFunctionsIR, 0xFF, IrTrackState, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdUp, COLOR_LIGHTGRAY, false},
+    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, Brake, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdUp, COLOR_LIGHTGRAY, false},
+    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, Brake, COLOR_LIGHTGRAY, false},
+    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdDn, COLOR_LIGHTGRAY, false},
+};
+uint8_t irButtonCount = sizeof(powerFunctionsIrButtons) / sizeof(Button);
+
+Button circuitCubesButtons[] = {};
+uint8_t circuitCubesButtonCount = sizeof(circuitCubesButtons) / sizeof(Button);
+
+// must match order of RemoteDevice enum
+Button *remoteButton[] = {lpfHubButtons, sbrickHubButtons, powerFunctionsIrButtons, circuitCubesButtons};
+uint8_t remoteButtonCount[] = {lpfButtonCount, sbrickButtonCount, irButtonCount, circuitCubesButtonCount};
+RemoteDevice activeRemoteLeft = RemoteDevice::PoweredUpHub;
+RemoteDevice activeRemoteRight = RemoteDevice::SBrick;
 
 bool isIgnoredColor(Color color)
 {
-  for (int i = 0; i < sizeof(btSensorIgnoreColors) / sizeof(Color); i++)
+  for (int i = 0; i < sizeof(lpfSensorIgnoreColors) / sizeof(Color); i++)
   {
-    if (color == btSensorIgnoreColors[i])
+    if (color == lpfSensorIgnoreColors[i])
       return true;
   }
   return false;
@@ -163,38 +181,40 @@ bool isIgnoredColor(Color color)
 
 inline void resumeTrainMotion()
 {
-  btSensorStopDelay = 0;
-  btAutoAction = btSensorStopSavedSpd > 0 ? SpdUp : SpdDn;
-  short btSpdAdjust = btSensorStopSavedSpd > 0 ? -BtSpdInc : BtSpdInc;
-  btPortSpeed[btMotorPort] = btSensorStopSavedSpd + btSpdAdjust;
+  lpfSensorStopDelay = 0;
+  lpfAutoAction = lpfSensorStopSavedSpd > 0 ? SpdUp : SpdDn;
+  short btSpdAdjust = lpfSensorStopSavedSpd > 0 ? -BtSpdInc : BtSpdInc;
+  lpfPortSpeed[lpfMotorPort] = lpfSensorStopSavedSpd + btSpdAdjust;
 }
 
-void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
+void lpfButtonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 {
   log_w("buttonCallback");
 
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
 
-  if (hubProperty != HubPropertyReference::BUTTON || millis() < btButtonDebounce)
+  if (hubProperty != HubPropertyReference::BUTTON || millis() < lpfButtonDebounce)
   {
     return;
   }
 
-  btButtonDebounce = millis() + 200;
+  lpfButtonDebounce = millis() + 200;
   ButtonState buttonState = trainCtl->parseHubButton(pData);
 
   if (buttonState == ButtonState::PRESSED)
   {
-    if (btSensorStopDelay > 0)
+    if (lpfSensorStopDelay > 0)
     {
       log_w("bt button: resume");
       resumeTrainMotion();
 
-      for (int i = 0; i < buttonCount; i++)
+      // also show press for led color button
+      Button *lpfButton = remoteButton[RemoteDevice::PoweredUpHub];
+      for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUpHub]; i++)
       {
-        if (buttons[i].action == BtColor)
+        if (lpfButton[i].action == BtColor)
         {
-          buttons[i].pressed = true;
+          lpfButton[i].pressed = true;
           break;
         }
       }
@@ -202,12 +222,12 @@ void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
     else
     {
       log_w("bt button: color");
-      btAutoAction = BtColor;
+      lpfAutoAction = BtColor;
     }
   }
 }
 
-void rssiCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
+void lpfRssiCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 {
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
 
@@ -218,17 +238,17 @@ void rssiCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 
   int rssi = trainCtl->parseRssi(pData);
 
-  if (rssi == btRssi)
+  if (rssi == lpfRssi)
   {
     return;
   }
 
   log_w("rssiCallback: %d", rssi);
-  btRssi = rssi;
+  lpfRssi = rssi;
   redraw = true;
 }
 
-void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *pData)
+void lpfSensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *pData)
 {
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
 
@@ -242,24 +262,24 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
 
   // track moving average of distance to random noisy spikes, turn off motor if not on track
   distanceMovingAverage = (distanceMovingAverage * 3 + distance) >> 2; // I bet compiler does this anyway for dividing by 4
-  if (distanceMovingAverage > BtDistanceStopThreshold && btPortSpeed[btMotorPort] != 0)
+  if (distanceMovingAverage > BtDistanceStopThreshold && lpfPortSpeed[lpfMotorPort] != 0)
   {
     log_w("off track, distance moving avg: %d", distance);
 
-    btAutoAction = Brake;
-    btSensorStopDelay = 0;
-    btSensorStopSavedSpd = 0;
+    lpfAutoAction = Brake;
+    lpfSensorStopDelay = 0;
+    lpfSensorStopSavedSpd = 0;
     return;
   }
 
   // filter noise
-  if (color == btSensorColor || millis() < btSensorDebounce)
+  if (color == lpfSensorColor || millis() < lpfSensorDebounce)
   {
     return;
   }
 
-  btSensorColor = color;
-  btSensorDebounce = millis() + 200;
+  lpfSensorColor = color;
+  lpfSensorDebounce = millis() + 200;
   redraw = true;
 
   // ignore "ground" or noisy colors
@@ -268,28 +288,28 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
     return;
   }
 
-  btLedColor = color;
+  lpfLedColor = color;
   trainCtl->setLedColor(color);
 
   // trigger actions for specific colors
-  Action action;
-  if (color == btSensorSpdUpColor)
+  RemoteAction action;
+  if (color == lpfSensorSpdUpColor)
   {
     log_i("bt action: spdup");
-    btAutoAction = SpdUp;
+    lpfAutoAction = SpdUp;
   }
-  else if (color == btSensorStopColor)
+  else if (color == lpfSensorStopColor)
   {
     // resumed by calling resumeTrainMotion() after delay
     log_i("bt action: brake");
-    btAutoAction = Brake;
-    btSensorStopDelay = millis() + btSensorStopFunction * 1000;
-    btSensorStopSavedSpd = btPortSpeed[btMotorPort];
+    lpfAutoAction = Brake;
+    lpfSensorStopDelay = millis() + btSensorStopFunction * 1000;
+    lpfSensorStopSavedSpd = lpfPortSpeed[lpfMotorPort];
   }
-  else if (color == btSensorSpdDnColor)
+  else if (color == lpfSensorSpdDnColor)
   {
     log_i("bt action: spddn");
-    btAutoAction = SpdDn;
+    lpfAutoAction = SpdDn;
   }
   else
   {
@@ -297,76 +317,56 @@ void sensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *
   }
 
   // also show press for sensor button
-  for (int i = 0; i < buttonCount; i++)
+  Button *lpfButton = remoteButton[RemoteDevice::PoweredUpHub];
+  for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUpHub]; i++)
   {
-    if (buttons[i].action == btAutoAction && buttons[i].port == btSensorPort)
+    if (lpfButton[i].action == lpfAutoAction && lpfButton[i].port == lpfSensorPort)
     {
-      buttons[i].pressed = true;
+      lpfButton[i].pressed = true;
       break;
     }
   }
 }
 
-SPIClass SPI2;
-void checkForMenuBoot()
-{
-  M5Cardputer.update();
-
-  if (M5Cardputer.Keyboard.isKeyPressed('a'))
-  {
-    SPI2.begin(M5.getPin(m5::pin_name_t::sd_spi_sclk),
-               M5.getPin(m5::pin_name_t::sd_spi_miso),
-               M5.getPin(m5::pin_name_t::sd_spi_mosi),
-               M5.getPin(m5::pin_name_t::sd_spi_ss));
-    while (!SD.begin(M5.getPin(m5::pin_name_t::sd_spi_ss), SPI2))
-    {
-      delay(500);
-    }
-
-    updateFromFS(SD, "/menu.bin");
-    ESP.restart();
-  }
-}
-
-void btConnectionToggle()
+void lpfConnectionToggle()
 {
   log_d("btConnectionToggle");
 
-  if (!btInit)
+  if (!lpfInit)
   {
-    if (!btTrainCtl.isConnecting())
+    if (!lpfHub.isConnecting())
     {
-      btTrainCtl.init();
+      lpfHub.init();
     }
 
     unsigned long exp = millis() + BtConnWait;
-    while (!btTrainCtl.isConnecting() && exp > millis())
+    while (!lpfHub.isConnecting() && exp > millis())
       ;
 
-    if (btTrainCtl.isConnecting() && btTrainCtl.connectHub())
+    if (lpfHub.isConnecting() && lpfHub.connectHub())
     {
-      btInit = true;
-      btLedColor = Color::NONE;
-      btTrainCtl.activateHubPropertyUpdate(HubPropertyReference::BUTTON, buttonCallback); // TODO: not working anymore??
-      btTrainCtl.activateHubPropertyUpdate(HubPropertyReference::RSSI, rssiCallback);
+      lpfInit = true;
+      lpfLedColor = Color::NONE;
+      lpfHub.activateHubPropertyUpdate(HubPropertyReference::BUTTON, lpfButtonCallback); // TODO: not working anymore??
+      lpfHub.activateHubPropertyUpdate(HubPropertyReference::RSSI, lpfRssiCallback);
     }
 
-    btDisconnectDelay = millis() + 500;
+    lpfDisconnectDelay = millis() + 500;
   }
-  else if (btDisconnectDelay < millis())
+  else if (lpfDisconnectDelay < millis())
   {
-    btTrainCtl.shutDownHub();
+    lpfHub.shutDownHub();
     delay(200);
-    btInit = false;
-    btSensorInit = false;
-    btPortSpeed[0] = btPortSpeed[1] = 0;
-    btMotorPort = NO_SENSOR_FOUND;
-    btSensorPort = NO_SENSOR_FOUND;
-    btSensorSpdUpColor = Color::GREEN;
-    btSensorStopColor = Color::RED;
-    btSensorSpdDnColor = Color::YELLOW;
+    lpfInit = false;
+    lpfSensorInit = false;
+    lpfPortSpeed[0] = lpfPortSpeed[1] = 0;
+    lpfMotorPort = NO_SENSOR_FOUND;
+    lpfSensorPort = NO_SENSOR_FOUND;
+    lpfSensorSpdUpColor = Color::GREEN;
+    lpfSensorStopColor = Color::RED;
+    lpfSensorSpdDnColor = Color::YELLOW;
     btSensorStopFunction = 0;
-    btSensorStopDelay = 0;
+    lpfSensorStopDelay = 0;
   }
 }
 
@@ -402,6 +402,27 @@ void sbrickConnectionToggle()
   }
 }
 
+SPIClass SPI2;
+void checkForMenuBoot()
+{
+  M5Cardputer.update();
+
+  if (M5Cardputer.Keyboard.isKeyPressed('a'))
+  {
+    SPI2.begin(M5.getPin(m5::pin_name_t::sd_spi_sclk),
+               M5.getPin(m5::pin_name_t::sd_spi_miso),
+               M5.getPin(m5::pin_name_t::sd_spi_mosi),
+               M5.getPin(m5::pin_name_t::sd_spi_ss));
+    while (!SD.begin(M5.getPin(m5::pin_name_t::sd_spi_ss), SPI2))
+    {
+      delay(500);
+    }
+
+    updateFromFS(SD, "/menu.bin");
+    ESP.restart();
+  }
+}
+
 void handle_button_press(Button *button)
 {
   button->pressed = true;
@@ -412,7 +433,7 @@ void handle_button_press(Button *button)
     switch (button->device)
     {
     case RemoteDevice::PoweredUpHub:
-      btConnectionToggle();
+      lpfConnectionToggle();
       break;
     case RemoteDevice::SBrick:
       sbrickConnectionToggle();
@@ -421,19 +442,19 @@ void handle_button_press(Button *button)
     break;
   case BtColor:
     // function like hub button
-    if (btSensorStopDelay > 0)
+    if (lpfSensorStopDelay > 0)
     {
       resumeTrainMotion();
     }
     else
     {
       // can change colors while not connected to choose initial color
-      btLedColor = (btLedColor == Color(1))
-                       ? Color(Color::NUM_COLORS - 1)
-                       : (Color)(btLedColor - 1);
-      log_i("bt color: %d", btLedColor);
-      if (btTrainCtl.isConnected())
-        btTrainCtl.setLedColor(btLedColor);
+      lpfLedColor = (lpfLedColor == Color(1))
+                        ? Color(Color::NUM_COLORS - 1)
+                        : (Color)(lpfLedColor - 1);
+      log_i("bt color: %d", lpfLedColor);
+      if (lpfHub.isConnected())
+        lpfHub.setLedColor(lpfLedColor);
     }
     break;
   case IrChannel:
@@ -450,10 +471,10 @@ void handle_button_press(Button *button)
     switch (button->device)
     {
     case RemoteDevice::PoweredUpHub:
-      if (!btTrainCtl.isConnected())
+      if (!lpfHub.isConnected())
         break;
 
-      if (button->port == btSensorPort)
+      if (button->port == lpfSensorPort)
       {
         if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
         {
@@ -462,26 +483,26 @@ void handle_button_press(Button *button)
           case SpdUp:
             do
             {
-              btSensorSpdUpColor = (btSensorSpdUpColor == Color::BLACK)
-                                       ? Color(Color::NUM_COLORS - 1)
-                                       : (Color)(btSensorSpdUpColor - 1);
-            } while (isIgnoredColor(btSensorSpdUpColor) || btSensorSpdUpColor == btSensorSpdDnColor || btSensorSpdUpColor == btSensorStopColor);
+              lpfSensorSpdUpColor = (lpfSensorSpdUpColor == Color::BLACK)
+                                        ? Color(Color::NUM_COLORS - 1)
+                                        : (Color)(lpfSensorSpdUpColor - 1);
+            } while (isIgnoredColor(lpfSensorSpdUpColor) || lpfSensorSpdUpColor == lpfSensorSpdDnColor || lpfSensorSpdUpColor == lpfSensorStopColor);
             break;
           case Brake:
             do
             {
-              btSensorStopColor = (btSensorStopColor == Color::BLACK)
-                                      ? Color(Color::NUM_COLORS - 1)
-                                      : (Color)(btSensorStopColor - 1);
-            } while (isIgnoredColor(btSensorStopColor) || btSensorStopColor == btSensorSpdUpColor || btSensorStopColor == btSensorSpdDnColor);
+              lpfSensorStopColor = (lpfSensorStopColor == Color::BLACK)
+                                       ? Color(Color::NUM_COLORS - 1)
+                                       : (Color)(lpfSensorStopColor - 1);
+            } while (isIgnoredColor(lpfSensorStopColor) || lpfSensorStopColor == lpfSensorSpdUpColor || lpfSensorStopColor == lpfSensorSpdDnColor);
             break;
           case SpdDn:
             do
             {
-              btSensorSpdDnColor = (btSensorSpdDnColor == Color::BLACK)
-                                       ? Color(Color::NUM_COLORS - 1)
-                                       : (Color)(btSensorSpdDnColor - 1);
-            } while (isIgnoredColor(btSensorSpdDnColor) || btSensorSpdDnColor == btSensorSpdUpColor || btSensorSpdDnColor == btSensorStopColor);
+              lpfSensorSpdDnColor = (lpfSensorSpdDnColor == Color::BLACK)
+                                        ? Color(Color::NUM_COLORS - 1)
+                                        : (Color)(lpfSensorSpdDnColor - 1);
+            } while (isIgnoredColor(lpfSensorSpdDnColor) || lpfSensorSpdDnColor == lpfSensorSpdUpColor || lpfSensorSpdDnColor == lpfSensorStopColor);
             break;
           }
         }
@@ -504,16 +525,16 @@ void handle_button_press(Button *button)
         switch (button->action)
         {
         case SpdUp:
-          btPortSpeed[button->port] = min(BtMaxSpeed, btPortSpeed[button->port] + BtSpdInc);
+          lpfPortSpeed[button->port] = min(BtMaxSpeed, lpfPortSpeed[button->port] + BtSpdInc);
           break;
         case Brake:
-          btPortSpeed[button->port] = 0;
+          lpfPortSpeed[button->port] = 0;
           break;
         case SpdDn:
-          btPortSpeed[button->port] = max(-BtMaxSpeed, btPortSpeed[button->port] - BtSpdInc);
+          lpfPortSpeed[button->port] = max(-BtMaxSpeed, lpfPortSpeed[button->port] - BtSpdInc);
           break;
         }
-        btTrainCtl.setBasicMotorSpeed(button->port, btPortSpeed[button->port]);
+        lpfHub.setBasicMotorSpeed(button->port, lpfPortSpeed[button->port]);
       }
     case RemoteDevice::PowerFunctionsIR:
       if (irTrackState)
@@ -582,16 +603,16 @@ unsigned short get_button_color(Button *button)
 
   if (button->device == RemoteDevice::PoweredUpHub)
   {
-    if (button->port == btSensorPort)
+    if (button->port == lpfSensorPort)
     {
       switch (button->action)
       {
       case SpdUp:
-        return interpolateColors(COLOR_LIGHTGRAY, BtColors[btSensorSpdUpColor], 50);
+        return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpfSensorSpdUpColor], 50);
       case Brake:
-        return interpolateColors(COLOR_LIGHTGRAY, BtColors[btSensorStopColor], 50);
+        return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpfSensorStopColor], 50);
       case SpdDn:
-        return interpolateColors(COLOR_LIGHTGRAY, BtColors[btSensorSpdDnColor], 50);
+        return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpfSensorSpdDnColor], 50);
       default:
         return button->color;
       }
@@ -599,19 +620,19 @@ unsigned short get_button_color(Button *button)
 
     if (button->action == BtColor)
     {
-      return interpolateColors(COLOR_LIGHTGRAY, BtColors[btLedColor], 50);
+      return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpfLedColor], 50);
     }
 
     if (button->port == (byte)PoweredUpHubPort::LED)
     {
-      if (btSensorInit)
-        return BtColors[btSensorColor];
+      if (lpfSensorInit)
+        return BtColors[lpfSensorColor];
     }
   }
 
   if (button->action == Brake)
   {
-    if (button->device == RemoteDevice::PoweredUpHub && btPortSpeed[button->port] == 0 ||
+    if (button->device == RemoteDevice::PoweredUpHub && lpfPortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::SBrick && sbrickPortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::PowerFunctionsIR && irTrackState && irPortSpeed[button->port] == 0)
     {
@@ -625,7 +646,7 @@ unsigned short get_button_color(Button *button)
     switch (button->device)
     {
     case RemoteDevice::PoweredUpHub:
-      speed = btPortSpeed[button->port];
+      speed = lpfPortSpeed[button->port];
       break;
     case RemoteDevice::SBrick:
       speed = sbrickPortSpeed[button->port];
@@ -642,6 +663,196 @@ unsigned short get_button_color(Button *button)
   }
 
   return button->color;
+}
+
+bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
+{
+  pressedKey = RemoteKey::NoTouchy;
+
+  // aux
+  if (M5Cardputer.Keyboard.isKeyPressed('`'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::AuxTop;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_BACKSPACE))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::AuxTop;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_TAB))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::AuxMid;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('\\'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::AuxMid;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::AuxBot;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::AuxBot;
+  }
+
+  // left port
+  else if (M5Cardputer.Keyboard.isKeyPressed('e'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::LeftPortSpdUp;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('i'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::LeftPortSpdUp;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('s'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::LeftPortBrake;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('j'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::LeftPortBrake;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('z'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::LeftPortSpdDn;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('n'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::LeftPortSpdDn;
+  }
+
+  // right port
+  else if (M5Cardputer.Keyboard.isKeyPressed('r'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::RightPortSpdUp;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('o'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::RightPortSpdUp;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('d'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::RightPortBrake;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('k'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::RightPortBrake;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('x'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::RightPortSpdDn;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('m'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::RightPortSpdDn;
+  }
+
+  return pressedKey != RemoteKey::NoTouchy;
+}
+
+String getRemoteString(RemoteDevice remote)
+{
+  switch (remote)
+  {
+  case RemoteDevice::PoweredUpHub:
+    return "PU";
+  case RemoteDevice::SBrick:
+    return "SB";
+  case RemoteDevice::PowerFunctionsIR:
+    return "IR";
+  case RemoteDevice::CircuitCubes:
+    return "CC";
+  default:
+    return "??";
+  }
+}
+
+String getRemoteLeftPortString(RemoteDevice remote)
+{
+  switch (remote)
+  {
+  case RemoteDevice::PoweredUpHub:
+    return "A";
+  case RemoteDevice::SBrick:
+    return "A";
+  case RemoteDevice::PowerFunctionsIR:
+    return "RED";
+  case RemoteDevice::CircuitCubes:
+    return "A";
+  default:
+    return "?";
+  }
+}
+
+String getRemoteRightPortString(RemoteDevice remote)
+{
+  switch (remote)
+  {
+  case RemoteDevice::PoweredUpHub:
+    return "B";
+  case RemoteDevice::SBrick:
+    return "B";
+  case RemoteDevice::PowerFunctionsIR:
+    return "BLUE";
+  case RemoteDevice::CircuitCubes:
+    return "B";
+  default:
+    return "?";
+  }
+}
+
+int getRemoteX(RemoteColumn col, bool isLeftRemote)
+{
+  switch (col)
+  {
+  case AuxCol:
+    return isLeftRemote ? c1 : c6;
+  case LeftPortCol:
+    return isLeftRemote ? c2 : c4;
+  case RightPortCol:
+    return isLeftRemote ? c3 : c5;
+  default:
+    return -w;
+  }
+}
+
+int getRemoteY(RemoteRow row)
+{
+  switch (row)
+  {
+  case Row1:
+    return r1;
+  case Row2:
+    return r2;
+  case Row3:
+    return r3;
+  case Row1_5:
+    return r1_5;
+  case Row2_5:
+    return r2_5;
+  case Row3_5:
+    return r3_5;
+  default:
+    return -h;
+  }
 }
 
 void draw()
@@ -661,13 +872,9 @@ void draw()
 
   canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas.setTextSize(1.8);
-  canvas.drawString("BT", c1 + bw / 2, bty + bw / 2);
-  // canvas.drawString("IR", c6 + bw / 2, iry + bw / 2);
-  canvas.drawString("SB", c6 + bw / 2, iry + bw / 2);
+  canvas.drawString(getRemoteString(activeRemoteLeft), c1 + bw / 2, bty + bw / 2);
+  canvas.drawString(getRemoteString(activeRemoteRight), c6 + bw / 2, iry + bw / 2);
 
-  // draw_rssi_indicator(&canvas, hx + om, hy + hh / 2, btInit, btRssi);
-  // if (btSensorPort != NO_SENSOR_FOUND)
-  //   draw_sensor_indicator(&canvas, hx + om + om + 21, hy + hh / 2, btSensorColor);
   // TODO: indicator that shows active/inactive tabs, e.g. [] [x] [x] []
   draw_battery_indicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
 
@@ -675,25 +882,38 @@ void draw()
   canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas.setTextDatum(bottom_center);
   canvas.setTextSize(1);
-  canvas.drawString("A", c2 + bw / 2, r1 - 2);
-  canvas.drawString("B", c3 + bw / 2, r1 - 2);
-  // canvas.drawString("RED", c4 + bw / 2, r1 - 2);
-  // canvas.drawString("BLUE", c5 + bw / 2, r1 - 2);
-  canvas.drawString("A", c4 + bw / 2, r1 - 2);
-  canvas.drawString("B", c5 + bw / 2, r1 - 2);
-  // canvas.drawString("CH", c6 + bw / 2, r2 - 2);
+  canvas.drawString(getRemoteLeftPortString(activeRemoteLeft), c2 + bw / 2, r1 - 2);
+  canvas.drawString(getRemoteRightPortString(activeRemoteLeft), c3 + bw / 2, r1 - 2);
+  canvas.drawString(getRemoteLeftPortString(activeRemoteRight), c4 + bw / 2, r1 - 2);
+  canvas.drawString(getRemoteRightPortString(activeRemoteRight), c5 + bw / 2, r1 - 2);
 
-  // draw all layout for remotes
-  State state = {btInit, btRssi, btLedColor, btSensorPort,
-                 btSensorSpdUpColor, btSensorStopColor, btSensorSpdDnColor,
-                 btSensorSpdUpFunction, btSensorStopFunction, btSensorSpdDnFunction,
+  // draw layout for both active remotes
+  State state = {lpfInit, lpfRssi, lpfLedColor, lpfSensorPort,
+                 lpfSensorSpdUpColor, lpfSensorStopColor, lpfSensorSpdDnColor,
+                 lpfSensorSpdUpFunction, btSensorStopFunction, lpfSensorSpdDnFunction,
                  sbrickInit,
                  irChannel};
-  for (auto button : buttons)
+
+  Button *leftRemoteButton = remoteButton[activeRemoteLeft];
+  for (int i = 0; i < remoteButtonCount[activeRemoteLeft]; i++)
   {
+    Button button = leftRemoteButton[i];
     unsigned short color = get_button_color(&button);
-    canvas.fillRoundRect(button.x, button.y, button.w, button.h, 3, color);
-    draw_button_symbol(&canvas, button, state);
+    int x = getRemoteX(button.col, true);
+    int y = getRemoteY(button.row);
+    canvas.fillRoundRect(x, y, button.w, button.h, 3, color);
+    draw_button_symbol(&canvas, button, x, y, state);
+  }
+
+  Button *rightRemoteButton = remoteButton[activeRemoteRight];
+  for (int i = 0; i < remoteButtonCount[activeRemoteRight]; i++)
+  {
+    Button button = rightRemoteButton[i];
+    unsigned short color = get_button_color(&button);
+    int x = getRemoteX(button.col, false);
+    int y = getRemoteY(button.row);
+    canvas.fillRoundRect(x, y, button.w, button.h, 3, color);
+    draw_button_symbol(&canvas, button, x, y, state);
   }
 
   canvas.pushSprite(0, 0);
@@ -729,15 +949,44 @@ void loop()
   {
     lastKeyPressMillis = millis();
 
-    for (int i = 0; i < buttonCount; i++)
+    bool isLeftRemote;
+    RemoteKey remoteKeyPressed;
+    if (getPressedRemoteKey(remoteKeyPressed, isLeftRemote))
     {
-      if (M5Cardputer.Keyboard.isKeyPressed(buttons[i].key))
+      int activeRemote = isLeftRemote ? activeRemoteLeft : activeRemoteRight;
+
+      for (int i = 0; i < remoteButtonCount[activeRemote]; i++)
       {
-        handle_button_press(&buttons[i]);
-        actionTaken = true;
+        if (remoteButton[activeRemote][i].key == remoteKeyPressed)
+        {
+          handle_button_press(&remoteButton[activeRemote][i]);
+          actionTaken = true;
+          break;
+        }
       }
     }
 
+    // toggle active left remote
+    if (M5Cardputer.Keyboard.isKeyPressed(KEY_LEFT_CTRL))
+    {
+      do
+      {
+        activeRemoteLeft = (RemoteDevice)((activeRemoteLeft + 1) % RemoteDevice::NUM_DEVICES);
+      } while (activeRemoteLeft == activeRemoteRight);
+      redraw = true;
+    }
+
+    // toggle active right remote
+    if (M5Cardputer.Keyboard.isKeyPressed(' '))
+    {
+      do
+      {
+        activeRemoteRight = (RemoteDevice)((activeRemoteRight + 1) % RemoteDevice::NUM_DEVICES);
+      } while (activeRemoteRight == activeRemoteLeft);
+      redraw = true;
+    }
+
+    // adjust brightness
     if (M5Cardputer.Keyboard.isKeyPressed('.') || M5Cardputer.Keyboard.isKeyPressed(';'))
     {
       brightness = M5Cardputer.Keyboard.isKeyPressed('.')
@@ -749,16 +998,17 @@ void loop()
   }
 
   // sensor or button triggered action
-  if (btAutoAction != NoAction)
+  if (lpfAutoAction != NoAction)
   {
-    log_w("auto action: %d", btAutoAction);
+    log_w("auto action: %d", lpfAutoAction);
 
-    for (int i = 0; i < buttonCount; i++)
+    Button *lpfButton = remoteButton[RemoteDevice::PoweredUpHub];
+    for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUpHub]; i++)
     {
-      if (buttons[i].action == btAutoAction && (buttons[i].port == None || buttons[i].port == btMotorPort))
+      if (lpfButton[i].action == lpfAutoAction && (lpfButton[i].port == 0xFF || lpfButton[i].port == lpfMotorPort))
       {
-        handle_button_press(&buttons[i]);
-        btAutoAction = NoAction;
+        handle_button_press(&lpfButton[i]);
+        lpfAutoAction = NoAction;
         actionTaken = true;
       }
     }
@@ -769,10 +1019,14 @@ void loop()
   {
     draw();
     delay(60);
-    for (int i = 0; i < buttonCount; i++)
-      buttons[i].pressed = false;
+    for (int i = 0; i < remoteButtonCount[activeRemoteLeft]; i++)
+      remoteButton[activeRemoteLeft][i].pressed = false;
+    for (int i = 0; i < remoteButtonCount[activeRemoteRight]; i++)
+      remoteButton[activeRemoteRight][i].pressed = false;
     redraw = true;
-    btLastAction = millis();
+
+    // TODO
+    lpfLastAction = millis();
   }
 
   // update loop for system bar redraws, etc
@@ -786,57 +1040,58 @@ void loop()
       redraw = true;
     }
 
-    if (btInit)
+    if (lpfInit)
     {
-      if (!btTrainCtl.isConnected())
+      if (!lpfHub.isConnected())
       {
-        btInit = false;
+        lpfInit = false;
         redraw = true;
       }
       else
       {
-        if (btLedColor == Color::NONE)
+        if (lpfLedColor == Color::NONE)
         {
-          byte btLedPort = btTrainCtl.getPortForDeviceType((byte)DeviceType::HUB_LED);
+          byte btLedPort = lpfHub.getPortForDeviceType((byte)DeviceType::HUB_LED);
           if (btLedPort != NO_SENSOR_FOUND)
           {
-            btLedColor = (Color)(1 + (millis() % (Color::NUM_COLORS - 1))); // "random" color
-            btTrainCtl.setLedColor(btLedColor);
+            lpfLedColor = (Color)(1 + (millis() % (Color::NUM_COLORS - 1))); // "random" color
+            lpfHub.setLedColor(lpfLedColor);
           }
         }
 
-        if (!btSensorInit) // TODO: timeout for checking for sensor?
+        if (!lpfSensorInit) // TODO: timeout for checking for sensor?
         {
-          btSensorPort = btTrainCtl.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
-          if (btSensorPort == (byte)PoweredUpHubPort::A || btSensorPort == (byte)PoweredUpHubPort::B)
+          lpfSensorPort = lpfHub.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
+          if (lpfSensorPort == (byte)PoweredUpHubPort::A || lpfSensorPort == (byte)PoweredUpHubPort::B)
           {
-            btTrainCtl.activatePortDevice(btSensorPort, sensorCallback);
-            btMotorPort = btSensorPort == (byte)PoweredUpHubPort::A ? (byte)PoweredUpHubPort::B : (byte)PoweredUpHubPort::A;
-            btSensorColor = Color::NONE;
-            btSensorInit = true;
+            lpfHub.activatePortDevice(lpfSensorPort, lpfSensorCallback);
+            lpfMotorPort = lpfSensorPort == (byte)PoweredUpHubPort::A ? (byte)PoweredUpHubPort::B : (byte)PoweredUpHubPort::A;
+            lpfSensorColor = Color::NONE;
+            lpfSensorInit = true;
             redraw = true;
           }
         }
         // bt sensor delayed start after stop
-        if (btSensorStopFunction > 0 && btSensorStopDelay > 0 && millis() > btSensorStopDelay)
+        if (btSensorStopFunction > 0 && lpfSensorStopDelay > 0 && millis() > lpfSensorStopDelay)
         {
           resumeTrainMotion();
 
           // also show press for sensor button
-          for (int i = 0; i < buttonCount; i++)
+          Button *lpfButton = remoteButton[RemoteDevice::PoweredUpHub];
+          for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUpHub]; i++)
           {
-            if (buttons[i].action == Brake && buttons[i].port == btSensorPort)
+            if (lpfButton[i].action == Brake && lpfButton[i].port == lpfSensorPort)
             {
-              buttons[i].pressed = true;
+              lpfButton[i].pressed = true;
               break;
             }
           }
           return; // TODO: make sure OK
         }
 
-        if (millis() - btLastAction > BtInactiveTimeoutMs && btPortSpeed[btMotorPort] == 0) // TODO: check both, only works with sensor?
+        if (millis() - lpfLastAction > BtInactiveTimeoutMs && lpfPortSpeed[lpfMotorPort] == 0) // TODO: check both, only works with sensor?
         {
-          btConnectionToggle();
+          lpfConnectionToggle();
           redraw = true;
         }
       }

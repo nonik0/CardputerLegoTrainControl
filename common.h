@@ -18,13 +18,37 @@ const unsigned short COLOR_PURPLE = 0x7075;
 // index maps/casts to Legoino Color enum
 const unsigned short BtColors[] = {TFT_BLACK, TFT_PINK, TFT_PURPLE, TFT_BLUE, 0x9E7F, TFT_CYAN, TFT_GREEN, TFT_YELLOW, COLOR_ORANGE, TFT_RED, TFT_WHITE};
 
-enum Port
+// will map to keys in either left or right remote layouts
+enum RemoteKey {
+  AuxTop, // '`' or KEY_BACKSPACE
+  AuxMid, // KEY_TAB or '\'
+  AuxBot, // KEY_FN or KEY_ENTER
+  LeftPortSpdUp, // 'e' or 'i'
+  LeftPortBrake, // 's' or 'j'
+  LeftPortSpdDn, // 'z' or 'n'
+  RightPortSpdUp, // 'r' or 'o'
+  RightPortBrake, // 'd' or 'k'
+  RightPortSpdDn, // 'x' or 'm'
+  NoTouchy,
+};
+
+enum RemoteColumn
 {
-  BtA = 0, // == PoweredUpHubPort::A // hacky but works for compare with PoweredUpHubPort
-  BtB = 1, // == PoweredUpHubPort::B
-  IrR,
-  IrB,
-  None
+  LeftPortCol, // c2 or c4
+  RightPortCol, // c3 or c5
+  AuxCol, // c1 or c6
+  HiddenCol,
+};
+
+enum RemoteRow
+{
+  Row1,
+  Row1_5,
+  Row2,
+  Row2_5,
+  Row3,
+  Row3_5,
+  HiddenRow,
 };
 
 enum RemoteDevice
@@ -32,10 +56,11 @@ enum RemoteDevice
   PoweredUpHub = 0x00,
   SBrick = 0x01,
   PowerFunctionsIR = 0x02,
-  CircuitCubes = 0x03
+  CircuitCubes = 0x03,
+  NUM_DEVICES = 4
 };
 
-enum Action
+enum RemoteAction
 {
   BtConnection,
   BtColor,
@@ -49,14 +74,14 @@ enum Action
 
 struct Button
 {
-  char key;
-  int x;
-  int y;
+  RemoteKey key;
+  RemoteColumn col;
+  RemoteRow row;
   int w;
   int h;
   RemoteDevice device;
   byte port; // device-specific
-  Action action;
+  RemoteAction action;
   unsigned short color;
   bool pressed;
 };
@@ -65,16 +90,16 @@ struct Button
 // TODO: better way to do this...eventually pass pointers to object instance?
 struct State
 {
-  bool btConnected;
-  int btRssi;
-  Color btLedColor;
-  byte btSensorPort;
-  Color btSensorSpdUpColor;
-  Color btSensorStopColor;
-  Color btSensorSpdDnColor;
-  int8_t btSensorSpdUpFunction;
-  int8_t btSensorStopFunction;
-  int8_t btSensorSpdDnFunction;
+  bool lpfConnected;
+  int lpfRssi;
+  Color lpfLedColor;
+  byte lpfSensorPort;
+  Color lpfSensorSpdUpColor;
+  Color lpfSensorStopColor;
+  Color lpfSensorSpdDnColor;
+  int8_t lpfSensorSpdUpFunction;
+  int8_t lpfSensorStopFunction;
+  int8_t lpfSensorSpdDnFunction;
   bool sBrickConnected;
   byte irChannel;
 };
