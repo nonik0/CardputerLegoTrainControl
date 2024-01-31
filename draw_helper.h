@@ -87,12 +87,12 @@ inline void draw_rssi_symbol(M5Canvas *canvas, int x, int y, bool init, int rssi
   canvas->drawTriangle(x - 3, barY, x + 3, barY, x, barY + 3, TFT_SILVER);
 
   uint8_t barX = x + 4;
-  (rssi > -90)
+  (rssi > -100)
       ? canvas->fillRect(barX, barY + (bar3 - bar1), barW, bar1, COLOR_ORANGE)
       : canvas->drawRect(barX, barY + (bar3 - bar1), barW, bar1, TFT_SILVER);
 
   barX += barW + barSpace;
-  (rssi > -70)
+  (rssi > -75)
       ? canvas->fillRect(barX, barY + (bar3 - bar2), barW, bar2, COLOR_ORANGE)
       : canvas->drawRect(barX, barY + (bar3 - bar2), barW, bar2, TFT_SILVER);
 
@@ -270,10 +270,10 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, int x, int y, S
     {
     case RemoteDevice::PoweredUpHub:
       //draw_power_symbol(canvas, x, y, state.btConnected);
-      draw_rssi_symbol(canvas, x, y, state.lpfConnected, state.lpfRssi);
+      draw_rssi_symbol(canvas, x, y, state.lpf2Connected, state.lpf2Rssi);
       break;
     case RemoteDevice::SBrick:
-      draw_power_symbol(canvas, x, y, state.sBrickConnected);
+      draw_rssi_symbol(canvas, x, y, state.sBrickConnected, state.sbrickRssi);
       break;
     }
     break;
@@ -284,18 +284,18 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, int x, int y, S
     draw_ir_channel_indicator(canvas, x, y, state.irChannel, button.pressed);
     break;
   case RemoteAction::SpdUp:
-    button.device == RemoteDevice::PoweredUpHub &&button.port == state.lpfSensorPort
-        ? draw_sensor_spdup_symbol(canvas, x, y, state.lpfSensorSpdUpColor, state.lpfSensorSpdUpFunction)
+    button.device == RemoteDevice::PoweredUpHub &&button.port == state.lpf2SensorPort
+        ? draw_sensor_spdup_symbol(canvas, x, y, state.lpf2SensorSpdUpColor, state.lpf2SensorSpdUpFunction)
         : draw_speedup_symbol(canvas, x, y);
     break;
   case RemoteAction::Brake:
-    button.device == RemoteDevice::PoweredUpHub &&button.port == state.lpfSensorPort
-        ? draw_sensor_stop_symbol(canvas, x, y, state.lpfSensorStopColor, state.lpfSensorStopFunction)
+    button.device == RemoteDevice::PoweredUpHub &&button.port == state.lpf2SensorPort
+        ? draw_sensor_stop_symbol(canvas, x, y, state.lpf2SensorStopColor, state.lpf2SensorStopFunction)
         : draw_stop_symbol(canvas, x, y);
     break;
   case RemoteAction::SpdDn:
-    button.device == RemoteDevice::PoweredUpHub &&button.port == state.lpfSensorPort
-        ? draw_sensor_spddn_symbol(canvas, x, y, state.lpfSensorSpdDnColor, state.lpfSensorSpdDnFunction)
+    button.device == RemoteDevice::PoweredUpHub &&button.port == state.lpf2SensorPort
+        ? draw_sensor_spddn_symbol(canvas, x, y, state.lpf2SensorSpdDnColor, state.lpf2SensorSpdDnFunction)
         : draw_speeddn_symbol(canvas, x, y);
     break;
   default:

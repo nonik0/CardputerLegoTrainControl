@@ -90,16 +90,17 @@ struct Button
 // TODO: better way to do this...eventually pass pointers to object instance?
 struct State
 {
-  bool lpfConnected;
-  int lpfRssi;
-  Color lpfLedColor;
-  byte lpfSensorPort;
-  Color lpfSensorSpdUpColor;
-  Color lpfSensorStopColor;
-  Color lpfSensorSpdDnColor;
-  int8_t lpfSensorSpdUpFunction;
-  int8_t lpfSensorStopFunction;
-  int8_t lpfSensorSpdDnFunction;
+  bool lpf2Connected;
+  int lpf2Rssi;
+  Color lpf2LedColor;
+  byte lpf2SensorPort;
+  Color lpf2SensorSpdUpColor;
+  Color lpf2SensorStopColor;
+  Color lpf2SensorSpdDnColor;
+  int8_t lpf2SensorSpdUpFunction;
+  int8_t lpf2SensorStopFunction;
+  int8_t lpf2SensorSpdDnFunction;
   bool sBrickConnected;
+  int sbrickRssi;
   byte irChannel;
 };

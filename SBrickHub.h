@@ -25,6 +25,7 @@ public:
     void rebootHub();
     void setHubName(char name[]);
 
+    int getRssi();
     void setWatchdogTimeout(uint8_t tenthOfSeconds);
     uint8_t getWatchdogTimeout();
 
@@ -37,6 +38,7 @@ public:
     void notifyCallback(NimBLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);
     NimBLEUUID _bleUuid;
     NimBLEUUID _characteristicUuid;
+    NimBLEClient *_pClient;
     NimBLEAddress *_pServerAddress;
     NimBLEAddress *_requestedDeviceAddress = nullptr;
     NimBLERemoteCharacteristic *_pRemoteCharacteristic;

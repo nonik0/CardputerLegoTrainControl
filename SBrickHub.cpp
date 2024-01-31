@@ -110,7 +110,7 @@ bool SBrickHub::connectHub()
     log_d("connecting to sbrick hub");
 
     NimBLEAddress pAddress = *_pServerAddress;
-    NimBLEClient *pClient = nullptr;
+    _pClient = nullptr;
 
     log_d("number of ble clients: %d", NimBLEDevice::getClientListSize());
 
@@ -121,10 +121,10 @@ bool SBrickHub::connectHub()
          *  second argument in connect() to prevent refreshing the service database.
          *  This saves considerable time and power.
          */
-        pClient = NimBLEDevice::getClientByPeerAddress(pAddress);
-        if (pClient)
+        _pClient = NimBLEDevice::getClientByPeerAddress(pAddress);
+        if (_pClient)
         {
-            if (!pClient->connect(pAddress, false))
+            if (!_pClient->connect(pAddress, false))
             {
                 log_e("reconnect failed");
                 return false;
@@ -136,12 +136,12 @@ bool SBrickHub::connectHub()
          */
         else
         {
-            pClient = NimBLEDevice::getDisconnectedClient();
+            _pClient = NimBLEDevice::getDisconnectedClient();
         }
     }
 
     /** No client to reuse? Create a new one. */
-    if (!pClient)
+    if (!_pClient)
     {
         if (NimBLEDevice::getClientListSize() >= NIMBLE_MAX_CONNECTIONS)
         {
@@ -149,20 +149,20 @@ bool SBrickHub::connectHub()
             return false;
         }
 
-        pClient = NimBLEDevice::createClient();
+        _pClient = NimBLEDevice::createClient();
     }
 
-    if (!pClient->isConnected())
+    if (!_pClient->isConnected())
     {
-        if (!pClient->connect(pAddress))
+        if (!_pClient->connect(pAddress))
         {
             log_e("failed to connect");
             return false;
         }
     }
 
-    log_d("connected to: %s, RSSI: %d", pClient->getPeerAddress().toString().c_str(), pClient->getRssi());
-    NimBLERemoteService *pRemoteService = pClient->getService(_bleUuid);
+    log_d("connected to: %s, RSSI: %d", _pClient->getPeerAddress().toString().c_str(), _pClient->getRssi());
+    NimBLERemoteService *pRemoteService = _pClient->getService(_bleUuid);
     if (pRemoteService == nullptr)
     {
         log_e("failed to get ble client");
@@ -183,7 +183,7 @@ bool SBrickHub::connectHub()
     }
 
     // add callback instance to get notified if a disconnect event appears
-    pClient->setClientCallbacks(new SBrickHubClientCallback(this));
+    _pClient->setClientCallbacks(new SBrickHubClientCallback(this));
 
     // Set states
     _isConnected = true;
@@ -194,8 +194,7 @@ bool SBrickHub::connectHub()
 void SBrickHub::disconnectHub()
 {
     log_d("disconnecting client");
-    NimBLEClient *pClient = NimBLEDevice::getClientByPeerAddress(*_pServerAddress);
-    NimBLEDevice::deleteClient(pClient);
+    NimBLEDevice::deleteClient(_pClient);
 }
 
 bool SBrickHub::isConnecting()
@@ -236,6 +235,10 @@ void SBrickHub::setHubName(char name[])
 
     memcpy(setNameCommand, name, nameLength + 1);
     WriteValue(setNameCommand, arraySize);
+}
+
+int SBrickHub::getRssi() {
+    return _pClient->getRssi();
 }
 
 void SBrickHub::setWatchdogTimeout(uint8_t tenthOfSeconds)
