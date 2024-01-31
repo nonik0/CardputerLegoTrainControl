@@ -55,8 +55,9 @@ enum RemoteDevice
 {
   PoweredUpHub = 0x00,
   SBrick = 0x01,
-  PowerFunctionsIR = 0x02,
-  CircuitCubes = 0x03,
+  CircuitCubes = 0x02,
+  PowerFunctionsIR = 0x03
+  ,
   NUM_DEVICES = 4
 };
 
@@ -102,5 +103,7 @@ struct State
   int8_t lpf2SensorSpdDnFunction;
   bool sBrickConnected;
   int sbrickRssi;
+  bool circuitCubesConnected;
+  int circuitCubesRssi;
   byte irChannel;
 };

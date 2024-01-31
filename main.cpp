@@ -8,6 +8,7 @@
 
 #include "common.h"
 #include "draw_helper.h"
+#include "CircuitCubeHub.h"
 #include "SBrickHub.h"
 
 #define IR_TX_PIN 44
@@ -28,7 +29,7 @@ const short BtConnWait = 100;
 const int BtInactiveTimeoutMs = 5 * 60 * 1000;
 const short BtDistanceStopThreshold = 100; // when train is "picked up"
 
-// hub state
+// lpf2 hub state
 Lpf2Hub lpf2Hub;
 bool lpf2Init = false;
 volatile int lpf2Rssi = -1000;
@@ -40,7 +41,7 @@ unsigned short lpf2LedColorDelay = 0;
 unsigned long lpf2LastAction = 0; // track for auto-disconnect
 volatile RemoteAction lpf2AutoAction = NoAction;
 
-// color/distance sensor
+// lpf2 color/distance sensor
 bool lpf2SensorInit = false;
 byte lpf2SensorPort = NO_SENSOR_FOUND; // set to A or B if detected
 byte lpf2MotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if detected
@@ -52,18 +53,10 @@ Color lpf2SensorSpdUpColor = Color::GREEN;
 Color lpf2SensorStopColor = Color::RED;
 Color lpf2SensorSpdDnColor = Color::YELLOW;
 int8_t lpf2SensorSpdUpFunction = 0; // TBD
-int8_t lpf2SensorStopFunction = 0;   // <0=disabled, 0=brake, >0=wait time in seconds
+int8_t lpf2SensorStopFunction = 0;  // <0=disabled, 0=brake, >0=wait time in seconds
 int8_t lpf2SensorSpdDnFunction = 0; // TBD
 unsigned long lpf2SensorStopDelay = 0;
 short lpf2SensorStopSavedSpd = 0; // saved speed before stopping
-
-// IR train control state
-const int IrMaxSpeed = 105;
-const short IrSpdInc = 15; // hacky but to match 7 levels
-PowerFunctions irTrainCtl(IR_TX_PIN);
-bool irTrackState = false;
-byte irChannel = 0;
-short irPortSpeed[2] = {0, 0};
 
 // SBrick state
 const short SBrickSpdInc = 35; // ~ 255 / 10
@@ -75,6 +68,25 @@ short sbrickPortSpeed[4] = {0, 0, 0, 0};
 unsigned long sbrickDisconnectDelay; // debounce disconnects
 unsigned long sbrickLastAction = 0;  // track for auto-disconnect
 // volatile Action sbrickAutoAction = NoAction;
+
+// CircuitCubes state
+const short circuitCubesSpdInc = 35; // ~ 255 / 10
+CircuitCubeHub circuitCubesHub;
+float circuitCubesBatteryV = 0;
+bool circuitCubesInit = false;
+volatile int circuitCubesRssi = -1000;
+short circuitCubesPortSpeed[3] = {0, 0, 0};
+unsigned long circuitCubesDisconnectDelay; // debounce disconnects
+unsigned long circuitCubesLastAction = 0;  // track for auto-disconnect
+// volatile Action circuitCubesAutoAction = NoAction;
+
+// IR train control state
+const int IrMaxSpeed = 105;
+const short IrSpdInc = 15; // hacky but to match 7 levels
+PowerFunctions irTrainCtl(IR_TX_PIN);
+bool irTrackState = false;
+byte irChannel = 0;
+short irPortSpeed[2] = {0, 0};
 
 // system bar state
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
@@ -148,6 +160,17 @@ Button sbrickHubButtons[] = {
 };
 uint8_t sbrickButtonCount = sizeof(sbrickHubButtons) / sizeof(Button);
 
+Button circuitCubesButtons[] = {
+    {AuxTop, AuxCol, Row2, bw, bw, RemoteDevice::CircuitCubes, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::A, SpdUp, COLOR_LIGHTGRAY, false},
+    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::A, Brake, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::B, SpdUp, COLOR_LIGHTGRAY, false},
+    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::B, Brake, COLOR_LIGHTGRAY, false},
+    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::B, SpdDn, COLOR_LIGHTGRAY, false},
+};
+uint8_t circuitCubesButtonCount = sizeof(circuitCubesButtons) / sizeof(Button);
+
 Button powerFunctionsIrButtons[] = {
     {AuxTop, AuxCol, Row2, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
     {AuxMid, HiddenCol, HiddenRow, 0, 0, RemoteDevice::PowerFunctionsIR, 0xFF, IrTrackState, COLOR_LIGHTGRAY, false},
@@ -158,14 +181,11 @@ Button powerFunctionsIrButtons[] = {
     {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, Brake, COLOR_LIGHTGRAY, false},
     {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdDn, COLOR_LIGHTGRAY, false},
 };
-uint8_t irButtonCount = sizeof(powerFunctionsIrButtons) / sizeof(Button);
-
-Button circuitCubesButtons[] = {};
-uint8_t circuitCubesButtonCount = sizeof(circuitCubesButtons) / sizeof(Button);
+uint8_t powerFunctionsIrButtonCount = sizeof(powerFunctionsIrButtons) / sizeof(Button);
 
 // must match order of RemoteDevice enum
-Button *remoteButton[] = {lpf2HubButtons, sbrickHubButtons, powerFunctionsIrButtons, circuitCubesButtons};
-uint8_t remoteButtonCount[] = {lpf2ButtonCount, sbrickButtonCount, irButtonCount, circuitCubesButtonCount};
+Button *remoteButton[] = {lpf2HubButtons, sbrickHubButtons, circuitCubesButtons, powerFunctionsIrButtons};
+uint8_t remoteButtonCount[] = {lpf2ButtonCount, sbrickButtonCount, circuitCubesButtonCount, powerFunctionsIrButtonCount};
 RemoteDevice activeRemoteLeft = RemoteDevice::PoweredUpHub;
 RemoteDevice activeRemoteRight = RemoteDevice::SBrick;
 
@@ -243,7 +263,7 @@ void lpf2RssiCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pDat
     return;
   }
 
-  log_w("rssiCallback: %d", rssi);
+  log_d("rssiCallback: %d", rssi);
   lpf2Rssi = rssi;
   redraw = true;
 }
@@ -402,6 +422,37 @@ void sbrickConnectionToggle()
   }
 }
 
+void circuitCubesConnectionToggle()
+{
+  log_d("circuitCubesConnectionToggle");
+
+  if (!circuitCubesInit)
+  {
+    if (!circuitCubesHub.isConnecting())
+    {
+      circuitCubesHub.init();
+    }
+
+    unsigned long exp = millis() + BtConnWait;
+    while (!circuitCubesHub.isConnecting() && exp > millis())
+      ;
+
+    if (circuitCubesHub.isConnecting() && circuitCubesHub.connectHub())
+    {
+      circuitCubesInit = true;
+    }
+
+    circuitCubesDisconnectDelay = millis() + 500;
+  }
+  else if (circuitCubesDisconnectDelay < millis())
+  {
+    circuitCubesHub.shutDownHub();
+    delay(200);
+    circuitCubesInit = false;
+    circuitCubesPortSpeed[0] = circuitCubesPortSpeed[1] = circuitCubesPortSpeed[2] = 0;
+  }
+}
+
 SPIClass SPI2;
 void checkForMenuBoot()
 {
@@ -438,6 +489,9 @@ void handle_button_press(Button *button)
     case RemoteDevice::SBrick:
       sbrickConnectionToggle();
       break;
+    case RemoteDevice::CircuitCubes:
+      circuitCubesConnectionToggle();
+      break;
     }
     break;
   case BtColor:
@@ -450,8 +504,8 @@ void handle_button_press(Button *button)
     {
       // can change colors while not connected to choose initial color
       lpf2LedColor = (lpf2LedColor == Color(1))
-                        ? Color(Color::NUM_COLORS - 1)
-                        : (Color)(lpf2LedColor - 1);
+                         ? Color(Color::NUM_COLORS - 1)
+                         : (Color)(lpf2LedColor - 1);
       log_i("bt color: %d", lpf2LedColor);
       if (lpf2Hub.isConnected())
         lpf2Hub.setLedColor(lpf2LedColor);
@@ -484,24 +538,24 @@ void handle_button_press(Button *button)
             do
             {
               lpf2SensorSpdUpColor = (lpf2SensorSpdUpColor == Color::BLACK)
-                                        ? Color(Color::NUM_COLORS - 1)
-                                        : (Color)(lpf2SensorSpdUpColor - 1);
+                                         ? Color(Color::NUM_COLORS - 1)
+                                         : (Color)(lpf2SensorSpdUpColor - 1);
             } while (isIgnoredColor(lpf2SensorSpdUpColor) || lpf2SensorSpdUpColor == lpf2SensorSpdDnColor || lpf2SensorSpdUpColor == lpf2SensorStopColor);
             break;
           case Brake:
             do
             {
               lpf2SensorStopColor = (lpf2SensorStopColor == Color::BLACK)
-                                       ? Color(Color::NUM_COLORS - 1)
-                                       : (Color)(lpf2SensorStopColor - 1);
+                                        ? Color(Color::NUM_COLORS - 1)
+                                        : (Color)(lpf2SensorStopColor - 1);
             } while (isIgnoredColor(lpf2SensorStopColor) || lpf2SensorStopColor == lpf2SensorSpdUpColor || lpf2SensorStopColor == lpf2SensorSpdDnColor);
             break;
           case SpdDn:
             do
             {
               lpf2SensorSpdDnColor = (lpf2SensorSpdDnColor == Color::BLACK)
-                                        ? Color(Color::NUM_COLORS - 1)
-                                        : (Color)(lpf2SensorSpdDnColor - 1);
+                                         ? Color(Color::NUM_COLORS - 1)
+                                         : (Color)(lpf2SensorSpdDnColor - 1);
             } while (isIgnoredColor(lpf2SensorSpdDnColor) || lpf2SensorSpdDnColor == lpf2SensorSpdUpColor || lpf2SensorSpdDnColor == lpf2SensorStopColor);
             break;
           }
@@ -536,6 +590,46 @@ void handle_button_press(Button *button)
         }
         lpf2Hub.setBasicMotorSpeed(button->port, lpf2PortSpeed[button->port]);
       }
+
+      break;
+    case RemoteDevice::SBrick:
+      if (!sbrickHub.isConnected())
+        break;
+
+      switch (button->action)
+      {
+      case SpdUp:
+        sbrickPortSpeed[button->port] = min(SBRICK_MAX_CHANNEL_SPEED, sbrickPortSpeed[button->port] + SBrickSpdInc);
+        break;
+      case Brake:
+        sbrickPortSpeed[button->port] = 0;
+        break;
+      case SpdDn:
+        sbrickPortSpeed[button->port] = max(SBRICK_MIN_CHANNEL_SPEED, sbrickPortSpeed[button->port] - SBrickSpdInc);
+        break;
+      }
+
+      sbrickHub.setMotorSpeed(button->port, sbrickPortSpeed[button->port]);
+      break;
+    case RemoteDevice::CircuitCubes:
+      if (!circuitCubesHub.isConnected())
+        break;
+
+      switch (button->action)
+      {
+      case SpdUp:
+        circuitCubesPortSpeed[button->port] = min(CIRCUIT_CUBES_SPEED_MAX, circuitCubesPortSpeed[button->port] + circuitCubesSpdInc);
+        break;
+      case Brake:
+        circuitCubesPortSpeed[button->port] = 0;
+        break;
+      case SpdDn:
+        circuitCubesPortSpeed[button->port] = max(CIRCUIT_CUBES_SPEED_MIN, circuitCubesPortSpeed[button->port] - circuitCubesSpdInc);
+        break;
+      }
+
+      circuitCubesHub.setMotorSpeed(button->port, circuitCubesPortSpeed[button->port]);
+      break;
     case RemoteDevice::PowerFunctionsIR:
       if (irTrackState)
       {
@@ -570,25 +664,8 @@ void handle_button_press(Button *button)
           break;
         }
       }
+      
       break;
-    case RemoteDevice::SBrick:
-      if (!sbrickHub.isConnected())
-        break;
-
-      switch (button->action)
-      {
-      case SpdUp:
-        sbrickPortSpeed[button->port] = min(SBRICK_MAX_CHANNEL_SPEED, sbrickPortSpeed[button->port] + SBrickSpdInc);
-        break;
-      case Brake:
-        sbrickPortSpeed[button->port] = 0;
-        break;
-      case SpdDn:
-        sbrickPortSpeed[button->port] = max(SBRICK_MIN_CHANNEL_SPEED, sbrickPortSpeed[button->port] - SBrickSpdInc);
-        break;
-      }
-
-      sbrickHub.setMotorSpeed(button->port, sbrickPortSpeed[button->port]);
     }
     break;
   }
@@ -888,10 +965,12 @@ void draw()
   canvas.drawString(getRemoteRightPortString(activeRemoteRight), c5 + bw / 2, r1 - 2);
 
   // draw layout for both active remotes
-  State state = {lpf2Init, lpf2Rssi, lpf2LedColor, lpf2SensorPort,
+  State state = {lpf2Init, lpf2Rssi,
+                 lpf2LedColor, lpf2SensorPort,
                  lpf2SensorSpdUpColor, lpf2SensorStopColor, lpf2SensorSpdDnColor,
                  lpf2SensorSpdUpFunction, lpf2SensorStopFunction, lpf2SensorSpdDnFunction,
                  sbrickInit, sbrickRssi,
+                 circuitCubesInit, circuitCubesRssi,
                  irChannel};
 
   Button *leftRemoteButton = remoteButton[activeRemoteLeft];
@@ -1117,14 +1196,25 @@ void loop()
         // disable for now
         // if (sbrickHub.getWatchdogTimeout()) {
         //   log_i("disabling sbrick watchdog");
-        //   USBSerial.println("OVER SERIAL disabling sbrick watchdog");
         //   sbrickHub.setWatchdogTimeout(0);
         // }
+      }
+    }
 
-        // TODO remote action specific or any action of cardputer resets timer?
-        // if (millis() - sbrickLastAction > BtInactiveTimeoutMs)
+    if (circuitCubesInit)
+    {
+      if (!circuitCubesHub.isConnected())
+      {
+        circuitCubesInit = false;
+        redraw = true;
+      }
+      else
+      {
+        // int newRssi = circuitCubesHub.getRssi();
+        // if (newRssi != circuitCubesRssi)
         // {
-        //   sbrickConnectionToggle();
+        //   log_i("circuitcubes rssi %d", newRssi);
+        //   circuitCubesRssi = newRssi;
         //   redraw = true;
         // }
       }

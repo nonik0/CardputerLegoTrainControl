@@ -275,6 +275,8 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, int x, int y, S
     case RemoteDevice::SBrick:
       draw_rssi_symbol(canvas, x, y, state.sBrickConnected, state.sbrickRssi);
       break;
+    case RemoteDevice::CircuitCubes:
+      draw_rssi_symbol(canvas, x, y, state.circuitCubesConnected, state.circuitCubesRssi);
     }
     break;
   case RemoteAction::BtColor:
