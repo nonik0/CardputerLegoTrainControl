@@ -1,5 +1,3 @@
-#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
-
 #include <Arduino.h>
 #include <Lpf2Hub.h>
 #include <M5Cardputer.h>
@@ -92,6 +90,8 @@ short irPortSpeed[2] = {0, 0};
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
 unsigned long updateDelay = 0;
 
+SPIClass SPI2;
+bool sdInit = false;
 volatile bool redraw = false;
 
 // define a bunch of display variables to make adjustments not a nightmare
@@ -199,7 +199,7 @@ bool isIgnoredColor(Color color)
   return false;
 }
 
-inline void resumeTrainMotion()
+void lpf2ResumeTrainMotion()
 {
   lpf2SensorStopDelay = 0;
   lpf2AutoAction = lpf2SensorStopSavedSpd > 0 ? SpdUp : SpdDn;
@@ -226,7 +226,7 @@ void lpf2ButtonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pD
     if (lpf2SensorStopDelay > 0)
     {
       log_w("bt button: resume");
-      resumeTrainMotion();
+      lpf2ResumeTrainMotion();
 
       // also show press for led color button
       Button *lpf2Button = remoteButton[RemoteDevice::PoweredUpHub];
@@ -392,7 +392,7 @@ void lpf2ConnectionToggle()
 
 void sbrickConnectionToggle()
 {
-  log_d("sbrickConnectionToggle");
+  log_w("sbrickConnectionToggle");
 
   if (!sbrickInit)
   {
@@ -409,6 +409,12 @@ void sbrickConnectionToggle()
     if (sbrickHub.isConnecting() && sbrickHub.connectHub())
     {
       sbrickInit = true;
+
+      if (sbrickHub.getWatchdogTimeout())
+      {
+        log_w("disabling sbrick watchdog");
+        sbrickHub.setWatchdogTimeout(0);
+      }
     }
 
     sbrickDisconnectDelay = millis() + 500;
@@ -453,25 +459,64 @@ void circuitCubesConnectionToggle()
   }
 }
 
-SPIClass SPI2;
+bool sdCardInit()
+{
+  uint8_t retries = 3;
+  SPI2.begin(M5.getPin(m5::pin_name_t::sd_spi_sclk),
+             M5.getPin(m5::pin_name_t::sd_spi_miso),
+             M5.getPin(m5::pin_name_t::sd_spi_mosi),
+             M5.getPin(m5::pin_name_t::sd_spi_ss));
+  while (!(sdInit = SD.begin(M5.getPin(m5::pin_name_t::sd_spi_ss), SPI2)) && retries-- > 0)
+  {
+    delay(100);
+  }
+
+  return sdInit;
+}
+
 void checkForMenuBoot()
 {
   M5Cardputer.update();
 
-  if (M5Cardputer.Keyboard.isKeyPressed('a'))
+  if (M5Cardputer.Keyboard.isKeyPressed('a') && sdCardInit())
   {
-    SPI2.begin(M5.getPin(m5::pin_name_t::sd_spi_sclk),
-               M5.getPin(m5::pin_name_t::sd_spi_miso),
-               M5.getPin(m5::pin_name_t::sd_spi_mosi),
-               M5.getPin(m5::pin_name_t::sd_spi_ss));
-    while (!SD.begin(M5.getPin(m5::pin_name_t::sd_spi_ss), SPI2))
-    {
-      delay(500);
-    }
-
     updateFromFS(SD, "/menu.bin");
     ESP.restart();
   }
+}
+
+void saveScreenshot()
+{
+  if (!sdInit && !sdCardInit())
+  {
+    log_w("cannot initialize SD card");
+    return;
+  }
+
+  size_t pngLen;
+  uint8_t *pngBytes = (uint8_t *)M5Cardputer.Display.createPng(&pngLen, 0, 0, 240, 135);
+
+  int i = 0;
+  String filename;
+  do
+  {
+    filename = "/screenshot." + String(i++) + ".png";
+  } while (SD.exists(filename));
+
+  File file = SD.open(filename, FILE_WRITE);
+  if (file)
+  {
+    file.write(pngBytes, pngLen);
+    file.flush();
+    file.close();
+    log_i("saved screenshot to %s", filename);
+  }
+  else
+  {
+    log_w("cannot save screenshot to file %s", filename);
+  }
+
+  free(pngBytes);
 }
 
 void handle_button_press(Button *button)
@@ -498,7 +543,7 @@ void handle_button_press(Button *button)
     // function like hub button
     if (lpf2SensorStopDelay > 0)
     {
-      resumeTrainMotion();
+      lpf2ResumeTrainMotion();
     }
     else
     {
@@ -664,7 +709,7 @@ void handle_button_press(Button *button)
           break;
         }
       }
-      
+
       break;
     }
     break;
@@ -952,7 +997,7 @@ void draw()
   canvas.drawString(getRemoteString(activeRemoteLeft), c1 + bw / 2, bty + bw / 2);
   canvas.drawString(getRemoteString(activeRemoteRight), c6 + bw / 2, iry + bw / 2);
 
-  // TODO: indicator that shows active/inactive tabs, e.g. [] [x] [x] []
+  draw_active_remote_indicator(&canvas, 2 * om, hy + (hh / 2), activeRemoteLeft, activeRemoteRight);
   draw_battery_indicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
 
   // draw labels
@@ -1074,6 +1119,12 @@ void loop()
       log_i("brightness: %d", brightness);
       M5Cardputer.Display.setBrightness(brightness);
     }
+
+    // take screenshot
+    if (M5Cardputer.BtnA.isPressed())
+    {
+      saveScreenshot();
+    }
   }
 
   // sensor or button triggered action
@@ -1153,7 +1204,7 @@ void loop()
         // bt sensor delayed start after stop
         if (lpf2SensorStopFunction > 0 && lpf2SensorStopDelay > 0 && millis() > lpf2SensorStopDelay)
         {
-          resumeTrainMotion();
+          lpf2ResumeTrainMotion();
 
           // also show press for sensor button
           Button *lpf2Button = remoteButton[RemoteDevice::PoweredUpHub];
@@ -1192,12 +1243,6 @@ void loop()
           sbrickRssi = newRssi;
           redraw = true;
         }
-
-        // disable for now
-        // if (sbrickHub.getWatchdogTimeout()) {
-        //   log_i("disabling sbrick watchdog");
-        //   sbrickHub.setWatchdogTimeout(0);
-        // }
       }
     }
 

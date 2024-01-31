@@ -46,6 +46,11 @@ public:
         // Found a device, check if the service is contained and optional if address fits requested address
         log_d("advertised device: %s", advertisedDevice->toString().c_str());
 
+        // TODO: connect without address
+        if (advertisedDevice->getName() == "SBrick") {
+            log_d("found SBrick device! [%s]", advertisedDevice->getAddress().toString().c_str());
+        }
+
         // SBrick does not advertise the service, so we need to connect directly instead of looking for the service in broadcasted devices
         if (_sbrickHub->_requestedDeviceAddress && advertisedDevice->getAddress().equals(*_sbrickHub->_requestedDeviceAddress))
         {
@@ -215,6 +220,34 @@ NimBLEAddress SBrickHub::getHubAddress()
 
 std::string SBrickHub::getHubName() { return _hubName; }
 
+void SBrickHub::configureSensor(byte port)
+{
+    log_w("configuring sensor on port %d", port);
+
+    byte setPeriodicVoltageMeasurementCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_MEASURE, port};
+    WriteValue(setPeriodicVoltageMeasurementCommand, 2);
+
+    byte setUpPeriodicVoltageNotificationCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_NOTIF, port};
+    WriteValue(setUpPeriodicVoltageNotificationCommand, 2);
+}
+
+float SBrickHub::readSensorData(byte port)
+{
+    byte queryAdcCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, port};
+    WriteValue(queryAdcCommand, 2);
+
+    uint16_t rawValue = _pRemoteCharacteristic->readValue<uint16_t>();
+    log_d("port %x raw value: %04x", port, rawValue);
+    if (rawValue)
+    {
+        float voltage = (rawValue * 0.83875F) / 2047; // 127 is wrong from protocol doc?
+        log_i("port %x voltage: %f", port, voltage);
+        return voltage;
+    }
+
+    return 0;
+}
+
 void SBrickHub::rebootHub()
 {
     byte rebootCommand[1] = {(byte)SBrickCommandType::REBOOT};
@@ -237,33 +270,39 @@ void SBrickHub::setHubName(char name[])
     WriteValue(setNameCommand, arraySize);
 }
 
-int SBrickHub::getRssi() {
+int SBrickHub::getRssi()
+{
     return _pClient->getRssi();
 }
 
 void SBrickHub::setWatchdogTimeout(uint8_t tenthOfSeconds)
- {
+{
     byte setWatchdogCommand[2] = {(byte)SBrickCommandType::SET_WATCHDOG_TIMEOUT, tenthOfSeconds};
     WriteValue(setWatchdogCommand, 2);
- }
+}
 
 uint8_t SBrickHub::getWatchdogTimeout()
- {
+{
     byte getWatchdogCommand[1] = {(byte)SBrickCommandType::GET_WATCHDOG_TIMEOUT};
     WriteValue(getWatchdogCommand, 1);
 
     uint8_t rawValue = _pRemoteCharacteristic->readValue<uint8_t>();
     return rawValue;
- }
+}
 
 void SBrickHub::WriteValue(byte command[], int size)
 {
-    log_d("writing command: %x", command);
+    String commandHexString = "0x";
+    for (int i = 0; i < size; i++) {
+        char byteHexChars[3];
+        sprintf(byteHexChars, "%02x", command[i]);
+        commandHexString += String(byteHexChars, 2);
+    }
+    log_d("writing command: %s", commandHexString.c_str());
 
-    byte commandWithCommonHeader[size];
-    memcpy(commandWithCommonHeader, command, size);
-    log_d("writing command with common header: %x", commandWithCommonHeader);
-    _pRemoteCharacteristic->writeValue(commandWithCommonHeader, sizeof(commandWithCommonHeader), false);
+    byte commandBytes[size];
+    memcpy(commandBytes, command, size);
+    _pRemoteCharacteristic->writeValue(commandBytes, sizeof(commandBytes), false);
 }
 
 void SBrickHub::stopMotor(byte port)
@@ -307,6 +346,12 @@ void SBrickHub::notifyCallback(
     size_t length,
     bool isNotify)
 {
-    log_d("notify callback for characteristic %s", pBLERemoteCharacteristic->getUUID().toString().c_str());
-    log_d("data: %x", pData);
+    log_w("notify callback for characteristic %s", pBLERemoteCharacteristic->getUUID().toString().c_str());
+
+    log_w("data: [");
+    for (int i = 0; i < length; i++)
+    {
+        log_w("%02x", pData[i]);
+    }
+    log_w("]");
 }

@@ -24,50 +24,53 @@ inline unsigned short interpolateColors(unsigned short color1, unsigned short co
   return (unsigned short)((interpolatedRed << 11) | (interpolatedGreen << 5) | interpolatedBlue);
 }
 
-inline void draw_rssi_indicator(M5Canvas *canvas, int x, int y, bool init, int rssi)
+inline void draw_active_remote_indicator(M5Canvas *canvas, int x, int y, uint8_t activeRemoteLeft, uint8_t activeRemoteRight)
 {
-  const uint8_t bar1 = 2, bar2 = 5, bar3 = 8, bar4 = 11;
-  const uint8_t barW = 3;
-  const uint8_t barY = y - bar4 / 2;
-  const uint8_t barSpace = 2;
+  // alignment middle_left
+  int w = 8;
+  int h = 12;
+  y = y - h / 2;
 
-  if (!init)
-    rssi = -1000;
-
-  canvas->drawLine(x, barY, x, barY + bar4 - 1, TFT_SILVER);
-  canvas->drawTriangle(x - 3, barY, x + 3, barY, x, barY + 3, TFT_SILVER);
-
-  uint8_t barX = x + 4;
-  (rssi > -90)
-      ? canvas->fillRect(barX, barY + (bar4 - bar1), barW, bar1, COLOR_ORANGE)
-      : canvas->drawRect(barX, barY + (bar4 - bar1), barW, bar1, TFT_SILVER);
-
-  barX += barW + barSpace;
-  (rssi > -70)
-      ? canvas->fillRect(barX, barY + (bar4 - bar2), barW, bar2, COLOR_ORANGE)
-      : canvas->drawRect(barX, barY + (bar4 - bar2), barW, bar2, TFT_SILVER);
-
-  barX += barW + barSpace;
-  (rssi > -50)
-      ? canvas->fillRect(barX, barY + (bar4 - bar3), barW, bar3, COLOR_ORANGE)
-      : canvas->drawRect(barX, barY + (bar4 - bar3), barW, bar3, TFT_SILVER);
-
-  barX += barW + barSpace;
-  (rssi > -30)
-      ? canvas->fillRect(barX, barY + (bar4 - bar4), barW, bar4, COLOR_ORANGE)
-      : canvas->drawRect(barX, barY + (bar4 - bar4), barW, bar4, TFT_SILVER);
-
-  if (!init)
+  for (int i = 0; i < 4; i++)
   {
-    int x1 = x + barW, x2 = x + 4 * (barSpace + barW) + barW;
-    int y1 = barY, y2 = barY + bar4;
-
-    for (int i = 0; i < barW; i++)
+    if (i == activeRemoteLeft)
     {
-      canvas->drawLine(x1 + i, y1, x2 - (barW - i), y2, TFT_RED);
-      canvas->drawLine(x2 - (barW - i), y1, x1 + i, y2, TFT_RED);
+      canvas->fillRoundRect(x, y, w, h, 1, TFT_RED);
+      canvas->drawRoundRect(x, y, w, h, 1, TFT_SILVER);
     }
+    else if (i == activeRemoteRight)
+    {
+      canvas->fillRoundRect(x, y, w, h, 1, TFT_BLUE);
+      canvas->drawRoundRect(x, y, w, h, 1, TFT_SILVER);
+    }
+    else
+    {
+      canvas->drawRoundRect(x, y, w, h, 1, COLOR_LIGHTGRAY);
+    }
+    x += w + 2;
   }
+}
+
+inline void draw_battery_indicator(M5Canvas *canvas, int x, int y, int batteryPct)
+{
+  int battw = 24;
+  int batth = 11;
+
+  int ya = y - batth / 2;
+
+  // determine battery color and charge width from charge level
+  int chgw = (battw - 2) * batteryPct / 100;
+  uint16_t batColor = COLOR_TEAL;
+  if (batteryPct < 100)
+  {
+    int r = ((100 - batteryPct) / 100.0) * 256;
+    int g = (batteryPct / 100.0) * 256;
+    batColor = canvas->color565(r, g, 0);
+  }
+  canvas->fillRoundRect(x, ya, battw, batth, 2, TFT_SILVER);
+  canvas->fillRect(x - 2, y - 2, 2, 4, TFT_SILVER);
+  canvas->fillRect(x + 1, ya + 1, battw - 2 - chgw, batth - 2, COLOR_DARKGRAY);  // 1px margin from outer battery
+  canvas->fillRect(x + 1 + battw - 2 - chgw, ya + 1, chgw, batth - 2, batColor); // 1px margin from outer battery
 }
 
 inline void draw_rssi_symbol(M5Canvas *canvas, int x, int y, bool init, int rssi)
@@ -112,62 +115,6 @@ inline void draw_rssi_symbol(M5Canvas *canvas, int x, int y, bool init, int rssi
       canvas->drawLine(x2 - (barW - i), y1, x1 + i, y2, TFT_RED);
     }
   }
-}
-
-inline void draw_sensor_indicator(M5Canvas *canvas, int x, int y, Color color)
-{
-  // TODO distance
-  int w = 18;
-  int h = 11;
-  y -= h / 2;
-
-  if (color != Color::NONE)
-  {
-    canvas->fillRoundRect(x, y, w, h, 3, BtColors[color]);
-    // canvas->setTextColor(TFT_SILVER, BtColors[i].rgb565);
-    // canvas->setTextSize(1.0);
-    // canvas->setTextDatum(middle_center);
-    // canvas->drawString(LegoinoCommon::ColorStringFromColor(BtColors[i].color).c_str(), x + w / 2, y + h / 2);
-  }
-
-  canvas->drawRoundRect(x, y, w, h, 3, TFT_SILVER);
-}
-
-inline void draw_battery_indicator(M5Canvas *canvas, int x, int y, int batteryPct)
-{
-  int battw = 24;
-  int batth = 11;
-
-  int ya = y - batth / 2;
-
-  // determine battery color and charge width from charge level
-  int chgw = (battw - 2) * batteryPct / 100;
-  uint16_t batColor = COLOR_TEAL;
-  if (batteryPct < 100)
-  {
-    int r = ((100 - batteryPct) / 100.0) * 256;
-    int g = (batteryPct / 100.0) * 256;
-    batColor = canvas->color565(r, g, 0);
-  }
-  canvas->fillRoundRect(x, ya, battw, batth, 2, TFT_SILVER);
-  canvas->fillRect(x - 2, y - 2, 2, 4, TFT_SILVER);
-  canvas->fillRect(x + 1, ya + 1, battw - 2 - chgw, batth - 2, COLOR_DARKGRAY);  // 1px margin from outer battery
-  canvas->fillRect(x + 1 + battw - 2 - chgw, ya + 1, chgw, batth - 2, batColor); // 1px margin from outer battery
-}
-
-inline void draw_power_symbol(M5Canvas *canvas, int x, int y, bool isConnected)
-{
-  unsigned short color = isConnected ? TFT_BLUE : TFT_RED;
-  canvas->fillArc(x, y, 8, 6, 0, 230, color);
-  canvas->fillArc(x, y, 8, 6, 310, 359, color);
-  canvas->fillRect(x - 1, y - 9, 3, 9, color);
-}
-
-inline void draw_bt_color_indicator(M5Canvas *canvas, int x, int y, Color color)
-{
-  int w = 17;
-  if (color != Color::NONE)
-    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
 }
 
 inline void draw_speedup_symbol(M5Canvas *canvas, int x, int y)
@@ -269,7 +216,7 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, int x, int y, S
     switch (button.device)
     {
     case RemoteDevice::PoweredUpHub:
-      //draw_power_symbol(canvas, x, y, state.btConnected);
+      // draw_power_symbol(canvas, x, y, state.btConnected);
       draw_rssi_symbol(canvas, x, y, state.lpf2Connected, state.lpf2Rssi);
       break;
     case RemoteDevice::SBrick:
@@ -280,7 +227,7 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, int x, int y, S
     }
     break;
   case RemoteAction::BtColor:
-    //draw_bt_color_indicator(canvas, x, y, state.btLedColor);
+    // draw_bt_color_indicator(canvas, x, y, state.btLedColor);
     break;
   case RemoteAction::IrChannel:
     draw_ir_channel_indicator(canvas, x, y, state.irChannel, button.pressed);

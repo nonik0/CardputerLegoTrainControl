@@ -25,6 +25,9 @@ public:
     void rebootHub();
     void setHubName(char name[]);
 
+    void configureSensor(byte port);
+    float readSensorData(byte port);
+
     int getRssi();
     void setWatchdogTimeout(uint8_t tenthOfSeconds);
     uint8_t getWatchdogTimeout();

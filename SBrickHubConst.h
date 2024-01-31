@@ -5,6 +5,8 @@
 #define SBRICK_SERVICE_UUID_DEVICE_INFORMATION "0000180a-0000-1000-8000-00805f9b34fb"
 #define SBRICK_CHARACTERISTIC_UUID_HARDWARE_REVISION "00002a27-0000-1000-8000-00805f9b34fb"
 
+#define SBRICK_DEVICE_IDENTIFIER 0x07020D23FC198763 
+
 enum struct SBrickCommandType
 {
     BRAKE = 0x00,
@@ -27,8 +29,8 @@ enum struct SBrickCommandType
 enum struct SBrickHubChannel
 {
     A = 0x00,
-    B = 0x01,
-    C = 0x02,
+    C = 0x01, // weird
+    B = 0x02, // weird
     D = 0x03,
     Voltage = 0x08,
     Temperature = 0x09
