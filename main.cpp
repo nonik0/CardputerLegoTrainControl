@@ -51,9 +51,9 @@ Color btSensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
 Color btSensorSpdUpColor = Color::GREEN;
 Color btSensorStopColor = Color::RED;
 Color btSensorSpdDnColor = Color::YELLOW;
-uint8_t btSensorSpdUpFunction = 0; // TBD
-uint8_t btSensorStopFunction = 0;  // 0=infinite, >0=wait time in seconds
-uint8_t btSensorSpdDnFunction = 0; // TBD
+int8_t btSensorSpdUpFunction = 0; // TBD
+int8_t btSensorStopFunction = 0;  // <0=disabled, 0=brake, >0=wait time in seconds
+int8_t btSensorSpdDnFunction = 0; // TBD
 unsigned long btSensorStopDelay = 0;
 short btSensorStopSavedSpd = 0; // saved speed before stopping
 volatile bool redraw = false;
@@ -123,6 +123,7 @@ int irh = rh - im - om;
 Button buttons[] = {
     {'`', c1, (r1 + r2) / 2, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
     {KEY_TAB, c1, (r2 + r3) / 2, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtColor, COLOR_LIGHTGRAY, false},
+    {0xFF, c1, r3 + bw / 2 + im, bw, bw / 2 - im, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::LED, NoAction, COLOR_MEDGRAY, false},
     {'e', c2, r1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
     {'s', c2, r2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
     {'z', c2, r3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
@@ -170,6 +171,8 @@ inline void resumeTrainMotion()
 
 void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 {
+  log_w("buttonCallback");
+
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
 
   if (hubProperty != HubPropertyReference::BUTTON || millis() < btButtonDebounce)
@@ -184,6 +187,7 @@ void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
   {
     if (btSensorStopDelay > 0)
     {
+      log_w("bt button: resume");
       resumeTrainMotion();
 
       for (int i = 0; i < buttonCount; i++)
@@ -197,6 +201,7 @@ void buttonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
     }
     else
     {
+      log_w("bt button: color");
       btAutoAction = BtColor;
     }
   }
@@ -218,6 +223,7 @@ void rssiCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
     return;
   }
 
+  log_w("rssiCallback: %d", rssi);
   btRssi = rssi;
   redraw = true;
 }
@@ -326,7 +332,7 @@ void btConnectionToggle()
 {
   log_d("btConnectionToggle");
 
-  if (!btInit && !btTrainCtl.isConnected())
+  if (!btInit)
   {
     if (!btTrainCtl.isConnecting())
     {
@@ -341,7 +347,7 @@ void btConnectionToggle()
     {
       btInit = true;
       btLedColor = Color::NONE;
-      btTrainCtl.activateHubPropertyUpdate(HubPropertyReference::BUTTON, buttonCallback);
+      btTrainCtl.activateHubPropertyUpdate(HubPropertyReference::BUTTON, buttonCallback); // TODO: not working anymore??
       btTrainCtl.activateHubPropertyUpdate(HubPropertyReference::RSSI, rssiCallback);
     }
 
@@ -368,7 +374,7 @@ void sbrickConnectionToggle()
 {
   log_d("sbrickConnectionToggle");
 
-  if (!sbrickInit && !sbrickHub.isConnected())
+  if (!sbrickInit)
   {
     if (!sbrickHub.isConnecting())
     {
@@ -487,6 +493,8 @@ void handle_button_press(Button *button)
             btSensorStopFunction = 5;
           else if (btSensorStopFunction == 5)
             btSensorStopFunction = 10;
+          else if (btSensorStopFunction == 10)
+            btSensorStopFunction = -1;
           else
             btSensorStopFunction = 0;
         }
@@ -572,31 +580,34 @@ unsigned short get_button_color(Button *button)
     return COLOR_ORANGE;
   }
 
-  if (button->device == RemoteDevice::PoweredUpHub && btSensorPort == button->port)
+  if (button->device == RemoteDevice::PoweredUpHub)
   {
-    return button->color;
+    if (button->port == btSensorPort)
+    {
+      switch (button->action)
+      {
+      case SpdUp:
+        return interpolateColors(COLOR_LIGHTGRAY, BtColors[btSensorSpdUpColor], 50);
+      case Brake:
+        return interpolateColors(COLOR_LIGHTGRAY, BtColors[btSensorStopColor], 50);
+      case SpdDn:
+        return interpolateColors(COLOR_LIGHTGRAY, BtColors[btSensorSpdDnColor], 50);
+      default:
+        return button->color;
+      }
+    }
+
+    if (button->action == BtColor)
+    {
+      return interpolateColors(COLOR_LIGHTGRAY, BtColors[btLedColor], 50);
+    }
+
+    if (button->port == (byte)PoweredUpHubPort::LED)
+    {
+      if (btSensorInit)
+        return BtColors[btSensorColor];
+    }
   }
-
-  // TODO: improve
-  // if (btSensorPort == button->port)
-  // {
-  //   switch (button->action)
-  //   {
-  //   case SpdUp:
-  //     return interpolateColors(COLOR_LIGHTGRAY, BtColors[btSensorSpdUpColor], 25);
-  //   case Brake:
-  //     return interpolateColors(COLOR_LIGHTGRAY, BtColors[btSensorStopColor], 25);
-  //   case SpdDn:
-  //     return interpolateColors(COLOR_LIGHTGRAY, BtColors[btSensorSpdDnColor], 25);
-  //   default:
-  //     return button->color;
-  //   }
-  // }
-
-  // if (button->action == BtColor)
-  // {
-  //   return interpolateColors(COLOR_LIGHTGRAY, BtColors[btLedColor], 25);
-  // }
 
   if (button->action == Brake)
   {
@@ -654,9 +665,10 @@ void draw()
   // canvas.drawString("IR", c6 + bw / 2, iry + bw / 2);
   canvas.drawString("SB", c6 + bw / 2, iry + bw / 2);
 
-  draw_rssi_indicator(&canvas, hx + om, hy + hh / 2, btInit, btRssi);
-  if (btSensorPort != NO_SENSOR_FOUND)
-    draw_sensor_indicator(&canvas, hx + om + om + 21, hy + hh / 2, btSensorColor);
+  // draw_rssi_indicator(&canvas, hx + om, hy + hh / 2, btInit, btRssi);
+  // if (btSensorPort != NO_SENSOR_FOUND)
+  //   draw_sensor_indicator(&canvas, hx + om + om + 21, hy + hh / 2, btSensorColor);
+  // TODO: indicator that shows active/inactive tabs, e.g. [] [x] [x] []
   draw_battery_indicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
 
   // draw labels
@@ -672,7 +684,7 @@ void draw()
   // canvas.drawString("CH", c6 + bw / 2, r2 - 2);
 
   // draw all layout for remotes
-  State state = {btInit, btLedColor, btSensorPort,
+  State state = {btInit, btRssi, btLedColor, btSensorPort,
                  btSensorSpdUpColor, btSensorStopColor, btSensorSpdDnColor,
                  btSensorSpdUpFunction, btSensorStopFunction, btSensorSpdDnFunction,
                  sbrickInit,
@@ -739,6 +751,8 @@ void loop()
   // sensor or button triggered action
   if (btAutoAction != NoAction)
   {
+    log_w("auto action: %d", btAutoAction);
+
     for (int i = 0; i < buttonCount; i++)
     {
       if (buttons[i].action == btAutoAction && (buttons[i].port == None || buttons[i].port == btMotorPort))

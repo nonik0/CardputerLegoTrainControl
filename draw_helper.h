@@ -70,6 +70,50 @@ inline void draw_rssi_indicator(M5Canvas *canvas, int x, int y, bool init, int r
   }
 }
 
+inline void draw_rssi_symbol(M5Canvas *canvas, int x, int y, bool init, int rssi)
+{
+  const uint8_t bar1 = 3, bar2 = 8, bar3 = 13;
+  const uint8_t barW = 3;
+  const uint8_t barY = y - bar3 / 2;
+  const uint8_t barSpace = 2;
+
+  if (!init)
+    rssi = -1000;
+
+  // easy way to "center" coords
+  x -= 7;
+
+  canvas->drawLine(x, barY, x, barY + bar3 - 1, TFT_SILVER);
+  canvas->drawTriangle(x - 3, barY, x + 3, barY, x, barY + 3, TFT_SILVER);
+
+  uint8_t barX = x + 4;
+  (rssi > -90)
+      ? canvas->fillRect(barX, barY + (bar3 - bar1), barW, bar1, COLOR_ORANGE)
+      : canvas->drawRect(barX, barY + (bar3 - bar1), barW, bar1, TFT_SILVER);
+
+  barX += barW + barSpace;
+  (rssi > -70)
+      ? canvas->fillRect(barX, barY + (bar3 - bar2), barW, bar2, COLOR_ORANGE)
+      : canvas->drawRect(barX, barY + (bar3 - bar2), barW, bar2, TFT_SILVER);
+
+  barX += barW + barSpace;
+  (rssi > -50)
+      ? canvas->fillRect(barX, barY + (bar3 - bar3), barW, bar3, COLOR_ORANGE)
+      : canvas->drawRect(barX, barY + (bar3 - bar3), barW, bar3, TFT_SILVER);
+
+  if (!init)
+  {
+    int x1 = x, x2 = x + 3 * (barSpace + barW);
+    int y1 = barY, y2 = barY + bar3;
+
+    for (int i = 0; i < barW; i++)
+    {
+      canvas->drawLine(x1 + i, y1, x2 - (barW - i), y2, TFT_RED);
+      canvas->drawLine(x2 - (barW - i), y1, x1 + i, y2, TFT_RED);
+    }
+  }
+}
+
 inline void draw_sensor_indicator(M5Canvas *canvas, int x, int y, Color color)
 {
   // TODO distance
@@ -139,6 +183,13 @@ inline void draw_stop_symbol(M5Canvas *canvas, int x, int y)
   canvas->fillRect(x - w / 2, y - w / 2, w, w, TFT_SILVER);
 }
 
+inline void draw_pause_symbol(M5Canvas *canvas, int x, int y)
+{
+  int w = 9;
+  canvas->fillRect(x - w / 2, y - w / 2, w / 3, w, TFT_SILVER);
+  canvas->fillRect(x - w / 2 + 2 * (w / 3), y - w / 2, w / 3, w, TFT_SILVER);
+}
+
 inline void draw_speeddn_symbol(M5Canvas *canvas, int x, int y)
 {
   int w = 6;
@@ -146,34 +197,57 @@ inline void draw_speeddn_symbol(M5Canvas *canvas, int x, int y)
   canvas->fillTriangle(x, y + h / 2, x + w, y - h / 2, x - w, y - h / 2, TFT_SILVER);
 }
 
-inline void draw_sensor_spdup_symbol(M5Canvas *canvas, int x, int y, Color color, uint8_t spdupFunction)
+inline void draw_sensor_spdup_symbol(M5Canvas *canvas, int x, int y, Color color, int8_t spdupFunction)
 {
   int w = 17;
   if (color != Color::NONE)
-    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
+    draw_speedup_symbol(canvas, x, y);
+  // canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
 }
 
-inline void draw_sensor_stop_symbol(M5Canvas *canvas, int x, int y, Color color, uint8_t stopFunction)
+inline void draw_sensor_stop_symbol(M5Canvas *canvas, int x, int y, Color color, int8_t stopFunction)
 {
   int w = 17;
   if (color != Color::NONE)
   {
-    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
-    if (stopFunction > 0)
+    if (stopFunction == 0)
     {
-      canvas->setTextColor(TFT_SILVER, BtColors[color]);
+      draw_stop_symbol(canvas, x, y);
+    }
+    else if (stopFunction > 0)
+    {
+      int gap = canvas->fontWidth();
+
+      draw_pause_symbol(canvas, x - gap, y);
+
+      // match muted background color of button
+      int adjustedColor = interpolateColors(COLOR_LIGHTGRAY, BtColors[color], 50);
+
+      canvas->setTextColor(TFT_SILVER, adjustedColor);
       canvas->setTextDatum(middle_center);
       canvas->setTextSize(1);
-      canvas->drawString(String(stopFunction), x + 1, y + 1);
+      canvas->drawString(String(stopFunction), x + gap, y + 1);
+    }
+    else
+    {
+      // // NOOP/off symbol?
+      // int x1 = x - w / 2, x2 = x + w / 2;
+      // int y1 = y - w / 2, y2 = y + w / 2;
+      // for (int i = 0; i < 2; i++)
+      // {
+      //   canvas->drawLine(x1 + i, y1 + i, x2 , y2, TFT_RED);
+      //   canvas->drawLine(x2 - (barW - i), y1, x1 + i, y2, TFT_RED);
+      // }
     }
   }
 }
 
-inline void draw_sensor_spddn_symbol(M5Canvas *canvas, int x, int y, Color color, uint8_t spddnFunction)
+inline void draw_sensor_spddn_symbol(M5Canvas *canvas, int x, int y, Color color, int8_t spddnFunction)
 {
   int w = 17;
   if (color != Color::NONE)
-    canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
+    draw_speeddn_symbol(canvas, x, y);
+  // canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
 }
 
 inline void draw_ir_channel_indicator(M5Canvas *canvas, int x, int y, byte irChannel, bool isPressed)
@@ -195,7 +269,8 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     switch (button.device)
     {
     case RemoteDevice::PoweredUpHub:
-      draw_power_symbol(canvas, x, y, state.btConnected);
+      //draw_power_symbol(canvas, x, y, state.btConnected);
+      draw_rssi_symbol(canvas, x, y, state.btConnected, state.btRssi);
       break;
     case RemoteDevice::SBrick:
       draw_power_symbol(canvas, x, y, state.sBrickConnected);
@@ -203,24 +278,24 @@ inline void draw_button_symbol(M5Canvas *canvas, Button &button, State &state)
     }
     break;
   case Action::BtColor:
-    draw_bt_color_indicator(canvas, x, y, state.btLedColor);
+    //draw_bt_color_indicator(canvas, x, y, state.btLedColor);
     break;
   case Action::IrChannel:
     draw_ir_channel_indicator(canvas, x, y, state.irChannel, button.pressed);
     break;
   case Action::SpdUp:
-    button.device == RemoteDevice::PoweredUpHub && button.port == state.btSensorPort
+    button.device == RemoteDevice::PoweredUpHub &&button.port == state.btSensorPort
         ? draw_sensor_spdup_symbol(canvas, x, y, state.btSensorSpdUpColor, state.btSensorSpdUpFunction)
         : draw_speedup_symbol(canvas, x, y);
     break;
   case Action::Brake:
-    button.device == RemoteDevice::PoweredUpHub && button.port == state.btSensorPort
+    button.device == RemoteDevice::PoweredUpHub &&button.port == state.btSensorPort
         ? draw_sensor_stop_symbol(canvas, x, y, state.btSensorStopColor, state.btSensorStopFunction)
         : draw_stop_symbol(canvas, x, y);
     break;
   case Action::SpdDn:
-    button.device == RemoteDevice::PoweredUpHub && button.port == state.btSensorPort
-        ? draw_sensor_spdup_symbol(canvas, x, y, state.btSensorSpdDnColor, state.btSensorSpdDnFunction)
+    button.device == RemoteDevice::PoweredUpHub &&button.port == state.btSensorPort
+        ? draw_sensor_spddn_symbol(canvas, x, y, state.btSensorSpdDnColor, state.btSensorSpdDnFunction)
         : draw_speeddn_symbol(canvas, x, y);
     break;
   default:

@@ -29,10 +29,10 @@ enum Port
 
 enum RemoteDevice
 {
-  PoweredUpHub,
-  PowerFunctionsIR,
-  SBrick,
-  CircuitCubes,
+  PoweredUpHub = 0x00,
+  SBrick = 0x01,
+  PowerFunctionsIR = 0x02,
+  CircuitCubes = 0x03
 };
 
 enum Action
@@ -62,17 +62,19 @@ struct Button
 };
 
 // used for conveying current state when drawing
+// TODO: better way to do this...eventually pass pointers to object instance?
 struct State
 {
   bool btConnected;
+  int btRssi;
   Color btLedColor;
   byte btSensorPort;
   Color btSensorSpdUpColor;
   Color btSensorStopColor;
   Color btSensorSpdDnColor;
-  uint8_t btSensorSpdUpFunction;
-  uint8_t btSensorStopFunction;
-  uint8_t btSensorSpdDnFunction;
+  int8_t btSensorSpdUpFunction;
+  int8_t btSensorStopFunction;
+  int8_t btSensorSpdDnFunction;
   bool sBrickConnected;
   byte irChannel;
 };
