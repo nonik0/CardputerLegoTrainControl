@@ -410,7 +410,7 @@ void sbrickConnectionToggle()
     {
       sbrickInit = true;
 
-      sbrickHub.configureAdcChannels((byte)SBrickAdcChannel::C_C1); // TEMP hard coded need to track since each cmd overwrites
+      sbrickHub.activateAdcChannel((byte)SBrickAdcChannel::C_C1); // TEMP hard coded need to track since each cmd overwrites
       // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::C_C2);
       // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::D_C1);
       // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::D_C2);

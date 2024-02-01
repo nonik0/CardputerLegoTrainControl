@@ -9,6 +9,8 @@
 
 #define SBRICK_DEVICE_IDENTIFIER 0x07020D23FC198763 
 
+#define SBRICK_ADC_CHANNEL_COUNT 10 // 2x for 4 ports, battery and temperature
+
 enum struct SBrickCommandType
 {
     BRAKE = 0x00,
@@ -50,7 +52,7 @@ enum struct SBrickAdcChannel
     Temperature = 0x09 // internal temperature
 };
 
-enum struct SBrickRecordTypes
+enum struct SBrickRecordType
 {
     ProductType = 0x00,
     Deprecated = 0x01,
