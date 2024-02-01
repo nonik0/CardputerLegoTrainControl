@@ -6,7 +6,7 @@
 
 #include "common.h"
 #include "draw_helper.h"
-#include "CircuitCubeHub.h"
+#include "CircuitCubesHub.h"
 #include "SBrickHub.h"
 
 #define IR_TX_PIN 44
@@ -69,7 +69,7 @@ unsigned long sbrickLastAction = 0;  // track for auto-disconnect
 
 // CircuitCubes state
 const short circuitCubesSpdInc = 35; // ~ 255 / 10
-CircuitCubeHub circuitCubesHub;
+CircuitCubesHub circuitCubesHub;
 float circuitCubesBatteryV = 0;
 bool circuitCubesInit = false;
 volatile int circuitCubesRssi = -1000;
@@ -410,10 +410,12 @@ void sbrickConnectionToggle()
     {
       sbrickInit = true;
 
-      sbrickHub.configureSensor((byte)SBrickAdcChannel::D_C1);
-      sbrickHub.configureSensor((byte)SBrickAdcChannel::D_C2);
-      sbrickHub.configureSensor((byte)SBrickAdcChannel::Voltage);
-      sbrickHub.configureSensor((byte)SBrickAdcChannel::Temperature);
+      sbrickHub.configureAdcChannels((byte)SBrickAdcChannel::C_C1); // TEMP hard coded need to track since each cmd overwrites
+      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::C_C2);
+      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::D_C1);
+      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::D_C2);
+      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::Voltage);
+      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::Temperature);
 
       if (sbrickHub.getWatchdogTimeout())
       {
@@ -457,7 +459,7 @@ void circuitCubesConnectionToggle()
   }
   else if (circuitCubesDisconnectDelay < millis())
   {
-    circuitCubesHub.shutDownHub();
+    circuitCubesHub.disconnectHub();
     delay(200);
     circuitCubesInit = false;
     circuitCubesPortSpeed[0] = circuitCubesPortSpeed[1] = circuitCubesPortSpeed[2] = 0;
@@ -761,6 +763,7 @@ unsigned short get_button_color(Button *button)
   {
     if (button->device == RemoteDevice::PoweredUpHub && lpf2PortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::SBrick && sbrickPortSpeed[button->port] == 0 ||
+        button->device == RemoteDevice::CircuitCubes && circuitCubesPortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::PowerFunctionsIR && irTrackState && irPortSpeed[button->port] == 0)
     {
       return COLOR_GREYORANGEDIM;
@@ -777,6 +780,9 @@ unsigned short get_button_color(Button *button)
       break;
     case RemoteDevice::SBrick:
       speed = sbrickPortSpeed[button->port];
+      break;
+    case RemoteDevice::CircuitCubes:
+      speed = circuitCubesPortSpeed[button->port];
       break;
     case RemoteDevice::PowerFunctionsIR:
       speed = irTrackState ? irPortSpeed[button->port] : 0;
@@ -1023,6 +1029,8 @@ void draw()
                  circuitCubesInit, circuitCubesRssi,
                  irChannel};
 
+  // TODO: draw battery indicators if available
+
   Button *leftRemoteButton = remoteButton[activeRemoteLeft];
   for (int i = 0; i < remoteButtonCount[activeRemoteLeft]; i++)
   {
@@ -1248,8 +1256,43 @@ void loop()
           redraw = true;
         }
 
-        sbrickHub.getBatteryLevel();
-        sbrickHub.getTemperature();
+        // sbrickHub.getBatteryLevel();
+        // sbrickHub.getTemperature();
+        // sbrickHub.getActiveChannels();
+        // sbrickHub.getActiveChannelNotifications();
+
+        // motion
+        // C1: 3.07V, C2:
+        // N: 2.10V
+        // hand on: 1.55V
+
+        // C1: 2.46V,  C2:
+        // N: 1.78V
+        // hand on: 1.41V
+
+        // tilt
+        // D1: 1.44V, D2:
+        // +1: fw, -1: bw, +0.5: left, -0.5: right??
+        // N: 2.80V
+        // F: 4.17V -> +1.37V
+        // R: 0.46V -> -2.34V
+        // L: 5.57V -> +2.77V
+        // R: 1.53V -> -1.27V
+
+        // D1: 1.15V, D2:
+        // N: 2.23V
+        // F: 3.34V -> +1.11V
+        // R: 0.36V -> -1.87V
+        // L: 4.48V -> +2.25V
+        // R: 1.22V -> -1.01V
+
+        // float c_c1 = sbrickHub.readAdcChannel((byte)SBrickAdcChannel::C_C1);
+        // float c_c2 = sbrickHub.readAdcChannel((byte)SBrickAdcChannel::C_C2);
+        // float d_c1 = sbrickHub.readAdcChannel((byte)SBrickAdcChannel::D_C1);
+        // float d_c2 = sbrickHub.readAdcChannel((byte)SBrickAdcChannel::D_C2);
+        // float bat = sbrickHub.readAdcChannel((byte)SBrickAdcChannel::Voltage);
+        // float temp = sbrickHub.readAdcChannel((byte)SBrickAdcChannel::Temperature);
+        // USBSerial.printf("C1: %.2f, C2: %.2f, D1: %.2f, D2: %.2f, Bat: %.2f\n", c_c1, c_c2, d_c1, d_c2, bat);
       }
     }
 
@@ -1262,13 +1305,20 @@ void loop()
       }
       else
       {
-        // int newRssi = circuitCubesHub.getRssi();
-        // if (newRssi != circuitCubesRssi)
-        // {
-        //   log_i("circuitcubes rssi %d", newRssi);
-        //   circuitCubesRssi = newRssi;
-        //   redraw = true;
-        // }
+        int newRssi = circuitCubesHub.getRssi();
+        if (newRssi != circuitCubesRssi)
+        {
+          circuitCubesRssi = newRssi;
+          redraw = true;
+        }
+
+        float newBatteryV = circuitCubesHub.getBatteryLevel();
+        if (newBatteryV != circuitCubesBatteryV)
+        {
+          log_w("circuitCubes battery: %.2f", newBatteryV);
+          circuitCubesBatteryV = newBatteryV;
+          redraw = true;
+        }
       }
     }
   }

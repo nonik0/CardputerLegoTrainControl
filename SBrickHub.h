@@ -25,8 +25,10 @@ public:
     void rebootHub();
     void setHubName(char name[]);
 
-    void configureSensor(byte port);
-    float readSensorData(byte port);
+    void configureAdcChannels(byte port);
+    float readAdcChannel(byte port);
+    void getActiveChannels();
+    void getActiveChannelNotifications();
 
     int getRssi();
     void setWatchdogTimeout(uint8_t tenthOfSeconds);
@@ -51,6 +53,8 @@ public:
     std::string _hubName;
     bool _isConnecting;
     bool _isConnected;
+
+    void parseAdcReading(uint16_t *pData);
 
 private:
     uint32_t _scanDuration = 10;

@@ -236,33 +236,64 @@ NimBLEAddress SBrickHub::getHubAddress()
 
 std::string SBrickHub::getHubName() { return _hubName; }
 
-void SBrickHub::configureSensor(byte adcChannel)
+void SBrickHub::configureAdcChannels(byte port)
 {
-    log_w("configuring sensor on adcChannel %d", adcChannel);
+    //log_w("configuring sensor on adcChannel %d", adcChannel);
 
-    byte setPeriodicVoltageMeasurementCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_MEASURE, adcChannel};
-    WriteValue(setPeriodicVoltageMeasurementCommand, 2);
+    byte setPeriodicVoltageMeasurementCommand[7] = {(byte)SBrickCommandType::SET_VOLTAGE_MEASURE, 
+        (byte)SBrickAdcChannel::C_C1, (byte)SBrickAdcChannel::C_C2,
+        (byte)SBrickAdcChannel::D_C1, (byte)SBrickAdcChannel::D_C2,
+        (byte)SBrickAdcChannel::Voltage, (byte)SBrickAdcChannel::Temperature};
+    WriteValue(setPeriodicVoltageMeasurementCommand, 7);
 
-    byte setUpPeriodicVoltageNotificationCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_NOTIF, adcChannel};
-    WriteValue(setUpPeriodicVoltageNotificationCommand, 2);
+    byte setUpPeriodicVoltageNotificationCommand[7] = {(byte)SBrickCommandType::SET_VOLTAGE_NOTIF,
+        (byte)SBrickAdcChannel::C_C1, (byte)SBrickAdcChannel::C_C2,
+        (byte)SBrickAdcChannel::D_C1, (byte)SBrickAdcChannel::D_C2,
+        (byte)SBrickAdcChannel::Voltage, (byte)SBrickAdcChannel::Temperature};
+    WriteValue(setUpPeriodicVoltageNotificationCommand, 7);
+
+    // byte setPeriodicVoltageMeasurementCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_MEASURE, adcChannel};
+    // WriteValue(setPeriodicVoltageMeasurementCommand, 2);
+
+    // byte setUpPeriodicVoltageNotificationCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_NOTIF, adcChannel};
+    // WriteValue(setUpPeriodicVoltageNotificationCommand, 2);
 }
 
-float SBrickHub::readSensorData(byte adcChannel)
+float SBrickHub::readAdcChannel(byte adcChannel)
 {
     byte queryAdcCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, adcChannel};
     WriteValue(queryAdcCommand, 2);
 
-    // TODO: need to parse out channel?
-    uint16_t rawValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
-    log_i("adcChannel %x raw value: %04x", adcChannel, rawValue);
-    if (rawValue)
-    {
-        float voltage = (rawValue * 0.83875F) / 2047; // 127 is wrong from protocol doc?
-        log_i("adcChannel %x voltage: %f", adcChannel, voltage);
+    uint16_t rawAdcValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
+    log_w("ADC[%d]: %04x", adcChannel, rawAdcValue);
+    if (rawAdcValue)
+    {   
+        int value = rawAdcValue >> 4;
+        int channel = rawAdcValue & 0x000F;
+        float voltage = (value * 0.83875F) / 127.0;
+
         return voltage;
     }
 
     return 0;
+}
+
+void SBrickHub::getActiveChannels()
+{
+    byte command[1] = {(byte)SBrickCommandType::GET_VOLTAGE_MEASURE};
+    WriteValue(command, 1);
+
+    NimBLEAttValue value = _pRemoteCharacteristicRemoteControl->readValue();
+    log_w("value: %s", getHexString((byte*)value.data(), value.length()).c_str());
+}
+
+void SBrickHub::getActiveChannelNotifications()
+{
+    byte command[1] = {(byte)SBrickCommandType::GET_VOLTAGE_NOTIF};
+    WriteValue(command, 1);
+
+    NimBLEAttValue value = _pRemoteCharacteristicRemoteControl->readValue();
+    log_w("value: %s", getHexString((byte*)value.data(), value.length()).c_str());
 }
 
 void SBrickHub::rebootHub()
@@ -341,26 +372,41 @@ float SBrickHub::getBatteryLevel()
     byte voltageCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, (byte)SBrickAdcChannel::Voltage};
     WriteValue(voltageCommand, 2);
 
-    uint16_t rawValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
-    log_w("raw value: %04x", rawValue);
-    if (rawValue)
-    {
-        float voltage = (rawValue * 0.83875F) / 2047; // 127;
-        log_w("voltage1: %f", voltage);
+    uint16_t rawAdcValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
+    log_w("raw value: %04x", rawAdcValue);
+    if (rawAdcValue)
+    {   
+        int value = rawAdcValue >> 4;
+        int channel = rawAdcValue & 0x000F;
+        float voltage = (value * 0.83875F) / 127.0;
 
-        uint16_t rawValue2 = rawValue & 0x0FFF; // remove channel
-        float voltage2 = (rawValue * 0.83875F) / 127;
-        log_w("voltage2: %f", voltage2);
-
-        uint16_t rawValue3 = (rawValue & 0xFFF0) >> 4; // remove channel
-        float voltage3 = (rawValue * 0.83875F) / 127;
-        log_w("voltage3: %f", voltage3);
-
-
+        log_w("voltage: %f, channel: %d", voltage, channel);
         return voltage;
     }
 
-    return 0;
+    // log_w("raw value: %04x", rawValue);
+    // if (rawValue)
+    // {
+    //     float voltage = (rawValue * 0.83875F) / 2047; // 127;
+    //     log_w("voltage1: %f", voltage);
+
+    //     uint16_t rawValue2 = rawValue & 0x0FFF; // remove channel
+    //     float voltage2 = (rawValue2 * 0.83875F) / 127;
+    //     log_w("voltage2: %f", voltage2);
+
+    //     uint16_t rawValue3 = rawValue & 0x0FFF; // remove channel
+    //     float voltage3 = (rawValue3 * 0.83875F) / 2047;
+    //     log_w("voltage3: %f", voltage3);        
+
+    //     uint16_t rawValue4 = rawValue >> 4; // remove channel
+    //     uint8_t channel4 = rawValue & 0x000F;
+    //     float voltage4 = (rawValue4 * 0.83875F) / 127;
+    //     log_w("voltage4: %f, channel: %d", voltage4, channel4);
+
+    //     return voltage;
+    // }
+
+    return 0.0;
 }
 
 float SBrickHub::getTemperature()
@@ -368,25 +414,42 @@ float SBrickHub::getTemperature()
     byte voltageCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, (byte)SBrickAdcChannel::Temperature};
     WriteValue(voltageCommand, 2);
 
-    uint16_t rawValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
-    log_w("raw value: %04x", rawValue);
-    if (rawValue)
-    {
-        float temp = (rawValue * 0.13461) - 160.0;
-        log_w("temp1: %f", temp);
+    uint16_t rawAdcValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
+    log_w("raw value: %04x", rawAdcValue);
+    if (rawAdcValue)
+    {   
+        int value = rawAdcValue >> 4;
+        int channel = rawAdcValue & 0x000F;
+        float temp = (value / 0.13461) - 160.0;
+        float temp2 = (value / 118.85795) - 160.0;
+        float temp3 = (value * 0.008413396) - 160.0;
+        //float temp4 = (result[1] * 256 + result[0]) * 0.008413396 - 160
 
-        uint16_t rawValue2 = rawValue & 0x0FFF; // remove channel
-        float temp2 = (rawValue * 0.13461) / 127;
-        log_w("temp2: %f", temp2);
-
-        uint16_t rawValue3 = (rawValue & 0xFFF0) >> 4; // remove channel
-        float temp3 = (rawValue * 0.13461) / 127;
-        log_w("voltage3: %f", temp3);
-
+        log_w("temp: %f, temp2: %f, temp3: %f, channel: %d", temp, temp2, temp3, channel);
         return temp;
     }
 
-    return 0;
+    //uint16_t rawValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
+    // log_w("raw value: %04x", rawValue);
+    // if (rawValue)
+    // {
+    //     float temp = (rawValue / 0.13461) - 160.0;
+    //     log_w("temp1: %f", temp);
+
+    //     uint16_t rawValue2 = rawValue & 0x0FFF; // remove channel
+    //     uint8_t channel2 = (rawValue >> 12) & 0x0F;
+    //     float temp2 = (rawValue2 / 0.13461) - 160.0;
+    //     log_w("temp2: %f, channel: %d", temp2, channel2);
+
+    //     uint16_t rawValue3 = rawValue >> 4; // remove channel
+    //     uint8_t channel3 = rawValue & 0x0F;
+    //     float temp3 = (rawValue3 / 0.13461) - 160.0;
+    //     log_w("temp3: %f, channel: %d", temp3, channel3);
+
+    //     return temp;
+    // }
+
+    return 0.0;
 }
 
 void SBrickHub::notifyCallback(
@@ -397,6 +460,13 @@ void SBrickHub::notifyCallback(
 {
     log_w("notify callback for characteristic %s", pBLERemoteCharacteristic->getUUID().toString().c_str());
     log_w("data: [%s]", getHexString(pData, length).c_str());
+
+    // TEMP
+    uint8_t *pRawAdcValue;
+    uint16_t rawAdcValue;
+    int value;
+    int channel;
+    float voltage;
 
     uint8_t curRecordSize;
     SBrickRecordTypes curRecordType;
@@ -424,6 +494,39 @@ void SBrickHub::notifyCallback(
             break;
         case SBrickRecordTypes::VoltageMeasurement:
             log_w("voltage measurement: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+
+            // TODO: parseVoltageMeasurement function?
+
+            pRawAdcValue = pData + i + 2;
+
+            for (int j = 0; j < curRecordSize - 1; j += 2)
+            {
+                rawAdcValue = pRawAdcValue[j] | (pRawAdcValue[j + 1] << 8);
+                log_w("raw value: %04x", rawAdcValue);
+
+                value = rawAdcValue >> 4;
+                channel = rawAdcValue & 0x000F;
+                voltage = (value * 0.83875F) / 127.0;
+
+                log_w("channel: %d, voltage: %f, ", channel, voltage);
+            }
+
+            // rawAdcValue = pData[i + 3] | (pData[i + 2] << 8);
+            // log_w("raw value: %04x", rawAdcValue);
+
+            // value = rawAdcValue >> 4;
+            // channel = rawAdcValue & 0x000F;
+            // voltage = (value * 0.83875F) / 127.0;
+
+            // log_w("voltage: %f, channel: %d", voltage, channel);
+
+            // log_w("datasize: %d", curRecordSize - 1);
+            // log_w("channel?: %d", pData[i + 2] & 0x0F);
+            // log_w("channel?: %d", pData[i + 2] >> 4);
+            // log_w("channel?: %d", pData[i + 3] & 0x0F);
+            // log_w("channel?: %d", pData[i + 3] >> 4);
+            // //log_w("voltage1?: %f", (mData[2] | (mData[3] << 8)) * 0.83875F / 2047);
+
             break;
         case SBrickRecordTypes::SignalCompleted:
             log_w("signal completed: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
