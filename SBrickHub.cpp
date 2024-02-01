@@ -125,6 +125,7 @@ void SBrickHub::init(std::string deviceAddress, uint32_t scanDuration)
     init();
 }
 
+
 bool SBrickHub::connectHub()
 {
     log_d("connecting to sbrick hub");
@@ -236,6 +237,48 @@ NimBLEAddress SBrickHub::getHubAddress()
 
 std::string SBrickHub::getHubName() { return _hubName; }
 
+int SBrickHub::getRssi()
+{
+    return _pClient->getRssi();
+}
+
+uint8_t SBrickHub::getWatchdogTimeout()
+{
+    byte getWatchdogCommand[1] = {(byte)SBrickCommandType::GET_WATCHDOG_TIMEOUT};
+    writeValue(getWatchdogCommand, 1);
+
+    return readValue<uint8_t>();
+}
+
+void SBrickHub::rebootHub()
+{
+    byte rebootCommand[1] = {(byte)SBrickCommandType::REBOOT};
+    writeValue(rebootCommand, 1);
+}
+
+void SBrickHub::setHubName(char name[])
+{
+    int nameLength = strlen(name);
+    if (nameLength > 13)
+    {
+        return;
+    }
+    _hubName = std::string(name, nameLength);
+
+    int arraySize = 1 + nameLength;
+    byte setNameCommand[arraySize] = {(byte)SBrickCommandType::SET_DEVICE_NAME};
+
+    memcpy(setNameCommand, name, nameLength + 1);
+    writeValue(setNameCommand, arraySize);
+}
+
+void SBrickHub::setWatchdogTimeout(uint8_t tenthOfSeconds)
+{
+    byte setWatchdogCommand[2] = {(byte)SBrickCommandType::SET_WATCHDOG_TIMEOUT, tenthOfSeconds};
+    writeValue(setWatchdogCommand, 2);
+}
+
+
 void SBrickHub::activateAdcChannel(byte channel, ChannelValueChangeCallback channelValueChangeCallback)
 {
     log_d("channel: %x", channel);
@@ -302,46 +345,6 @@ float SBrickHub::getTemperature()
     return readAdcChannel((byte)SBrickAdcChannel::Temperature);
 }
 
-void SBrickHub::rebootHub()
-{
-    byte rebootCommand[1] = {(byte)SBrickCommandType::REBOOT};
-    writeValue(rebootCommand, 1);
-}
-
-void SBrickHub::setHubName(char name[])
-{
-    int nameLength = strlen(name);
-    if (nameLength > 13)
-    {
-        return;
-    }
-    _hubName = std::string(name, nameLength);
-
-    int arraySize = 1 + nameLength;
-    byte setNameCommand[arraySize] = {(byte)SBrickCommandType::SET_DEVICE_NAME};
-
-    memcpy(setNameCommand, name, nameLength + 1);
-    writeValue(setNameCommand, arraySize);
-}
-
-int SBrickHub::getRssi()
-{
-    return _pClient->getRssi();
-}
-
-void SBrickHub::setWatchdogTimeout(uint8_t tenthOfSeconds)
-{
-    byte setWatchdogCommand[2] = {(byte)SBrickCommandType::SET_WATCHDOG_TIMEOUT, tenthOfSeconds};
-    writeValue(setWatchdogCommand, 2);
-}
-
-uint8_t SBrickHub::getWatchdogTimeout()
-{
-    byte getWatchdogCommand[1] = {(byte)SBrickCommandType::GET_WATCHDOG_TIMEOUT};
-    writeValue(getWatchdogCommand, 1);
-
-    return readValue<uint8_t>();
-}
 
 void SBrickHub::setMotorSpeed(byte port, int speed)
 {
@@ -362,6 +365,7 @@ void SBrickHub::stopMotor(byte port)
     byte brakeCommand[2] = {(byte)SBrickCommandType::BRAKE, port};
     writeValue(brakeCommand, 2);
 }
+
 
 void SBrickHub::notifyCallback(
     NimBLERemoteCharacteristic *pBLERemoteCharacteristic,

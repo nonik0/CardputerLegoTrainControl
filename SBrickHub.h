@@ -51,8 +51,9 @@ public:
     void setMotorSpeed(byte port, int speed);
     void stopMotor(byte port);
 
-    // parse methods
-    void parseAdcReading(uint16_t *pData);
+private:
+    friend class SBrickHubClientCallback;
+    friend class SBrickHubAdvertisedDeviceCallbacks;
 
     // BLE specific stuff
     void notifyCallback(NimBLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);
@@ -68,7 +69,6 @@ public:
     bool _isConnecting;
     bool _isConnected;
 
-private:
     template <typename T>
     T readValue();
     void writeValue(byte command[], int size);
