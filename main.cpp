@@ -151,12 +151,12 @@ uint8_t lpf2ButtonCount = sizeof(lpf2HubButtons) / sizeof(Button);
 
 Button sbrickHubButtons[] = {
     {AuxTop, AuxCol, Row2, bw, bw, RemoteDevice::SBrick, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
-    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, SpdUp, COLOR_LIGHTGRAY, false},
-    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, Brake, COLOR_LIGHTGRAY, false},
-    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::A, SpdDn, COLOR_LIGHTGRAY, false},
-    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, SpdUp, COLOR_LIGHTGRAY, false},
-    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, Brake, COLOR_LIGHTGRAY, false},
-    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubChannel::B, SpdDn, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
+    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::A, Brake, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
+    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::B, Brake, COLOR_LIGHTGRAY, false},
+    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::B, SpdDn, COLOR_LIGHTGRAY, false},
 };
 uint8_t sbrickButtonCount = sizeof(sbrickHubButtons) / sizeof(Button);
 
@@ -409,6 +409,11 @@ void sbrickConnectionToggle()
     if (sbrickHub.isConnecting() && sbrickHub.connectHub())
     {
       sbrickInit = true;
+
+      sbrickHub.configureSensor((byte)SBrickAdcChannel::D_C1);
+      sbrickHub.configureSensor((byte)SBrickAdcChannel::D_C2);
+      sbrickHub.configureSensor((byte)SBrickAdcChannel::Voltage);
+      sbrickHub.configureSensor((byte)SBrickAdcChannel::Temperature);
 
       if (sbrickHub.getWatchdogTimeout())
       {
@@ -1239,10 +1244,12 @@ void loop()
         int newRssi = sbrickHub.getRssi();
         if (newRssi != sbrickRssi)
         {
-          log_i("sbrick rssi %d", newRssi);
           sbrickRssi = newRssi;
           redraw = true;
         }
+
+        sbrickHub.getBatteryLevel();
+        sbrickHub.getTemperature();
       }
     }
 

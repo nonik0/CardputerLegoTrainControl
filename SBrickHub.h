@@ -37,14 +37,17 @@ public:
     void stopMotor(byte port);
     void setMotorSpeed(byte port, int speed);
     float getBatteryLevel();
+    float getTemperature();
 
     void notifyCallback(NimBLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);
     NimBLEUUID _bleUuid;
-    NimBLEUUID _characteristicUuid;
+    NimBLEUUID _characteristicRemoteControlUuid;
+    NimBLEUUID _characteristicQuickDriveUuid;
     NimBLEClient *_pClient;
     NimBLEAddress *_pServerAddress;
     NimBLEAddress *_requestedDeviceAddress = nullptr;
-    NimBLERemoteCharacteristic *_pRemoteCharacteristic;
+    NimBLERemoteCharacteristic *_pRemoteCharacteristicRemoteControl;
+    NimBLERemoteCharacteristic *_pRemoteCharacteristicQuickDrive;
     std::string _hubName;
     bool _isConnecting;
     bool _isConnected;

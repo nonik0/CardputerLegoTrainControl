@@ -1,5 +1,18 @@
 #include "SBrickHub.h"
 
+std::string getHexString(byte *pData, size_t length)
+{
+    std::string hexString = "0x";
+    for (int i = 0; i < length; i++)
+    {
+        char byteHexChars[3];
+        sprintf(byteHexChars, "%02x", pData[i]);
+        hexString += std::string(byteHexChars, 2);
+    }
+
+    return hexString;
+}
+
 class SBrickHubClientCallback : public NimBLEClientCallbacks
 {
     SBrickHub *_sbrickHub;
@@ -47,8 +60,9 @@ public:
         log_d("advertised device: %s", advertisedDevice->toString().c_str());
 
         // TODO: connect without address
-        if (advertisedDevice->getName() == "SBrick") {
-            log_d("found SBrick device! [%s]", advertisedDevice->getAddress().toString().c_str());
+        if (advertisedDevice->getName() == "NickSBrick")
+        {
+            log_w("found SBrick device!\r\n", advertisedDevice->toString().c_str());
         }
 
         // SBrick does not advertise the service, so we need to connect directly instead of looking for the service in broadcasted devices
@@ -62,7 +76,7 @@ public:
             {
                 uint8_t *manufacturerData = (uint8_t *)advertisedDevice->getManufacturerData().data();
                 uint8_t manufacturerDataLength = advertisedDevice->getManufacturerData().length();
-                log_d("manufacturer data: %x", manufacturerData);
+                log_w("manufacturer data: [%s]", getHexString(manufacturerData, manufacturerDataLength).c_str());
             }
             _sbrickHub->_isConnecting = true;
         }
@@ -77,8 +91,9 @@ void SBrickHub::init()
 
     _isConnected = false;
     _isConnecting = false;
-    _bleUuid = NimBLEUUID(SBRICK_SERVICE_UUID_REMOTE_CONTROL);
-    _characteristicUuid = NimBLEUUID(SBRICK_CHARACTERISTIC_UUID_REMOTE_CONTROL);
+    _bleUuid = NimBLEUUID(SBRICK_SERVICE_UUID);
+    _characteristicRemoteControlUuid = NimBLEUUID(SBRICK_CHARACTERISTIC_UUID_REMOTE_CONTROL);
+    _characteristicQuickDriveUuid = NimBLEUUID(SBRICK_CHARACTERISTIC_UUID_QUICK_DRIVE);
 
     NimBLEDevice::init("");
     NimBLEScan *pBLEScan = NimBLEDevice::getScan();
@@ -174,17 +189,18 @@ bool SBrickHub::connectHub()
         return false;
     }
 
-    _pRemoteCharacteristic = pRemoteService->getCharacteristic(_characteristicUuid);
-    if (_pRemoteCharacteristic == nullptr)
+    _pRemoteCharacteristicRemoteControl = pRemoteService->getCharacteristic(_characteristicRemoteControlUuid);
+    _pRemoteCharacteristicQuickDrive = pRemoteService->getCharacteristic(_characteristicQuickDriveUuid);
+    if (_pRemoteCharacteristicRemoteControl == nullptr || _pRemoteCharacteristicQuickDrive == nullptr)
     {
         log_e("failed to get ble service");
         return false;
     }
 
-    // register notifications (callback function) for the characteristic
-    if (_pRemoteCharacteristic->canNotify())
+    // notifications are on quick drive characteristic
+    if (_pRemoteCharacteristicQuickDrive->canNotify())
     {
-        _pRemoteCharacteristic->subscribe(true, std::bind(&SBrickHub::notifyCallback, this, _1, _2, _3, _4), true);
+        _pRemoteCharacteristicQuickDrive->subscribe(true, std::bind(&SBrickHub::notifyCallback, this, _1, _2, _3, _4), true);
     }
 
     // add callback instance to get notified if a disconnect event appears
@@ -220,28 +236,29 @@ NimBLEAddress SBrickHub::getHubAddress()
 
 std::string SBrickHub::getHubName() { return _hubName; }
 
-void SBrickHub::configureSensor(byte port)
+void SBrickHub::configureSensor(byte adcChannel)
 {
-    log_w("configuring sensor on port %d", port);
+    log_w("configuring sensor on adcChannel %d", adcChannel);
 
-    byte setPeriodicVoltageMeasurementCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_MEASURE, port};
+    byte setPeriodicVoltageMeasurementCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_MEASURE, adcChannel};
     WriteValue(setPeriodicVoltageMeasurementCommand, 2);
 
-    byte setUpPeriodicVoltageNotificationCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_NOTIF, port};
+    byte setUpPeriodicVoltageNotificationCommand[2] = {(byte)SBrickCommandType::SET_VOLTAGE_NOTIF, adcChannel};
     WriteValue(setUpPeriodicVoltageNotificationCommand, 2);
 }
 
-float SBrickHub::readSensorData(byte port)
+float SBrickHub::readSensorData(byte adcChannel)
 {
-    byte queryAdcCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, port};
+    byte queryAdcCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, adcChannel};
     WriteValue(queryAdcCommand, 2);
 
-    uint16_t rawValue = _pRemoteCharacteristic->readValue<uint16_t>();
-    log_d("port %x raw value: %04x", port, rawValue);
+    // TODO: need to parse out channel?
+    uint16_t rawValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
+    log_i("adcChannel %x raw value: %04x", adcChannel, rawValue);
     if (rawValue)
     {
         float voltage = (rawValue * 0.83875F) / 2047; // 127 is wrong from protocol doc?
-        log_i("port %x voltage: %f", port, voltage);
+        log_i("adcChannel %x voltage: %f", adcChannel, voltage);
         return voltage;
     }
 
@@ -286,23 +303,17 @@ uint8_t SBrickHub::getWatchdogTimeout()
     byte getWatchdogCommand[1] = {(byte)SBrickCommandType::GET_WATCHDOG_TIMEOUT};
     WriteValue(getWatchdogCommand, 1);
 
-    uint8_t rawValue = _pRemoteCharacteristic->readValue<uint8_t>();
+    uint8_t rawValue = _pRemoteCharacteristicRemoteControl->readValue<uint8_t>();
     return rawValue;
 }
 
 void SBrickHub::WriteValue(byte command[], int size)
 {
-    String commandHexString = "0x";
-    for (int i = 0; i < size; i++) {
-        char byteHexChars[3];
-        sprintf(byteHexChars, "%02x", command[i]);
-        commandHexString += String(byteHexChars, 2);
-    }
-    log_d("writing command: %s", commandHexString.c_str());
+    log_d("writing command: %s", getHexString(command, size).c_str());
 
     byte commandBytes[size];
     memcpy(commandBytes, command, size);
-    _pRemoteCharacteristic->writeValue(commandBytes, sizeof(commandBytes), false);
+    _pRemoteCharacteristicRemoteControl->writeValue(commandBytes, sizeof(commandBytes), false);
 }
 
 void SBrickHub::stopMotor(byte port)
@@ -327,14 +338,52 @@ void SBrickHub::setMotorSpeed(byte port, int speed)
 
 float SBrickHub::getBatteryLevel()
 {
-    byte voltageCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, (byte)SBrickHubChannel::Voltage};
+    byte voltageCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, (byte)SBrickAdcChannel::Voltage};
     WriteValue(voltageCommand, 2);
 
-    uint16_t rawValue = _pRemoteCharacteristic->readValue<uint16_t>();
+    uint16_t rawValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
+    log_w("raw value: %04x", rawValue);
     if (rawValue)
     {
         float voltage = (rawValue * 0.83875F) / 2047; // 127;
+        log_w("voltage1: %f", voltage);
+
+        uint16_t rawValue2 = rawValue & 0x0FFF; // remove channel
+        float voltage2 = (rawValue * 0.83875F) / 127;
+        log_w("voltage2: %f", voltage2);
+
+        uint16_t rawValue3 = (rawValue & 0xFFF0) >> 4; // remove channel
+        float voltage3 = (rawValue * 0.83875F) / 127;
+        log_w("voltage3: %f", voltage3);
+
+
         return voltage;
+    }
+
+    return 0;
+}
+
+float SBrickHub::getTemperature()
+{
+    byte voltageCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, (byte)SBrickAdcChannel::Temperature};
+    WriteValue(voltageCommand, 2);
+
+    uint16_t rawValue = _pRemoteCharacteristicRemoteControl->readValue<uint16_t>();
+    log_w("raw value: %04x", rawValue);
+    if (rawValue)
+    {
+        float temp = (rawValue * 0.13461) - 160.0;
+        log_w("temp1: %f", temp);
+
+        uint16_t rawValue2 = rawValue & 0x0FFF; // remove channel
+        float temp2 = (rawValue * 0.13461) / 127;
+        log_w("temp2: %f", temp2);
+
+        uint16_t rawValue3 = (rawValue & 0xFFF0) >> 4; // remove channel
+        float temp3 = (rawValue * 0.13461) / 127;
+        log_w("voltage3: %f", temp3);
+
+        return temp;
     }
 
     return 0;
@@ -347,11 +396,42 @@ void SBrickHub::notifyCallback(
     bool isNotify)
 {
     log_w("notify callback for characteristic %s", pBLERemoteCharacteristic->getUUID().toString().c_str());
+    log_w("data: [%s]", getHexString(pData, length).c_str());
 
-    log_w("data: [");
-    for (int i = 0; i < length; i++)
+    uint8_t curRecordSize;
+    SBrickRecordTypes curRecordType;
+    for (int i = 0; i < length; i += curRecordSize + 1) // + 1 to include size byte before each record
     {
-        log_w("%02x", pData[i]);
+        curRecordSize = pData[i];
+        curRecordType = (SBrickRecordTypes)pData[i + 1];
+
+        switch (curRecordType)
+        {
+        case SBrickRecordTypes::ProductType:
+            log_w("product type: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            break;
+        case SBrickRecordTypes::DeviceIdentifier:
+            log_w("device identifier: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            break;
+        case SBrickRecordTypes::SimpleSecurityStatus:
+            log_w("simple security status: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            break;
+        case SBrickRecordTypes::CommandResponse:
+            log_w("command response: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            break;
+        case SBrickRecordTypes::ThermalProtectionStatus:
+            log_w("thermal protection status: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            break;
+        case SBrickRecordTypes::VoltageMeasurement:
+            log_w("voltage measurement: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            break;
+        case SBrickRecordTypes::SignalCompleted:
+            log_w("signal completed: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            break;
+        default:
+            log_w("unknown record type: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            break;
+        }
     }
-    log_w("]");
+
 }
