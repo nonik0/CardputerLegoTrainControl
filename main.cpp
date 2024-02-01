@@ -398,8 +398,8 @@ void sbrickConnectionToggle()
   {
     if (!sbrickHub.isConnecting())
     {
-      // sbrickHub.init();
-      sbrickHub.init("88:6b:0f:80:35:b8"); // TODO: sbrick discovery
+      sbrickHub.init();
+      //sbrickHub.init("88:6b:0f:80:35:b8"); // TODO: sbrick discovery
     }
 
     unsigned long exp = millis() + BtConnWait;
@@ -410,13 +410,9 @@ void sbrickConnectionToggle()
     {
       sbrickInit = true;
 
-      sbrickHub.activateAdcChannel((byte)SBrickAdcChannel::C_C1); // TEMP hard coded need to track since each cmd overwrites
-      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::C_C2);
-      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::D_C1);
-      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::D_C2);
-      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::Voltage);
-      // sbrickHub.configureAdcChannel((byte)SBrickAdcChannel::Temperature);
+      // TODO: detect tilt or motion sensor on channels and setup callbacks
 
+      // TODO: eventually figure out cadence for readings and set this appropriately
       if (sbrickHub.getWatchdogTimeout())
       {
         log_w("disabling sbrick watchdog");

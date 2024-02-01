@@ -59,14 +59,8 @@ public:
         // Found a device, check if the service is contained and optional if address fits requested address
         log_d("advertised device: %s", advertisedDevice->toString().c_str());
 
-        // TODO: connect without address
-        if (advertisedDevice->getName() == "NickSBrick")
-        {
-            log_w("found SBrick device!\r\n", advertisedDevice->toString().c_str());
-        }
-
-        // SBrick does not advertise the service, so we need to connect directly instead of looking for the service in broadcasted devices
-        if (_sbrickHub->_requestedDeviceAddress && advertisedDevice->getAddress().equals(*_sbrickHub->_requestedDeviceAddress))
+        // use any device that contains "SBrick" in the name
+        if ((advertisedDevice->getName().find("SBrick") != std::string::npos) || (_sbrickHub->_requestedDeviceAddress && advertisedDevice->getAddress().equals(*_sbrickHub->_requestedDeviceAddress)))
         {
             advertisedDevice->getScan()->stop();
             _sbrickHub->_pServerAddress = new NimBLEAddress(advertisedDevice->getAddress());
