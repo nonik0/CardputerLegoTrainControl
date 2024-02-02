@@ -237,7 +237,7 @@ int CircuitCubesHub::getRssi()
 
 void CircuitCubesHub::WriteValue(byte command[], int size)
 {
-    log_w("writing command: %s", std::string((char*)command, size).c_str());
+    log_d("writing command: %s", std::string((char*)command, size).c_str());
 
     byte commandBytes[size];
     memcpy(commandBytes, command, size);

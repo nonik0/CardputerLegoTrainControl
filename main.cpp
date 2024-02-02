@@ -67,6 +67,14 @@ unsigned long sbrickDisconnectDelay; // debounce disconnects
 unsigned long sbrickLastAction = 0;  // track for auto-disconnect
 // volatile Action sbrickAutoAction = NoAction;
 
+// SBrick sensor state
+bool sbrickMotionSensorInit = false;
+byte sbrickMotionSensorPort = NO_SENSOR_FOUND;
+bool sbrickTiltSensorInit = false;
+byte sbrickTiltSensorPort = NO_SENSOR_FOUND;
+WedoTilt sbrickSensorTilt;
+bool sbrickSensorMotion;
+
 // CircuitCubes state
 const short circuitCubesSpdInc = 35; // ~ 255 / 10
 CircuitCubesHub circuitCubesHub;
@@ -278,7 +286,7 @@ void lpf2SensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   }
 
   int distance = trainCtl->parseDistance(pData);
-  Color color = static_cast<Color>(trainCtl->parseColor(pData));
+  Color color = (Color)(trainCtl->parseColor(pData));
 
   // track moving average of distance to random noisy spikes, turn off motor if not on track
   lpf2DistanceMovingAverage = (lpf2DistanceMovingAverage * 3 + distance) >> 2; // I bet compiler does this anyway for dividing by 4
@@ -390,112 +398,57 @@ void lpf2ConnectionToggle()
   }
 }
 
+float motionV, tiltV;
 
-
-WedoTilt sbrickSensorTilt;
-void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
-{
-  SBrickHub *sbrickHub = (SBrickHub *)hub;
-  // interpret voltage as tilt
-
-  log_w("sbrickTiltSensorCallback: channel %d voltage: %f", channel, voltage);
-}
-
-bool sbrickSensorMotion;
 void sbrickMotionSensorCallback(void *hub, byte channel, float voltage)
 {
   SBrickHub *sbrickHub = (SBrickHub *)hub;
-  // interpret voltage as motion
 
-  log_d("sbrickMotionSensorCallback: channel %d voltage: %f", channel, voltage);
-}
-
-// TODO: move to SBrickHub
-byte sbrickDetectWedoSensor(byte port)
-{
-  byte sensorIdChannel = SBrickPortToAdcChannel[port][0];
-  byte sensorValueChannel = SBrickPortToAdcChannel[port][1];
-  sbrickHub.activateAdcChannel(sensorIdChannel);
-  sbrickHub.activateAdcChannel(sensorValueChannel);
-
-  delay(200); // values read ~5x/sec, so this should be enough
-
-  float idVoltage = sbrickHub.readAdcChannel(sensorIdChannel);
-  float valueVoltage = sbrickHub.readAdcChannel(sensorValueChannel);
-  log_w("sbrick port %d c1: %f, c2: %f", port, idVoltage, valueVoltage);
-
-  if (idVoltage < 0.1)
+  byte port = SBrickAdcChannelToPort[channel];
+  if (port != sbrickMotionSensorPort)
   {
-    sbrickHub.deactivateAdcChannel(sensorIdChannel);
-    sbrickHub.deactivateAdcChannel(sensorValueChannel);
-    return (byte)WedoSensor::NotFound;
+    log_w("port %d not motion sensor", port);
+    return;
   }
-  else if (idVoltage < 2.0 && valueVoltage > 2.0 && valueVoltage < 3.0)
+
+  motionV = voltage;
+  byte motion = sbrickHub->interpretSensorMotion(voltage);
+
+  // filter noise
+  if (motion == sbrickSensorMotion)
   {
-    return (byte)WedoSensor::Tilt;
+    return;
   }
-  else if (idVoltage > 2.5 && valueVoltage > 1.8 && valueVoltage < 2.8)
+
+  log_w("motion: %d", motion);
+  sbrickSensorMotion = motion;
+  redraw = true;
+}
+
+void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
+{
+  SBrickHub *sbrickHub = (SBrickHub *)hub;
+
+  byte port = SBrickAdcChannelToPort[channel];
+  if (port != sbrickTiltSensorPort)
   {
-    return (byte)WedoSensor::Motion;
+    log_w("port %d not tilt sensor", port);
+    return;
   }
-  else
+
+  tiltV = voltage;
+  WedoTilt tilt = (WedoTilt)sbrickHub->interpretSensorTilt(voltage);
+
+  // filter noise
+  if (tilt == sbrickSensorTilt)
   {
-    sbrickHub.deactivateAdcChannel(sensorIdChannel);
-    sbrickHub.deactivateAdcChannel(sensorValueChannel);
-    return (byte)WedoSensor::Unknown;
+    return;
   }
+
+  log_w("tilt: %d", tilt);
+  sbrickSensorTilt = tilt;
+  redraw = true;
 }
-
-void sbrickActivateWedoSensor(WedoSensor sensorType, byte port)
-{
-  byte sensorValueChannel = SBrickPortToAdcChannel[port][1];
-  ChannelValueChangeCallback callback = sensorType == WedoSensor::Motion ? sbrickMotionSensorCallback : sbrickTiltSensorCallback;
-
-  sbrickHub.activateAdcChannel(sensorValueChannel);
-  sbrickHub.subscribeAdcChannel(sensorValueChannel, callback);
-}
-
-WedoTilt sbrickDetectTilt(byte port)
-{
-  // tilt
-  // D1: 1.44V, D2:
-  // +1: fw, -1: bw, +0.5: left, -0.5: right??
-  // N: 2.80V
-  // F: 4.17V -> +1.37V
-  // R: 0.46V -> -2.34V
-  // L: 5.57V -> +2.77V
-  // R: 1.53V -> -1.27V
-
-  // D1: 1.15V, D2:
-  // N: 2.23V
-  // F: 3.34V -> +1.11V
-  // R: 0.36V -> -1.87V
-  // L: 4.48V -> +2.25V
-  // R: 1.22V -> -1.01V
-
-  float voltage = sbrickHub.readAdcChannel(port);
-  log_w("sbrick port %d voltage: %f", port, voltage);
-
-  // TODO: track neutral voltage and then check closest difference to that?
-  return WedoTilt::Neutral;
-}
-
-bool sbrickDetectMotion(byte port)
-{
-  // motion
-  // 2.10 -> 1.55
-  // 1.78 -> 1.41
-  // 2.10 -> 1.67
-
-  float voltage = sbrickHub.readAdcChannel(port);
-  log_w("sbrick port %d voltage: %f", port, voltage);
-
-  // TODO: voltage drops ~0.5V when moving, so use smaller value as threshold?
-
-  return false;
-}
-
-
 
 void sbrickConnectionToggle()
 {
@@ -517,21 +470,38 @@ void sbrickConnectionToggle()
     {
       sbrickInit = true;
 
-      // for (byte port = 0; port < 4; port++)
-      // {
-      //   byte detectedSensor = sbrickDetectWedoSensor(port);
-      //   if (detectedSensor != (byte)WedoSensor::NotFound && detectedSensor != (byte)WedoSensor::Unknown)
-      //   {
-      //     log_w("sbrick port %d detected as WeDo sensor %d", port, detectedSensor);
-      //     sbrickActivateWedoSensor((WedoSensor)detectedSensor, port);
-      //   }
-      // }
+      // detect sensors and subscribe to them
+      for (byte port = 0; port < 4; port++)
+      {
+        byte detectedSensor = sbrickHub.detectPortSensor(port);
 
-      // testing
-      sbrickHub.activateAdcChannel((byte)SBrickAdcChannel::C_C2);
-      sbrickHub.activateAdcChannel((byte)SBrickAdcChannel::D_C2);
-      sbrickHub.subscribeAdcChannel((byte)SBrickAdcChannel::C_C2, sbrickMotionSensorCallback);
-      sbrickHub.subscribeAdcChannel((byte)SBrickAdcChannel::D_C2, sbrickTiltSensorCallback);
+        // testing
+        if (port == (byte)SBrickHubPort::C)
+        {
+          detectedSensor = (byte)WedoSensor::Motion;
+        }
+        if (port == (byte)SBrickHubPort::D)
+        {
+          detectedSensor = (byte)WedoSensor::Tilt;
+        }
+
+        if (detectedSensor == (byte)WedoSensor::Motion)
+        {
+          log_w("sbrick port %d detected as motion sensor %d", port, detectedSensor);
+          sbrickHub.subscribeSensor(port, sbrickMotionSensorCallback);
+          sbrickMotionSensorInit = true;
+          sbrickMotionSensorPort = port;
+          sbrickSensorMotion = false;
+        }
+        else if (detectedSensor == (byte)WedoSensor::Tilt)
+        {
+          log_w("sbrick port %d detected as tilt sensor %d", port, detectedSensor);
+          sbrickHub.subscribeSensor(port, sbrickTiltSensorCallback);
+          sbrickTiltSensorInit = true;
+          sbrickTiltSensorPort = port;
+          sbrickSensorTilt = WedoTilt::Neutral;
+        }
+      }
 
       // TODO: eventually figure out cadence for readings and set this appropriately
       if (sbrickHub.getWatchdogTimeout())
@@ -539,16 +509,20 @@ void sbrickConnectionToggle()
         log_w("disabling sbrick watchdog");
         sbrickHub.setWatchdogTimeout(0);
       }
-    }
 
-    sbrickDisconnectDelay = millis() + 500;
-  }
-  else if (sbrickDisconnectDelay < millis())
-  {
-    sbrickHub.disconnectHub();
-    delay(200);
-    sbrickInit = false;
-    sbrickPortSpeed[0] = sbrickPortSpeed[1] = sbrickPortSpeed[2] = sbrickPortSpeed[3] = 0;
+      sbrickDisconnectDelay = millis() + 500;
+    }
+    else if (sbrickDisconnectDelay < millis())
+    {
+      sbrickHub.disconnectHub();
+      delay(200);
+      sbrickInit = false;
+      sbrickPortSpeed[0] = sbrickPortSpeed[1] = sbrickPortSpeed[2] = sbrickPortSpeed[3] = 0;
+      sbrickMotionSensorInit = false;
+      sbrickMotionSensorPort = NO_SENSOR_FOUND;
+      sbrickTiltSensorInit = false;
+      sbrickTiltSensorPort = NO_SENSOR_FOUND;
+    }
   }
 }
 
@@ -1137,6 +1111,52 @@ void draw()
   canvas.drawString(getRemoteLeftPortString(activeRemoteRight), c4 + bw / 2, r1 - 2);
   canvas.drawString(getRemoteRightPortString(activeRemoteRight), c5 + bw / 2, r1 - 2);
 
+  // sbrick sensor data
+  int sbrickDataCol = 0;
+  if (sbrickInit)
+  {
+    if (activeRemoteLeft == RemoteDevice::SBrick)
+    {
+      sbrickDataCol = c1;
+    }
+    else if (activeRemoteRight == RemoteDevice::SBrick)
+    {
+      sbrickDataCol = c6;
+    }
+
+    if (sbrickDataCol)
+    {
+      canvas.drawString(String(sbrickBatteryV, 2), sbrickDataCol + bw / 2, r1_5 + 9);
+    }
+  }
+  if (sbrickMotionSensorInit && sbrickDataCol)
+  {
+    canvas.drawString(String(motionV, 2), sbrickDataCol + bw / 2, r3_5 - 2);
+  }
+
+  if (sbrickTiltSensorInit && sbrickDataCol)
+  {
+    canvas.drawString(String(tiltV, 2), sbrickDataCol + bw / 2, r3_5 + 9);
+  }
+
+  int circuitCubesDataCol = 0;
+  if (circuitCubesInit)
+  {
+    if (activeRemoteLeft == RemoteDevice::CircuitCubes)
+    {
+      circuitCubesDataCol = c1;
+    }
+    else if (activeRemoteRight == RemoteDevice::CircuitCubes)
+    {
+      circuitCubesDataCol = c6;
+    }
+
+    if (circuitCubesDataCol)
+    {
+      canvas.drawString(String(circuitCubesBatteryV, 2), circuitCubesDataCol + bw / 2, r1_5 + 9);
+    }
+  }
+
   // draw layout for both active remotes
   State state = {lpf2Init, lpf2Rssi,
                  lpf2LedColor, lpf2SensorPort,
@@ -1325,7 +1345,7 @@ void loop()
           if (lpf2SensorPort == (byte)PoweredUpHubPort::A || lpf2SensorPort == (byte)PoweredUpHubPort::B)
           {
             lpf2Hub.activatePortDevice(lpf2SensorPort, lpf2SensorCallback);
-            lpf2MotorPort = lpf2SensorPort == (byte)PoweredUpHubPort::A ? (byte)PoweredUpHubPort::B : (byte)PoweredUpHubPort::A;
+            lpf2MotorPort = (lpf2SensorPort == (byte)PoweredUpHubPort::A) ? (byte)PoweredUpHubPort::B : (byte)PoweredUpHubPort::A;
             lpf2SensorColor = Color::NONE;
             lpf2SensorInit = true;
             redraw = true;
@@ -1376,7 +1396,6 @@ void loop()
         float newBatteryV = sbrickHub.getBatteryLevel();
         if (newBatteryV != sbrickBatteryV)
         {
-          log_w("sbrick battery: %.2f", newBatteryV);
           sbrickBatteryV = newBatteryV;
           redraw = true;
         }

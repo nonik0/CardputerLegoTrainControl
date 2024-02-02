@@ -43,6 +43,12 @@ public:
     // void getSubscribedChannels();
     float getBatteryLevel();
     float getTemperature();
+    
+    // sensor related methods
+    byte detectPortSensor(byte port);
+    void subscribeSensor(byte port, ChannelValueChangeCallback channelValueChangeCallback = nullptr);
+    byte interpretSensorMotion(float voltage);
+    byte interpretSensorTilt(float voltage);
 
     void setMotorSpeed(byte port, int speed);
     void stopMotor(byte port);
