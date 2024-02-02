@@ -1,5 +1,7 @@
 // https://social.sbrick.com/custom/The_SBrick_BLE_Protocol.pdf
 
+#pragma once
+
 #define SBRICK_SERVICE_UUID "4dc591b0-857c-41de-b5f1-15abda665b0c"
 #define SBRICK_CHARACTERISTIC_UUID_REMOTE_CONTROL "02b8cbcc-0e25-4bda-8790-a15f53e6010f"
 #define SBRICK_CHARACTERISTIC_UUID_QUICK_DRIVE "489a6ae0-c1ab-4c9c-bdb2-11d373c1b7fb"
@@ -37,6 +39,8 @@ enum struct SBrickHubPort
     B = 0x02, // weird
     D = 0x03,
 };
+
+const char SBrickPortToChar[] = {'A', 'C', 'B', 'D'};
 
 enum struct SBrickAdcChannel 
 {

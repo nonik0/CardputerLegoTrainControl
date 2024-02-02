@@ -53,24 +53,23 @@ enum RemoteRow
 
 enum RemoteDevice
 {
-  PoweredUpHub = 0x00,
+  PoweredUp = 0x00,
   SBrick = 0x01,
   CircuitCubes = 0x02,
-  PowerFunctionsIR = 0x03
-  ,
+  PowerFunctionsIR = 0x03,
   NUM_DEVICES = 4
 };
 
 enum RemoteAction
 {
+  NoAction,
+  SpdUp,
+  Brake,
+  SpdDn,
   BtConnection,
   BtColor,
   IrChannel,
-  IrTrackState,
-  SpdUp,
-  SpdDn,
-  Brake,
-  NoAction
+  IrTrackState
 };
 
 struct Button

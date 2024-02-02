@@ -1,3 +1,5 @@
+#pragma once
+
 #define CIRCUITCUBES_SERVICE_UUID "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 #define CIRCUITCUBES_WRITE_CHARACTERISTIC_UUID "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
 #define CIRCUITCUBES_NOTIFY_CHARACTERISTIC_UUID "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
@@ -14,12 +16,14 @@ enum struct CircuitCubesCommandType
     //SETNAME = "n"
 };
 
-enum struct CircuitCubesHubChannel
+enum struct CircuitCubesHubPort
 {
     A = 0x00,
     B = 0x01,
     C = 0x02,
 };
+
+const char CircuitCubesPortToChar[] = {'A', 'B', 'C'};
 
 #define CIRCUIT_CUBES_SPEED_MAX 255
 #define CIRCUIT_CUBES_SPEED_MIN -255

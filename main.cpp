@@ -80,8 +80,10 @@ const short circuitCubesSpdInc = 35; // ~ 255 / 10
 CircuitCubesHub circuitCubesHub;
 float circuitCubesBatteryV = 0;
 bool circuitCubesInit = false;
-volatile int circuitCubesRssi = -1000;
 short circuitCubesPortSpeed[3] = {0, 0, 0};
+byte circuitCubesLeftPort = (byte)CircuitCubesHubPort::A;
+byte circuitCubesRightPort = (byte)CircuitCubesHubPort::B;
+volatile int circuitCubesRssi = -1000;
 unsigned long circuitCubesDisconnectDelay; // debounce disconnects
 unsigned long circuitCubesLastAction = 0;  // track for auto-disconnect
 // volatile Action circuitCubesAutoAction = NoAction;
@@ -146,15 +148,15 @@ int irh = rh - im - om;
 int bwhh = bw / 2 - im;
 
 Button lpf2HubButtons[] = {
-    {AuxTop, AuxCol, Row1_5, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
-    {AuxMid, AuxCol, Row2_5, bw, bw, RemoteDevice::PoweredUpHub, 0xFF, BtColor, COLOR_LIGHTGRAY, false},
-    {NoTouchy, AuxCol, Row3_5, bw, bwhh, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::LED, NoAction, COLOR_MEDGRAY, false},
-    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
-    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
-    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
-    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
-    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, Brake, COLOR_LIGHTGRAY, false},
-    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::PoweredUpHub, (byte)PoweredUpHubPort::B, SpdDn, COLOR_LIGHTGRAY, false}};
+    {AuxTop, AuxCol, Row1_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {AuxMid, AuxCol, Row2_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, BtColor, COLOR_LIGHTGRAY, false},
+    {NoTouchy, AuxCol, Row3_5, bw, bwhh, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::LED, NoAction, COLOR_MEDGRAY, false},
+    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
+    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
+    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::B, Brake, COLOR_LIGHTGRAY, false},
+    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::B, SpdDn, COLOR_LIGHTGRAY, false}};
 uint8_t lpf2ButtonCount = sizeof(lpf2HubButtons) / sizeof(Button);
 
 Button sbrickHubButtons[] = {
@@ -170,12 +172,12 @@ uint8_t sbrickButtonCount = sizeof(sbrickHubButtons) / sizeof(Button);
 
 Button circuitCubesButtons[] = {
     {AuxTop, AuxCol, Row2, bw, bw, RemoteDevice::CircuitCubes, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
-    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::A, SpdUp, COLOR_LIGHTGRAY, false},
-    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::A, Brake, COLOR_LIGHTGRAY, false},
-    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::A, SpdDn, COLOR_LIGHTGRAY, false},
-    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::B, SpdUp, COLOR_LIGHTGRAY, false},
-    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::B, Brake, COLOR_LIGHTGRAY, false},
-    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubChannel::B, SpdDn, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
+    {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::A, Brake, COLOR_LIGHTGRAY, false},
+    {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
+    {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::B, Brake, COLOR_LIGHTGRAY, false},
+    {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::B, SpdDn, COLOR_LIGHTGRAY, false},
 };
 uint8_t circuitCubesButtonCount = sizeof(circuitCubesButtons) / sizeof(Button);
 
@@ -194,7 +196,7 @@ uint8_t powerFunctionsIrButtonCount = sizeof(powerFunctionsIrButtons) / sizeof(B
 // must match order of RemoteDevice enum
 Button *remoteButton[] = {lpf2HubButtons, sbrickHubButtons, circuitCubesButtons, powerFunctionsIrButtons};
 uint8_t remoteButtonCount[] = {lpf2ButtonCount, sbrickButtonCount, circuitCubesButtonCount, powerFunctionsIrButtonCount};
-RemoteDevice activeRemoteLeft = RemoteDevice::PoweredUpHub;
+RemoteDevice activeRemoteLeft = RemoteDevice::PoweredUp;
 RemoteDevice activeRemoteRight = RemoteDevice::SBrick;
 
 bool isIgnoredColor(Color color)
@@ -237,8 +239,8 @@ void lpf2ButtonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pD
       lpf2ResumeTrainMotion();
 
       // also show press for led color button
-      Button *lpf2Button = remoteButton[RemoteDevice::PoweredUpHub];
-      for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUpHub]; i++)
+      Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
+      for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
       {
         if (lpf2Button[i].action == BtColor)
         {
@@ -345,8 +347,8 @@ void lpf2SensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   }
 
   // also show press for sensor button
-  Button *lpf2Button = remoteButton[RemoteDevice::PoweredUpHub];
-  for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUpHub]; i++)
+  Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
+  for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
   {
     if (lpf2Button[i].action == lpf2AutoAction && lpf2Button[i].port == lpf2SensorPort)
     {
@@ -553,6 +555,7 @@ void circuitCubesConnectionToggle()
     circuitCubesHub.disconnectHub();
     delay(200);
     circuitCubesInit = false;
+
     circuitCubesPortSpeed[0] = circuitCubesPortSpeed[1] = circuitCubesPortSpeed[2] = 0;
   }
 }
@@ -619,14 +622,17 @@ void saveScreenshot()
 
 void handle_button_press(Button *button)
 {
+  log_d("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
+
   button->pressed = true;
 
+  byte inactivePort;
   switch (button->action)
   {
   case BtConnection:
     switch (button->device)
     {
-    case RemoteDevice::PoweredUpHub:
+    case RemoteDevice::PoweredUp:
       lpf2ConnectionToggle();
       break;
     case RemoteDevice::SBrick:
@@ -667,13 +673,13 @@ void handle_button_press(Button *button)
   case SpdDn:
     switch (button->device)
     {
-    case RemoteDevice::PoweredUpHub:
+    case RemoteDevice::PoweredUp:
       if (!lpf2Hub.isConnected())
         break;
 
       if (button->port == lpf2SensorPort)
       {
-        if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+        if (M5Cardputer.Keyboard.isKeyPressed((activeRemoteLeft == RemoteDevice::PoweredUp) ? KEY_FN : KEY_ENTER))
         {
           switch (button->action)
           {
@@ -758,20 +764,58 @@ void handle_button_press(Button *button)
       if (!circuitCubesHub.isConnected())
         break;
 
-      switch (button->action)
+      if (M5Cardputer.Keyboard.isKeyPressed((activeRemoteLeft == RemoteDevice::CircuitCubes) ? KEY_FN : KEY_ENTER))
       {
-      case SpdUp:
-        circuitCubesPortSpeed[button->port] = min(CIRCUIT_CUBES_SPEED_MAX, circuitCubesPortSpeed[button->port] + circuitCubesSpdInc);
-        break;
-      case Brake:
-        circuitCubesPortSpeed[button->port] = 0;
-        break;
-      case SpdDn:
-        circuitCubesPortSpeed[button->port] = max(CIRCUIT_CUBES_SPEED_MIN, circuitCubesPortSpeed[button->port] - circuitCubesSpdInc);
-        break;
+        // determine which port to activate
+        byte inactivePort = (byte)CircuitCubesHubPort::A;
+        for (byte port : {(byte)CircuitCubesHubPort::B, (byte)CircuitCubesHubPort::C})
+        {
+          if (port != circuitCubesLeftPort && port != circuitCubesRightPort)
+          {
+            inactivePort = port;
+            break;
+          }
+        }
+
+        byte portToInactive = button->port;
+
+        // update corresponding port
+        if (button->port == circuitCubesLeftPort)
+        {
+          circuitCubesLeftPort = inactivePort;
+        }
+        else
+        {
+          circuitCubesRightPort = inactivePort;
+        }
+
+        // then update all buttons to reflect active ports
+        for (int i = 0; i < circuitCubesButtonCount; i++)
+        {
+          if (circuitCubesButtons[i].port == portToInactive)
+          {
+            circuitCubesButtons[i].port = inactivePort;
+          }
+        }
+      }
+      else
+      {
+        switch (button->action)
+        {
+        case SpdUp:
+          circuitCubesPortSpeed[button->port] = min(CIRCUIT_CUBES_SPEED_MAX, circuitCubesPortSpeed[button->port] + circuitCubesSpdInc);
+          break;
+        case Brake:
+          circuitCubesPortSpeed[button->port] = 0;
+          break;
+        case SpdDn:
+          circuitCubesPortSpeed[button->port] = max(CIRCUIT_CUBES_SPEED_MIN, circuitCubesPortSpeed[button->port] - circuitCubesSpdInc);
+          break;
+        }
+
+        circuitCubesHub.setMotorSpeed(button->port, circuitCubesPortSpeed[button->port]);
       }
 
-      circuitCubesHub.setMotorSpeed(button->port, circuitCubesPortSpeed[button->port]);
       break;
     case RemoteDevice::PowerFunctionsIR:
       if (irTrackState)
@@ -821,7 +865,7 @@ unsigned short get_button_color(Button *button)
     return COLOR_ORANGE;
   }
 
-  if (button->device == RemoteDevice::PoweredUpHub)
+  if (button->device == RemoteDevice::PoweredUp)
   {
     if (button->port == lpf2SensorPort)
     {
@@ -852,7 +896,7 @@ unsigned short get_button_color(Button *button)
 
   if (button->action == Brake)
   {
-    if (button->device == RemoteDevice::PoweredUpHub && lpf2PortSpeed[button->port] == 0 ||
+    if (button->device == RemoteDevice::PoweredUp && lpf2PortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::SBrick && sbrickPortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::CircuitCubes && circuitCubesPortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::PowerFunctionsIR && irTrackState && irPortSpeed[button->port] == 0)
@@ -866,7 +910,7 @@ unsigned short get_button_color(Button *button)
     int speed = 0;
     switch (button->device)
     {
-    case RemoteDevice::PoweredUpHub:
+    case RemoteDevice::PoweredUp:
       speed = lpf2PortSpeed[button->port];
       break;
     case RemoteDevice::SBrick:
@@ -893,40 +937,8 @@ bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
 {
   pressedKey = RemoteKey::NoTouchy;
 
-  // aux
-  if (M5Cardputer.Keyboard.isKeyPressed('`'))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::AuxTop;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_BACKSPACE))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::AuxTop;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_TAB))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::AuxMid;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('\\'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::AuxMid;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::AuxBot;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::AuxBot;
-  }
-
   // left port
-  else if (M5Cardputer.Keyboard.isKeyPressed('e'))
+  if (M5Cardputer.Keyboard.isKeyPressed('e'))
   {
     isLeftRemote = true;
     pressedKey = RemoteKey::LeftPortSpdUp;
@@ -989,6 +1001,38 @@ bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
     pressedKey = RemoteKey::RightPortSpdDn;
   }
 
+  // aux
+  else if (M5Cardputer.Keyboard.isKeyPressed('`'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::AuxTop;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_BACKSPACE))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::AuxTop;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_TAB))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::AuxMid;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('\\'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::AuxMid;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::AuxBot;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::AuxBot;
+  }
+
   return pressedKey != RemoteKey::NoTouchy;
 }
 
@@ -996,7 +1040,7 @@ String getRemoteString(RemoteDevice remote)
 {
   switch (remote)
   {
-  case RemoteDevice::PoweredUpHub:
+  case RemoteDevice::PoweredUp:
     return "PU";
   case RemoteDevice::SBrick:
     return "SB";
@@ -1013,14 +1057,14 @@ String getRemoteLeftPortString(RemoteDevice remote)
 {
   switch (remote)
   {
-  case RemoteDevice::PoweredUpHub:
+  case RemoteDevice::PoweredUp:
     return "A";
   case RemoteDevice::SBrick:
     return "A";
   case RemoteDevice::PowerFunctionsIR:
     return "RED";
   case RemoteDevice::CircuitCubes:
-    return "A";
+    return String(CircuitCubesPortToChar[circuitCubesLeftPort]);
   default:
     return "?";
   }
@@ -1030,14 +1074,14 @@ String getRemoteRightPortString(RemoteDevice remote)
 {
   switch (remote)
   {
-  case RemoteDevice::PoweredUpHub:
+  case RemoteDevice::PoweredUp:
     return "B";
   case RemoteDevice::SBrick:
     return "B";
   case RemoteDevice::PowerFunctionsIR:
     return "BLUE";
   case RemoteDevice::CircuitCubes:
-    return "B";
+    return String(CircuitCubesPortToChar[circuitCubesRightPort]);
   default:
     return "?";
   }
@@ -1282,8 +1326,8 @@ void loop()
   {
     log_w("auto action: %d", lpf2AutoAction);
 
-    Button *lpf2Button = remoteButton[RemoteDevice::PoweredUpHub];
-    for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUpHub]; i++)
+    Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
+    for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
     {
       if (lpf2Button[i].action == lpf2AutoAction && (lpf2Button[i].port == 0xFF || lpf2Button[i].port == lpf2MotorPort))
       {
@@ -1357,8 +1401,8 @@ void loop()
           lpf2ResumeTrainMotion();
 
           // also show press for sensor button
-          Button *lpf2Button = remoteButton[RemoteDevice::PoweredUpHub];
-          for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUpHub]; i++)
+          Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
+          for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
           {
             if (lpf2Button[i].action == Brake && lpf2Button[i].port == lpf2SensorPort)
             {
