@@ -52,6 +52,26 @@ enum struct SBrickAdcChannel
     Temperature = 0x09 // internal temperature
 };
 
+const byte SBrickAdcChannelToPort[10] = {
+    (byte)SBrickHubPort::A,
+    (byte)SBrickHubPort::A,
+    (byte)SBrickHubPort::C,
+    (byte)SBrickHubPort::C,
+    (byte)SBrickHubPort::B,
+    (byte)SBrickHubPort::B,
+    (byte)SBrickHubPort::D,
+    (byte)SBrickHubPort::D,
+    0xFF, // battery voltage
+    0xFF  // internal temperature
+};
+
+const byte SBrickPortToAdcChannel[4][2] = {
+    {(byte)SBrickAdcChannel::A_C1, (byte)SBrickAdcChannel::A_C2}, // SBrickHubPort::A
+    {(byte)SBrickAdcChannel::C_C1, (byte)SBrickAdcChannel::C_C2}, // SBrickHubPort::C
+    {(byte)SBrickAdcChannel::B_C1, (byte)SBrickAdcChannel::B_C2}, // SBrickHubPort::B
+    {(byte)SBrickAdcChannel::D_C1, (byte)SBrickAdcChannel::D_C2}  // SBrickHubPort::D
+};
+
 enum struct SBrickRecordType
 {
     ProductType = 0x00,
@@ -75,6 +95,21 @@ enum struct SBrickCommandResponseReturnCodes {
     AuthzError = 0x07,
     ThermalProtectionActive = 0x08,
     SystemStateInvalidForCommand = 0x09
+};
+
+enum struct WedoSensor {
+    NotFound = 0x00,
+    Motion = 0x01,
+    Tilt = 0x02,
+    Unknown = 0x0FF
+};
+
+enum struct WedoTilt {
+    Neutral = 0x00,
+    Backward = 0x01,
+    Forward = 0x02,
+    Right = 0x03,
+    Left = 0x04,
 };
 
 #define SBRICK_MAX_CHANNEL_SPEED 254

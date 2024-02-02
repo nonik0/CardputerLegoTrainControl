@@ -70,7 +70,7 @@ public:
             {
                 uint8_t *manufacturerData = (uint8_t *)advertisedDevice->getManufacturerData().data();
                 uint8_t manufacturerDataLength = advertisedDevice->getManufacturerData().length();
-                log_w("manufacturer data: [%s]", getHexString(manufacturerData, manufacturerDataLength).c_str());
+                log_d("manufacturer data: [%s]", getHexString(manufacturerData, manufacturerDataLength).c_str());
             }
             _sbrickHub->_isConnecting = true;
         }
@@ -118,7 +118,6 @@ void SBrickHub::init(std::string deviceAddress, uint32_t scanDuration)
     _scanDuration = scanDuration;
     init();
 }
-
 
 bool SBrickHub::connectHub()
 {
@@ -201,6 +200,11 @@ bool SBrickHub::connectHub()
     // add callback instance to get notified if a disconnect event appears
     _pClient->setClientCallbacks(new SBrickHubClientCallback(this));
 
+    // temperature and voltage channels always active
+    _activeAdcChannels[0] = {(byte)SBrickAdcChannel::Temperature, nullptr};
+    _activeAdcChannels[1] = {(byte)SBrickAdcChannel::Voltage, nullptr};
+    _numberOfActiveChannels = 2;
+
     // Set states
     _isConnected = true;
     _isConnecting = false;
@@ -272,12 +276,11 @@ void SBrickHub::setWatchdogTimeout(uint8_t tenthOfSeconds)
     writeValue(setWatchdogCommand, 2);
 }
 
-
-void SBrickHub::activateAdcChannel(byte channel, ChannelValueChangeCallback channelValueChangeCallback)
+void SBrickHub::activateAdcChannel(byte channel)
 {
     log_d("channel: %x", channel);
 
-    AdcChannel newActiveChannel = {channel, channelValueChangeCallback};
+    AdcChannel newActiveChannel = {channel, nullptr};
     _activeAdcChannels[_numberOfActiveChannels] = newActiveChannel;
     _numberOfActiveChannels++;
 
@@ -287,6 +290,11 @@ void SBrickHub::activateAdcChannel(byte channel, ChannelValueChangeCallback chan
 void SBrickHub::deactivateAdcChannel(byte channel)
 {
     log_d("channel: %x", channel);
+
+    if (channel == (byte)SBrickAdcChannel::Temperature || channel == (byte)SBrickAdcChannel::Voltage)
+    {
+        return;
+    }
 
     bool hasReachedRemovedIndex = false;
     for (int i = 0; i < _numberOfActiveChannels; i++)
@@ -300,6 +308,7 @@ void SBrickHub::deactivateAdcChannel(byte channel)
             hasReachedRemovedIndex = true;
         }
     }
+
     if (_numberOfActiveChannels > 0)
     {
         _numberOfActiveChannels--;
@@ -308,13 +317,41 @@ void SBrickHub::deactivateAdcChannel(byte channel)
     updateActiveAdcChannels();
 }
 
+void SBrickHub::subscribeAdcChannel(byte channel, ChannelValueChangeCallback channelValueChangeCallback)
+{
+    log_d("channel: %x", channel);
+
+    int channelIndex = getIndexForChannel(channel);
+    if (channelIndex < 0)
+    {
+        log_w("channel %x is not active", channel);
+        return;
+    }
+    _activeAdcChannels[channelIndex].Callback = channelValueChangeCallback;
+
+    updateSubscribedAdcChannels();
+}
+
+void SBrickHub::unsubscribeAdcChannel(byte channel)
+{
+    log_d("channel: %x", channel);
+
+    int channelIndex = getIndexForChannel(channel);
+    if (channelIndex < 0)
+    {
+        return;
+    }
+    _activeAdcChannels[channelIndex].Callback = nullptr;
+
+    updateSubscribedAdcChannels();
+}
+
 float SBrickHub::readAdcChannel(byte adcChannel)
 {
     byte queryAdcCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, adcChannel};
     writeValue(queryAdcCommand, 2);
 
     uint16_t rawAdcValue = readValue<uint16_t>();
-    log_d("ADC[%d]=%04x", adcChannel, rawAdcValue);
 
     byte channel;
     float voltage;
@@ -322,6 +359,14 @@ float SBrickHub::readAdcChannel(byte adcChannel)
 
     return voltage;
 }
+
+// void SBrickHub::getActiveChannels()
+// {
+// }
+
+// void SBrickHub::getSubscribedChannels()
+// {
+// }
 
 float SBrickHub::getBatteryLevel()
 {
@@ -338,7 +383,6 @@ float SBrickHub::getTemperature()
 
     return readAdcChannel((byte)SBrickAdcChannel::Temperature);
 }
-
 
 void SBrickHub::setMotorSpeed(byte port, int speed)
 {
@@ -360,22 +404,21 @@ void SBrickHub::stopMotor(byte port)
     writeValue(brakeCommand, 2);
 }
 
-
 void SBrickHub::notifyCallback(
     NimBLERemoteCharacteristic *pBLERemoteCharacteristic,
     uint8_t *pData,
     size_t length,
     bool isNotify)
 {
-    log_w("notify callback for characteristic %s", pBLERemoteCharacteristic->getUUID().toString().c_str());
-    log_w("data: [%s]", getHexString(pData, length).c_str());
+    log_d("notify callback for characteristic %s", pBLERemoteCharacteristic->getUUID().toString().c_str());
+    log_d("data: [%s]", getHexString(pData, length).c_str());
 
     uint8_t curRecordSize;
     SBrickRecordType curRecordType;
     uint16_t rawAdcValue;
     byte channel;
     float voltage;
-    for (int i = 0; i < length; i += curRecordSize + 1) // + 1 to include size byte before each record
+    for (int i = 0; i < length; i += curRecordSize + 2) // +2 -> size byte and record type byte
     {
         curRecordSize = pData[i] - 1; // subtract 1 to exclude record type bit
         curRecordType = (SBrickRecordType)pData[i + 1];
@@ -384,39 +427,43 @@ void SBrickHub::notifyCallback(
         switch (curRecordType)
         {
         case SBrickRecordType::ProductType:
-            log_w("product type: %s", getHexString(pRecordData, curRecordSize).c_str());
+            log_d("product type: %s", getHexString(pRecordData, curRecordSize).c_str());
             break;
         case SBrickRecordType::DeviceIdentifier:
-            log_w("device identifier: %s", getHexString(pRecordData, curRecordSize).c_str());
+            log_d("device identifier: %s", getHexString(pRecordData, curRecordSize).c_str());
             break;
         case SBrickRecordType::SimpleSecurityStatus:
-            log_w("simple security status: %s", getHexString(pRecordData, curRecordSize).c_str());
+            log_d("simple security status: %s", getHexString(pRecordData, curRecordSize).c_str());
             break;
         case SBrickRecordType::CommandResponse:
-            log_w("command response: %s", getHexString(pRecordData, curRecordSize).c_str());
+            log_d("command response: %s", getHexString(pRecordData, curRecordSize).c_str());
             break;
         case SBrickRecordType::ThermalProtectionStatus:
-            log_w("thermal protection status: %s", getHexString(pRecordData, curRecordSize).c_str());
+            log_d("thermal protection status: %s", getHexString(pRecordData, curRecordSize).c_str());
             break;
         case SBrickRecordType::VoltageMeasurement:
-            log_w("voltage measurement: %s", getHexString(pRecordData, curRecordSize).c_str());
+            log_d("voltage measurement: %s", getHexString(pRecordData, curRecordSize).c_str());
 
             for (int j = 0; j < curRecordSize - 1; j += 2)
             {
                 rawAdcValue = pRecordData[j] | (pRecordData[j + 1] << 8); // little endian value
                 parseAdcReading(rawAdcValue, channel, voltage);
 
-                if (_activeAdcChannels[channel].Callback != nullptr)
+                log_d("Channel %x = %fV", channel, voltage);
+
+                uint8_t channelIndex = getIndexForChannel(channel);
+                if (_activeAdcChannels[channelIndex].Callback != nullptr)
                 {
-                    _activeAdcChannels[channel].Callback(this, channel, voltage);
+                    log_d("calling callback for channel %x", channel);
+                    _activeAdcChannels[channelIndex].Callback(this, channel, voltage);
                 }
             }
             break;
         case SBrickRecordType::SignalCompleted:
-            log_w("signal completed: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            log_d("signal completed: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
             break;
         default:
-            log_w("unknown record type: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
+            log_d("unknown record type: %s", getHexString(pData + i + 2, curRecordSize - 1).c_str());
             break;
         }
     }
@@ -441,7 +488,22 @@ void SBrickHub::parseAdcReading(uint16_t rawReading, byte &channel, float &volta
 {
     channel = rawReading & 0x000F;
     voltage = ((rawReading >> 4) * 0.83875F) / 127.0;
-    log_w("[%04x] -> channel: %d, voltage: %f, ", rawReading, channel, voltage);
+}
+
+uint8_t SBrickHub::getIndexForChannel(byte channel)
+{
+    log_d("Number of active ADC channels: %d", _numberOfActiveChannels);
+    for (int idx = 0; idx < _numberOfActiveChannels; idx++)
+    {
+        log_d("[%d] channel: %x, callback address: %x", idx, _activeAdcChannels[idx].Channel, _activeAdcChannels[idx].Callback);
+        if (_activeAdcChannels[idx].Channel == channel)
+        {
+            log_d("active channel %x has index %d", channel, idx);
+            return idx;
+        }
+    }
+    log_w("channel %x is not active", channel);
+    return -1;
 }
 
 void SBrickHub::updateActiveAdcChannels()
@@ -451,7 +513,21 @@ void SBrickHub::updateActiveAdcChannels()
         command[i + 1] = _activeAdcChannels[i].Channel;
 
     writeValue(command, 1 + _numberOfActiveChannels);
+}
 
-    command[0] = (byte)SBrickCommandType::SET_VOLTAGE_NOTIF;
-    writeValue(command, 1 + _numberOfActiveChannels);
+void SBrickHub::updateSubscribedAdcChannels()
+{
+    byte command[1 + SBRICK_ADC_CHANNEL_COUNT] = {(byte)SBrickCommandType::SET_VOLTAGE_NOTIF};
+
+    uint8_t numberOfSubscribedChannels = 0;
+    for (int i = 0; i < _numberOfActiveChannels; i++)
+    {
+        if (_activeAdcChannels[i].Callback != nullptr)
+        {
+            command[numberOfSubscribedChannels + 1] = _activeAdcChannels[i].Channel;
+            numberOfSubscribedChannels++;
+        }
+    }
+
+    writeValue(command, 1 + numberOfSubscribedChannels);
 }

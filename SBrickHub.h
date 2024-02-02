@@ -6,13 +6,7 @@
 
 using namespace std::placeholders;
 
-typedef void (*ChannelValueChangeCallback)(void *hub, byte channelNumber, float voltage);
-
-struct AdcChannel
-{
-    byte Channel;
-    ChannelValueChangeCallback Callback;
-};
+typedef void (*ChannelValueChangeCallback)(void *hub, byte channel, float voltage);
 
 class SBrickHub
 {
@@ -40,11 +34,13 @@ public:
     void setWatchdogTimeout(uint8_t tenthOfSeconds);
 
     // ADC related methods
-    void activateAdcChannel(byte channel, ChannelValueChangeCallback channelValueChangeCallback = nullptr);
+    void activateAdcChannel(byte channel);
     void deactivateAdcChannel(byte channel);
+    void subscribeAdcChannel(byte channel, ChannelValueChangeCallback channelValueChangeCallback = nullptr);
+    void unsubscribeAdcChannel(byte channel);
     float readAdcChannel(byte port);
     // void getActiveChannels();
-    // void getActiveChannelNotifications();
+    // void getSubscribedChannels();
     float getBatteryLevel();
     float getTemperature();
 
@@ -54,6 +50,11 @@ public:
 private:
     friend class SBrickHubClientCallback;
     friend class SBrickHubAdvertisedDeviceCallbacks;
+    struct AdcChannel
+    {
+        byte Channel;
+        ChannelValueChangeCallback Callback;
+    };
 
     // BLE specific stuff
     void notifyCallback(NimBLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);
@@ -73,10 +74,11 @@ private:
     T readValue();
     void writeValue(byte command[], int size);
 
+    // ADC specific stuff
     void parseAdcReading(uint16_t rawReading, byte &channel, float &voltage);
+    uint8_t getIndexForChannel(byte channel);
     void updateActiveAdcChannels();
-
-    // List of active ADC channels
+    void updateSubscribedAdcChannels();
     AdcChannel _activeAdcChannels[SBRICK_ADC_CHANNEL_COUNT];
     int _numberOfActiveChannels = 0;
 
