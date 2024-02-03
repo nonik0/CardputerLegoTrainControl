@@ -4,10 +4,11 @@
 #include <M5StackUpdater.h>
 #include <PowerFunctions.h>
 
-#include "common.h"
-#include "draw_helper.h"
 #include "CircuitCubesHub.h"
 #include "SBrickHub.h"
+
+#include "common.h"
+#include "draw_helper.h"
 
 #define IR_TX_PIN 44
 #define NO_SENSOR_FOUND 0xFF
@@ -59,8 +60,9 @@ short lpf2SensorStopSavedSpd = 0; // saved speed before stopping
 // SBrick state
 const short SBrickSpdInc = 35; // ~ 255 / 10
 SBrickHub sbrickHub;
-float sbrickBatteryV = 0;
 bool sbrickInit = false;
+float sbrickBatteryV = 0;
+float sbrickTempC = 0;
 volatile int sbrickRssi = -1000;
 short sbrickPortSpeed[4] = {0, 0, 0, 0};
 unsigned long sbrickDisconnectDelay; // debounce disconnects
@@ -110,6 +112,7 @@ int h = 135; // height
 int bw = 25; // button width
 int om = 4;  // outer margin
 int im = 2;  // inner margin
+int bwhh = bw / 2 - im;
 
 // header rectangle
 int hx = om;
@@ -134,18 +137,20 @@ int c1 = c2 - bw - om;
 int c4 = (w / 2) + 2 * om;
 int c5 = c4 + bw + im;
 int c6 = c5 + bw + om;
-// bt rectangle
-int btx = c1 - om;
-int bty = ry + om;
-int btw = 3 * bw + im + 3 * om;
-int bth = rh - im - om;
-// ir rectangle
-int irx = c4 - om;
-int iry = ry + om;
-int irw = 3 * bw + im + 3 * om;
-int irh = rh - im - om;
-
-int bwhh = bw / 2 - im;
+// left remote rectangle
+int lrx = c1 - om;
+int lry = ry + om;
+int lrw = 3 * bw + im + 3 * om;
+int lrh = rh - im - om;
+int lrtx = (rx + lrx) / 2;
+int lrty = lry + (lrh / 2);
+// right remote rectangle
+int rrx = c4 - om;
+int rry = lry;
+int rrw = lrw;
+int rrh = lrh;
+int rrtx = (rx + rw + rrx + rrw) / 2;
+int rrty = rry + (rrh / 2);
 
 Button lpf2HubButtons[] = {
     {AuxTop, AuxCol, Row1_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
@@ -516,6 +521,7 @@ void sbrickConnectionToggle()
     }
     else if (sbrickDisconnectDelay < millis())
     {
+      // TODO: not getting called??
       sbrickHub.disconnectHub();
       delay(200);
       sbrickInit = false;
@@ -555,7 +561,6 @@ void circuitCubesConnectionToggle()
     circuitCubesHub.disconnectHub();
     delay(200);
     circuitCubesInit = false;
-
     circuitCubesPortSpeed[0] = circuitCubesPortSpeed[1] = circuitCubesPortSpeed[2] = 0;
   }
 }
@@ -1036,23 +1041,6 @@ bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
   return pressedKey != RemoteKey::NoTouchy;
 }
 
-String getRemoteString(RemoteDevice remote)
-{
-  switch (remote)
-  {
-  case RemoteDevice::PoweredUp:
-    return "PU";
-  case RemoteDevice::SBrick:
-    return "SB";
-  case RemoteDevice::PowerFunctionsIR:
-    return "IR";
-  case RemoteDevice::CircuitCubes:
-    return "CC";
-  default:
-    return "??";
-  }
-}
-
 String getRemoteLeftPortString(RemoteDevice remote)
 {
   switch (remote)
@@ -1130,23 +1118,26 @@ void draw()
   // draw background, sidebar, header graphics
   canvas.fillRoundRect(hx, hy, hw, hh, 6, COLOR_DARKGRAY);
   canvas.fillRoundRect(rx, ry, rw, rh, 6, COLOR_DARKGRAY);
-  canvas.fillRoundRect(btx, bty, btw, bth, 6, COLOR_MEDGRAY);
-  canvas.fillRoundRect(irx, iry, irw, irh, 6, COLOR_MEDGRAY);
+  canvas.fillRoundRect(lrx, lry, lrw, lrh, 6, COLOR_MEDGRAY);
+  canvas.fillRoundRect(rrx, rry, rrw, rrh, 6, COLOR_MEDGRAY);
 
   canvas.setTextColor(TFT_SILVER, COLOR_DARKGRAY);
   canvas.setTextDatum(middle_center);
-  canvas.setTextSize(1.25);
-  canvas.drawString("Lego Train Control", w / 2, hy + hh / 2);
+  canvas.setTextSize(1);
+  canvas.drawString("Lego Train Control", w / 2, hy + hh / 2, &fonts::Font2);
 
   canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas.setTextSize(1.8);
-  canvas.drawString(getRemoteString(activeRemoteLeft), c1 + bw / 2, bty + bw / 2);
-  canvas.drawString(getRemoteString(activeRemoteRight), c6 + bw / 2, iry + bw / 2);
 
+  // system bar indicators
   draw_active_remote_indicator(&canvas, 2 * om, hy + (hh / 2), activeRemoteLeft, activeRemoteRight);
   draw_battery_indicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
 
-  // draw labels
+  // draw active remote titles
+  drawRemoteTitle(&canvas, true, activeRemoteLeft, lrtx, lrty);
+  drawRemoteTitle(&canvas, false, activeRemoteRight, rrtx, rrty);
+
+  // draw port labels
   canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas.setTextDatum(bottom_center);
   canvas.setTextSize(1);
@@ -1170,7 +1161,8 @@ void draw()
 
     if (sbrickDataCol)
     {
-      canvas.drawString(String(sbrickBatteryV, 2), sbrickDataCol + bw / 2, r1_5 + 9);
+      canvas.drawString(String(sbrickBatteryV, 2), sbrickDataCol + bw / 2, r1_5 - 2);
+      canvas.drawString(String(sbrickTempC, 2), sbrickDataCol + bw / 2, r1_5 + 9);
     }
   }
   if (sbrickMotionSensorInit && sbrickDataCol)
@@ -1183,6 +1175,7 @@ void draw()
     canvas.drawString(String(tiltV, 2), sbrickDataCol + bw / 2, r3_5 + 9);
   }
 
+  // circuit cubes battery data
   int circuitCubesDataCol = 0;
   if (circuitCubesInit)
   {
@@ -1209,8 +1202,6 @@ void draw()
                  sbrickInit, sbrickRssi,
                  circuitCubesInit, circuitCubesRssi,
                  irChannel};
-
-  // TODO: draw battery indicators if available
 
   Button *leftRemoteButton = remoteButton[activeRemoteLeft];
   for (int i = 0; i < remoteButtonCount[activeRemoteLeft]; i++)
@@ -1369,6 +1360,15 @@ void loop()
       if (!lpf2Hub.isConnected())
       {
         lpf2Init = false;
+        lpf2SensorInit = false;
+        lpf2PortSpeed[0] = lpf2PortSpeed[1] = 0;
+        lpf2MotorPort = NO_SENSOR_FOUND;
+        lpf2SensorPort = NO_SENSOR_FOUND;
+        lpf2SensorSpdUpColor = Color::GREEN;
+        lpf2SensorStopColor = Color::RED;
+        lpf2SensorSpdDnColor = Color::YELLOW;
+        lpf2SensorStopFunction = 0;
+        lpf2SensorStopDelay = 0;
         redraw = true;
       }
       else
@@ -1426,6 +1426,11 @@ void loop()
       if (!sbrickHub.isConnected())
       {
         sbrickInit = false;
+        sbrickPortSpeed[0] = sbrickPortSpeed[1] = sbrickPortSpeed[2] = sbrickPortSpeed[3] = 0;
+        sbrickMotionSensorInit = false;
+        sbrickMotionSensorPort = NO_SENSOR_FOUND;
+        sbrickTiltSensorInit = false;
+        sbrickTiltSensorPort = NO_SENSOR_FOUND;
         redraw = true;
       }
       else
@@ -1443,6 +1448,13 @@ void loop()
           sbrickBatteryV = newBatteryV;
           redraw = true;
         }
+
+        float newTempC = sbrickHub.getTemperature();
+        if (newTempC != sbrickTempC)
+        {
+          sbrickTempC = newTempC;
+          redraw = true;
+        }
       }
     }
 
@@ -1451,6 +1463,7 @@ void loop()
       if (!circuitCubesHub.isConnected())
       {
         circuitCubesInit = false;
+        circuitCubesPortSpeed[0] = circuitCubesPortSpeed[1] = circuitCubesPortSpeed[2] = 0;
         redraw = true;
       }
       else

@@ -1,5 +1,6 @@
 #include <M5Cardputer.h>
 #include "common.h"
+#include "resources.h"
 
 inline unsigned short interpolateColors(unsigned short color1, unsigned short color2, int percentage)
 {
@@ -22,6 +23,38 @@ inline unsigned short interpolateColors(unsigned short color1, unsigned short co
   int interpolatedGreen = (green1 * (100 - percentage) + green2 * percentage) / 100;
   int interpolatedBlue = (blue1 * (100 - percentage) + blue2 * percentage) / 100;
   return (unsigned short)((interpolatedRed << 11) | (interpolatedGreen << 5) | interpolatedBlue);
+}
+
+inline void drawRemoteTitle(M5Canvas *canvas, bool isLeftRemote, RemoteDevice activeRemote, int x, int y)
+{
+  const uint16_t *titleData;
+  uint16_t titleWidth, titleHeight;
+
+  switch (activeRemote)
+  {
+  case RemoteDevice::PoweredUp:
+    titleData = (isLeftRemote) ? lpf2LeftTitle : lpf2RightTitle;
+    titleWidth = (isLeftRemote) ? lpf2LeftTitleWidth : lpf2RightTitleWidth;
+    titleHeight = (isLeftRemote) ? lpf2LeftTitleHeight : lpf2RightTitleHeight;
+    break;
+  case RemoteDevice::SBrick:
+    titleData = (isLeftRemote) ? sbrickLeftTitle : sbrickRightTitle;
+    titleWidth = (isLeftRemote) ? sbrickLeftTitleWidth : sbrickRightTitleWidth;
+    titleHeight = (isLeftRemote) ? sbrickLeftTitleHeight : sbrickRightTitleHeight;
+    break;
+  case RemoteDevice::CircuitCubes:
+    titleData = (isLeftRemote) ? circuitCubesLeftTitle : circuitCubesRightTitle;
+    titleWidth = (isLeftRemote) ? circuitCubesLeftTitleWidth : circuitCubesRightTitleWidth;
+    titleHeight = (isLeftRemote) ? circuitCubesLeftTitleHeight : circuitCubesRightTitleHeight;
+    break;
+  case RemoteDevice::PowerFunctionsIR:
+    titleData = (isLeftRemote) ? powerFunctionsIrLeftTitle : powerFunctionsIrRightTitle;
+    titleWidth = (isLeftRemote) ? powerFunctionsIrLeftTitleWidth : powerFunctionsIrRightTitleWidth;
+    titleHeight = (isLeftRemote) ? powerFunctionsIrLeftTitleHeight : powerFunctionsIrRightTitleHeight;
+    break;
+  }
+
+  canvas->pushImage(x - titleWidth / 2, y - titleHeight / 2, titleWidth, titleHeight, (uint16_t *)titleData, transparencyColor);
 }
 
 inline void draw_active_remote_indicator(M5Canvas *canvas, int x, int y, uint8_t activeRemoteLeft, uint8_t activeRemoteRight)
