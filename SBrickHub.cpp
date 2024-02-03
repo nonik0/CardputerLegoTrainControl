@@ -370,9 +370,6 @@ float SBrickHub::readAdcChannel(byte adcChannel)
 
 float SBrickHub::getBatteryLevel()
 {
-    byte voltageCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, (byte)SBrickAdcChannel::Voltage};
-    writeValue(voltageCommand, 2);
-
     return readAdcChannel((byte)SBrickAdcChannel::Voltage);
 }
 
@@ -381,7 +378,10 @@ float SBrickHub::getTemperature()
     byte voltageCommand[2] = {(byte)SBrickCommandType::QUERY_ADC, (byte)SBrickAdcChannel::Temperature};
     writeValue(voltageCommand, 2);
 
-    return readAdcChannel((byte)SBrickAdcChannel::Temperature);
+    uint16_t rawAdcValue = readValue<uint16_t>();
+    float tempC = (rawAdcValue / 118.85795) - 160.0; // this matches other code but not the spec..
+    //float tempF = (tempC * 9.0 / 5.0) + 32.0;
+    return tempC;
 }
 
 void SBrickHub::setMotorSpeed(byte port, int speed)

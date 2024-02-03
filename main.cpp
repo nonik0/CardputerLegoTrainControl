@@ -62,9 +62,11 @@ const short SBrickSpdInc = 35; // ~ 255 / 10
 SBrickHub sbrickHub;
 bool sbrickInit = false;
 float sbrickBatteryV = 0;
-float sbrickTempC = 0;
+float sbrickTempF = 0;
 volatile int sbrickRssi = -1000;
 short sbrickPortSpeed[4] = {0, 0, 0, 0};
+byte sbrickLeftPort = (byte)SBrickHubPort::A;
+byte sbrickRightPort = (byte)SBrickHubPort::B;
 unsigned long sbrickDisconnectDelay; // debounce disconnects
 unsigned long sbrickLastAction = 0;  // track for auto-disconnect
 // volatile Action sbrickAutoAction = NoAction;
@@ -224,8 +226,6 @@ void lpf2ResumeTrainMotion()
 
 void lpf2ButtonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 {
-  log_w("buttonCallback");
-
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
 
   if (hubProperty != HubPropertyReference::BUTTON || millis() < lpf2ButtonDebounce)
@@ -240,7 +240,6 @@ void lpf2ButtonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pD
   {
     if (lpf2SensorStopDelay > 0)
     {
-      log_w("bt button: resume");
       lpf2ResumeTrainMotion();
 
       // also show press for led color button
@@ -256,7 +255,6 @@ void lpf2ButtonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pD
     }
     else
     {
-      log_w("lfp2 button: color");
       lpf2AutoAction = BtColor;
     }
   }
@@ -427,7 +425,6 @@ void sbrickMotionSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
-  log_w("motion: %d", motion);
   sbrickSensorMotion = motion;
   redraw = true;
 }
@@ -452,7 +449,6 @@ void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
-  log_w("tilt: %d", tilt);
   sbrickSensorTilt = tilt;
   redraw = true;
 }
@@ -519,18 +515,18 @@ void sbrickConnectionToggle()
 
       sbrickDisconnectDelay = millis() + 500;
     }
-    else if (sbrickDisconnectDelay < millis())
-    {
-      // TODO: not getting called??
-      sbrickHub.disconnectHub();
-      delay(200);
-      sbrickInit = false;
-      sbrickPortSpeed[0] = sbrickPortSpeed[1] = sbrickPortSpeed[2] = sbrickPortSpeed[3] = 0;
-      sbrickMotionSensorInit = false;
-      sbrickMotionSensorPort = NO_SENSOR_FOUND;
-      sbrickTiltSensorInit = false;
-      sbrickTiltSensorPort = NO_SENSOR_FOUND;
-    }
+  }
+  else if (sbrickDisconnectDelay < millis())
+  {
+    // TODO: not getting called??
+    sbrickHub.disconnectHub();
+    delay(200);
+    sbrickInit = false;
+    sbrickPortSpeed[0] = sbrickPortSpeed[1] = sbrickPortSpeed[2] = sbrickPortSpeed[3] = 0;
+    sbrickMotionSensorInit = false;
+    sbrickMotionSensorPort = NO_SENSOR_FOUND;
+    sbrickTiltSensorInit = false;
+    sbrickTiltSensorPort = NO_SENSOR_FOUND;
   }
 }
 
@@ -742,6 +738,7 @@ void handle_button_press(Button *button)
           lpf2PortSpeed[button->port] = max(-BtMaxSpeed, lpf2PortSpeed[button->port] - BtSpdInc);
           break;
         }
+
         lpf2Hub.setBasicMotorSpeed(button->port, lpf2PortSpeed[button->port]);
       }
 
@@ -750,20 +747,52 @@ void handle_button_press(Button *button)
       if (!sbrickHub.isConnected())
         break;
 
-      switch (button->action)
+      if (M5Cardputer.Keyboard.isKeyPressed((activeRemoteLeft == RemoteDevice::SBrick) ? KEY_FN : KEY_ENTER))
       {
-      case SpdUp:
-        sbrickPortSpeed[button->port] = min(SBRICK_MAX_CHANNEL_SPEED, sbrickPortSpeed[button->port] + SBrickSpdInc);
-        break;
-      case Brake:
-        sbrickPortSpeed[button->port] = 0;
-        break;
-      case SpdDn:
-        sbrickPortSpeed[button->port] = max(SBRICK_MIN_CHANNEL_SPEED, sbrickPortSpeed[button->port] - SBrickSpdInc);
-        break;
-      }
+        // determine which port to move to foreground
+        byte portToBg = button->port;
+        byte portToFg = button->port;
+        do
+        {
+          portToFg = (portToFg + 1) % 4;
+        } while (portToFg == sbrickLeftPort || portToFg == sbrickRightPort);
 
-      sbrickHub.setMotorSpeed(button->port, sbrickPortSpeed[button->port]);
+        // update corresponding port
+        if (portToBg == sbrickLeftPort)
+        {
+          sbrickLeftPort = portToFg;
+        }
+        else
+        {
+          sbrickRightPort = portToFg;
+        }
+
+        // then update all buttons to reflect new state
+        for (int i = 0; i < sbrickButtonCount; i++)
+        {
+          if (sbrickHubButtons[i].port == portToBg)
+          {
+            sbrickHubButtons[i].port = portToFg;
+          }
+        }
+      }
+      else
+      {
+        switch (button->action)
+        {
+        case SpdUp:
+          sbrickPortSpeed[button->port] = min(SBRICK_MAX_CHANNEL_SPEED, sbrickPortSpeed[button->port] + SBrickSpdInc);
+          break;
+        case Brake:
+          sbrickPortSpeed[button->port] = 0;
+          break;
+        case SpdDn:
+          sbrickPortSpeed[button->port] = max(SBRICK_MIN_CHANNEL_SPEED, sbrickPortSpeed[button->port] - SBrickSpdInc);
+          break;
+        }
+
+        sbrickHub.setMotorSpeed(button->port, sbrickPortSpeed[button->port]);
+      }
       break;
     case RemoteDevice::CircuitCubes:
       if (!circuitCubesHub.isConnected())
@@ -771,35 +800,34 @@ void handle_button_press(Button *button)
 
       if (M5Cardputer.Keyboard.isKeyPressed((activeRemoteLeft == RemoteDevice::CircuitCubes) ? KEY_FN : KEY_ENTER))
       {
-        // determine which port to activate
-        byte inactivePort = (byte)CircuitCubesHubPort::A;
+        // determine which port to move to foreground
+        byte portToBg = button->port;
+        byte portToFg = (byte)CircuitCubesHubPort::A;
         for (byte port : {(byte)CircuitCubesHubPort::B, (byte)CircuitCubesHubPort::C})
         {
           if (port != circuitCubesLeftPort && port != circuitCubesRightPort)
           {
-            inactivePort = port;
+            portToFg = port;
             break;
           }
         }
 
-        byte portToInactive = button->port;
-
         // update corresponding port
-        if (button->port == circuitCubesLeftPort)
+        if (portToBg == circuitCubesLeftPort)
         {
-          circuitCubesLeftPort = inactivePort;
+          circuitCubesLeftPort = portToFg;
         }
         else
         {
-          circuitCubesRightPort = inactivePort;
+          circuitCubesRightPort = portToFg;
         }
 
-        // then update all buttons to reflect active ports
+        // then update all buttons to reflect new state
         for (int i = 0; i < circuitCubesButtonCount; i++)
         {
-          if (circuitCubesButtons[i].port == portToInactive)
+          if (circuitCubesButtons[i].port == portToBg)
           {
-            circuitCubesButtons[i].port = inactivePort;
+            circuitCubesButtons[i].port = portToFg;
           }
         }
       }
@@ -1048,7 +1076,7 @@ String getRemoteLeftPortString(RemoteDevice remote)
   case RemoteDevice::PoweredUp:
     return "A";
   case RemoteDevice::SBrick:
-    return "A";
+    return String(SBrickPortToChar[sbrickLeftPort]);
   case RemoteDevice::PowerFunctionsIR:
     return "RED";
   case RemoteDevice::CircuitCubes:
@@ -1065,7 +1093,7 @@ String getRemoteRightPortString(RemoteDevice remote)
   case RemoteDevice::PoweredUp:
     return "B";
   case RemoteDevice::SBrick:
-    return "B";
+    return String(SBrickPortToChar[sbrickRightPort]);
   case RemoteDevice::PowerFunctionsIR:
     return "BLUE";
   case RemoteDevice::CircuitCubes:
@@ -1162,36 +1190,53 @@ void draw()
     if (sbrickDataCol)
     {
       canvas.drawString(String(sbrickBatteryV, 2), sbrickDataCol + bw / 2, r1_5 - 2);
-      canvas.drawString(String(sbrickTempC, 2), sbrickDataCol + bw / 2, r1_5 + 9);
-    }
-  }
-  if (sbrickMotionSensorInit && sbrickDataCol)
-  {
-    canvas.drawString(String(motionV, 2), sbrickDataCol + bw / 2, r3_5 - 2);
-  }
+      canvas.drawString(String(sbrickTempF, 1), sbrickDataCol + bw / 2, r1_5 + 9);
 
-  if (sbrickTiltSensorInit && sbrickDataCol)
-  {
-    canvas.drawString(String(tiltV, 2), sbrickDataCol + bw / 2, r3_5 + 9);
+      if (sbrickMotionSensorInit)
+      {
+        canvas.drawString(String(motionV, 2), sbrickDataCol + bw / 2, r3_5 - 2);
+      }
+
+      if (sbrickTiltSensorInit)
+      {
+        canvas.drawString(String(tiltV, 2), sbrickDataCol + bw / 2, r3_5 + 9);
+      }
+    }
   }
 
   // circuit cubes battery data
-  int circuitCubesDataCol = 0;
+  int circuitCubesDataX = 0;
   if (circuitCubesInit)
   {
     if (activeRemoteLeft == RemoteDevice::CircuitCubes)
     {
-      circuitCubesDataCol = c1;
+      circuitCubesDataX = c1;
     }
     else if (activeRemoteRight == RemoteDevice::CircuitCubes)
     {
-      circuitCubesDataCol = c6;
+      circuitCubesDataX = c6;
     }
 
-    if (circuitCubesDataCol)
+    if (circuitCubesDataX)
     {
-      canvas.drawString(String(circuitCubesBatteryV, 2), circuitCubesDataCol + bw / 2, r1_5 + 9);
+      canvas.drawString(String(circuitCubesBatteryV, 2), circuitCubesDataX + bw / 2, r1_5 + 9);
     }
+  }
+
+  int irChannelLabelX = 0;
+  int irChannelLabelY = r2 - 2;
+  if (activeRemoteLeft == RemoteDevice::PowerFunctionsIR)
+  {
+    irChannelLabelX = c1 + bw / 2;
+  }
+  else if (activeRemoteRight == RemoteDevice::PowerFunctionsIR)
+  {
+    irChannelLabelX = c6 + bw / 2;
+  }
+
+  if (irChannelLabelX)
+  {
+    canvas.drawString("CH", irChannelLabelX, irChannelLabelY);
   }
 
   // draw layout for both active remotes
@@ -1450,9 +1495,9 @@ void loop()
         }
 
         float newTempC = sbrickHub.getTemperature();
-        if (newTempC != sbrickTempC)
+        if (newTempC != sbrickTempF)
         {
-          sbrickTempC = newTempC;
+          sbrickTempF = newTempC;
           redraw = true;
         }
       }
@@ -1478,7 +1523,6 @@ void loop()
         float newBatteryV = circuitCubesHub.getBatteryLevel();
         if (newBatteryV != circuitCubesBatteryV)
         {
-          log_w("circuitCubes battery: %.2f", newBatteryV);
           circuitCubesBatteryV = newBatteryV;
           redraw = true;
         }
