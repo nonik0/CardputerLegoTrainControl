@@ -128,12 +128,12 @@ inline void draw_rssi_symbol(M5Canvas *canvas, int x, int y, bool init, int rssi
       : canvas->drawRect(barX, barY + (bar3 - bar1), barW, bar1, TFT_SILVER);
 
   barX += barW + barSpace;
-  (rssi > -75)
+  (rssi > -80)
       ? canvas->fillRect(barX, barY + (bar3 - bar2), barW, bar2, COLOR_ORANGE)
       : canvas->drawRect(barX, barY + (bar3 - bar2), barW, bar2, TFT_SILVER);
 
   barX += barW + barSpace;
-  (rssi > -50)
+  (rssi > -60)
       ? canvas->fillRect(barX, barY + (bar3 - bar3), barW, bar3, COLOR_ORANGE)
       : canvas->drawRect(barX, barY + (bar3 - bar3), barW, bar3, TFT_SILVER);
 
@@ -181,8 +181,13 @@ inline void draw_sensor_spdup_symbol(M5Canvas *canvas, int x, int y, Color color
 {
   int w = 17;
   if (color != Color::NONE)
-    draw_speedup_symbol(canvas, x, y);
-  // canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
+  {
+    if (spdupFunction >= 0)
+    {
+      draw_speedup_symbol(canvas, x, y);
+      // canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
+    }
+  }
 }
 
 inline void draw_sensor_stop_symbol(M5Canvas *canvas, int x, int y, Color color, int8_t stopFunction)
@@ -226,8 +231,13 @@ inline void draw_sensor_spddn_symbol(M5Canvas *canvas, int x, int y, Color color
 {
   int w = 17;
   if (color != Color::NONE)
-    draw_speeddn_symbol(canvas, x, y);
-  // canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
+  {
+    if (spddnFunction >= 0)
+    {
+      draw_speeddn_symbol(canvas, x, y);
+      // canvas->fillRoundRect(x - w / 2, y - w / 2, w, w, 6, BtColors[color]);
+    }
+  }
 }
 
 inline void draw_ir_channel_indicator(M5Canvas *canvas, int x, int y, byte irChannel, bool isPressed)

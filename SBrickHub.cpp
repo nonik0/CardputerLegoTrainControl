@@ -394,7 +394,7 @@ void SBrickHub::setMotorSpeed(byte port, int speed)
     {
         speed = SBRICK_MIN_CHANNEL_SPEED;
     }
-    byte driveCommand[4] = {(byte)SBrickCommandType::DRIVE, port, (speed > 0), (byte)abs(speed)};
+    byte driveCommand[4] = {(byte)SBrickCommandType::DRIVE, port, (speed < 0), (byte)abs(speed)}; // reverse speed to match train motor direction
     writeValue(driveCommand, 4);
 }
 

@@ -51,9 +51,9 @@ Color lpf2SensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
 Color lpf2SensorSpdUpColor = Color::GREEN;
 Color lpf2SensorStopColor = Color::RED;
 Color lpf2SensorSpdDnColor = Color::YELLOW;
-int8_t lpf2SensorSpdUpFunction = 0; // TBD
-int8_t lpf2SensorStopFunction = 0;  // <0=disabled, 0=brake, >0=wait time in seconds
-int8_t lpf2SensorSpdDnFunction = 0; // TBD
+int8_t lpf2SensorSpdUpFunction = 0; // <0=disabled, >0 speed up
+int8_t lpf2SensorStopFunction = 0;  // <0=disabled, 0=brake, >0=wait time in seconds, // TODO? 0xFF=pause and reverse
+int8_t lpf2SensorSpdDnFunction = 0; // <0=disabled, >0 speed down
 unsigned long lpf2SensorStopDelay = 0;
 short lpf2SensorStopSavedSpd = 0; // saved speed before stopping
 
@@ -326,12 +326,12 @@ void lpf2SensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
 
   // trigger actions for specific colors
   RemoteAction action;
-  if (color == lpf2SensorSpdUpColor)
+  if (color == lpf2SensorSpdUpColor && lpf2SensorSpdUpFunction >= 0)
   {
     log_i("bt action: spdup");
     lpf2AutoAction = SpdUp;
   }
-  else if (color == lpf2SensorStopColor)
+  else if (color == lpf2SensorStopColor && lpf2SensorStopFunction >= 0)
   {
     // resumed by calling resumeTrainMotion() after delay
     log_i("bt action: brake");
@@ -339,7 +339,7 @@ void lpf2SensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
     lpf2SensorStopDelay = millis() + lpf2SensorStopFunction * 1000;
     lpf2SensorStopSavedSpd = lpf2PortSpeed[lpf2MotorPort];
   }
-  else if (color == lpf2SensorSpdDnColor)
+  else if (color == lpf2SensorSpdDnColor && lpf2SensorSpdDnFunction >= 0)
   {
     log_i("bt action: spddn");
     lpf2AutoAction = SpdDn;
@@ -710,18 +710,32 @@ void handle_button_press(Button *button)
             break;
           }
         }
-        else if (button->action == Brake)
+        else
         {
-          if (lpf2SensorStopFunction == 0)
-            lpf2SensorStopFunction = 2;
-          else if (lpf2SensorStopFunction == 2)
-            lpf2SensorStopFunction = 5;
-          else if (lpf2SensorStopFunction == 5)
-            lpf2SensorStopFunction = 10;
-          else if (lpf2SensorStopFunction == 10)
-            lpf2SensorStopFunction = -1;
-          else
-            lpf2SensorStopFunction = 0;
+          switch (button->action)
+          {
+          case SpdUp:
+            lpf2SensorSpdUpFunction = (lpf2SensorSpdUpFunction == 0) ? -1 : 0;
+            break;
+          case Brake:
+            if (button->action == Brake)
+            {
+              if (lpf2SensorStopFunction == 0)
+                lpf2SensorStopFunction = 2;
+              else if (lpf2SensorStopFunction == 2)
+                lpf2SensorStopFunction = 5;
+              else if (lpf2SensorStopFunction == 5)
+                lpf2SensorStopFunction = 10;
+              else if (lpf2SensorStopFunction == 10)
+                lpf2SensorStopFunction = -1;
+              else
+                lpf2SensorStopFunction = 0;
+            }
+            break;
+          case SpdDn:
+            lpf2SensorSpdDnFunction = (lpf2SensorSpdDnFunction == 0) ? -1 : 0;
+            break;
+          }
         }
       }
       else
