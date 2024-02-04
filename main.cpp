@@ -70,12 +70,15 @@ byte sbrickRightPort = (byte)SBrickHubPort::B;
 unsigned long sbrickDisconnectDelay; // debounce disconnects
 unsigned long sbrickLastAction = 0;  // track for auto-disconnect
 // volatile Action sbrickAutoAction = NoAction;
+volatile RemoteAction sbrickAutoAction = NoAction;
 
 // SBrick sensor state
 bool sbrickMotionSensorInit = false;
 byte sbrickMotionSensorPort = NO_SENSOR_FOUND;
+float sbrickMotionSensorNeutralV = -1.0f;
 bool sbrickTiltSensorInit = false;
 byte sbrickTiltSensorPort = NO_SENSOR_FOUND;
+float sbrickTiltSensorNeutralV = -1.0f;
 WedoTilt sbrickSensorTilt;
 bool sbrickSensorMotion;
 
@@ -416,8 +419,19 @@ void sbrickMotionSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
+  if (voltage < 0.01)
+  {
+    return;
+  }
+
+  if (sbrickMotionSensorNeutralV < 0.0)
+  {
+    sbrickMotionSensorNeutralV = voltage;
+    return;
+  }
+
   motionV = voltage;
-  byte motion = sbrickHub->interpretSensorMotion(voltage);
+  byte motion = sbrickHub->interpretSensorMotion(voltage, sbrickMotionSensorNeutralV);
 
   // filter noise
   if (motion == sbrickSensorMotion)
@@ -427,6 +441,14 @@ void sbrickMotionSensorCallback(void *hub, byte channel, float voltage)
 
   sbrickSensorMotion = motion;
   redraw = true;
+
+  if (motion == 0)
+  {
+    return;
+  }
+
+  log_w("motion: %d", motion);
+  sbrickAutoAction = Brake;
 }
 
 void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
@@ -440,8 +462,19 @@ void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
+  if (voltage < 0.01)
+  {
+    return;
+  }
+
+  if (sbrickTiltSensorNeutralV < 0.0)
+  {
+    sbrickTiltSensorNeutralV = voltage;
+    return;
+  }
+
   tiltV = voltage;
-  WedoTilt tilt = (WedoTilt)sbrickHub->interpretSensorTilt(voltage);
+  WedoTilt tilt = (WedoTilt)sbrickHub->interpretSensorTilt(voltage, sbrickTiltSensorNeutralV);
 
   // filter noise
   if (tilt == sbrickSensorTilt)
@@ -451,6 +484,14 @@ void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
 
   sbrickSensorTilt = tilt;
   redraw = true;
+
+  if (tilt == WedoTilt::Neutral)
+  {
+    return;
+  }
+
+  log_w("tilt: %d", tilt);
+  sbrickAutoAction = Brake;
 }
 
 void sbrickConnectionToggle()
@@ -1374,7 +1415,7 @@ void loop()
   // sensor or button triggered action
   if (lpf2AutoAction != NoAction)
   {
-    log_w("auto action: %d", lpf2AutoAction);
+    log_w("lpf2 auto action: %d", lpf2AutoAction);
 
     Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
     for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
@@ -1382,10 +1423,26 @@ void loop()
       if (lpf2Button[i].action == lpf2AutoAction && (lpf2Button[i].port == 0xFF || lpf2Button[i].port == lpf2MotorPort))
       {
         handle_button_press(&lpf2Button[i]);
-        lpf2AutoAction = NoAction;
         actionTaken = true;
       }
     }
+
+    lpf2AutoAction = NoAction;
+  }
+
+  if (sbrickAutoAction != NoAction)
+  {
+    Button *sbrickButton = remoteButton[RemoteDevice::SBrick];
+    for (int i = 0; i < remoteButtonCount[RemoteDevice::SBrick]; i++)
+    {
+      if (sbrickButton[i].action == sbrickAutoAction && sbrickPortSpeed[sbrickButton[i].port] != 0)
+      {
+        handle_button_press(&sbrickButton[i]);
+        actionTaken = true;
+      }
+    }
+
+    sbrickAutoAction = NoAction;
   }
 
   // draw button being pressed

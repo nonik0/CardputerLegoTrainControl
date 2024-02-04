@@ -446,7 +446,7 @@ void SBrickHub::subscribeSensor(byte port, ChannelValueChangeCallback channelVal
     subscribeAdcChannel(sensorValueChannel, channelValueChangeCallback);
 }
 
-byte SBrickHub::interpretSensorMotion(float voltage)
+byte SBrickHub::interpretSensorMotion(float voltage, float neutralV)
 {
     // log_w("motion voltage: %f", voltage);
 
@@ -456,37 +456,64 @@ byte SBrickHub::interpretSensorMotion(float voltage)
     // 2.10 -> 1.67
     // 2.25 -> 1.62
 
-    // TODO: voltage drops ~0.5V when moving, so use smaller value as threshold?
-
-    return false;
+    // TODO: voltage drops ~0.5V when moving, so use smaller value as threshold
+    return ((neutralV - voltage) && (voltage < 2.00)) > 0.30 ?  0x01 : 0x00;
 }
 
-byte SBrickHub::interpretSensorTilt(float voltage)
+byte SBrickHub::interpretSensorTilt(float voltage, float neutralV)
 {
     // log_w("tilt voltage: %f", voltage);
+
+    float delta = voltage - neutralV;
+    float deltaPerc = (delta / neutralV) * 100;
+
+    if (deltaPerc > 15) {
+        log_w("voltage: %f, neutral: %f, delta: %f, perc: %f", voltage, neutralV, delta, deltaPerc);
+    }
+
+    if (deltaPerc > 60)
+    {
+        return (byte)WedoTilt::Left;
+    }
+    else if (deltaPerc < -60)
+    {
+        return (byte)WedoTilt::Backward;
+    }
+    else if (deltaPerc < -30)
+    {
+        return (byte)WedoTilt::Right;
+    }
+    else if (deltaPerc < 30)
+    {
+        return (byte)WedoTilt::Forward;
+    }
+    else
+    {
+        return (byte)WedoTilt::Neutral;
+    }
 
     // tilt
     // D1: 1.44V, D2:
     // +1: fw, -1: bw, +0.5: left, -0.5: right??
     // N: 2.80V
-    // F: 4.17V -> +1.37V
-    // B: 0.46V -> -2.34V
-    // L: 5.57V -> +2.77V
-    // R: 1.53V -> -1.27V
+    // F: 4.17V -> +1.37V -> +48%
+    // B: 0.46V -> -2.34V -> -83%
+    // L: 5.57V -> +2.77V -> +99%
+    // R: 1.53V -> -1.27V -> -45%
 
     // D1: 1.15V, D2:
     // N: 2.23V
-    // F: 3.34V -> +1.11V
-    // B: 0.36V -> -1.87V
-    // L: 4.48V -> +2.25V
-    // R: 1.22V -> -1.01V
+    // F: 3.34V -> +1.11V -> +50%
+    // B: 0.36V -> -1.87V -> -83%
+    // L: 4.48V -> +2.25V -> +101%
+    // R: 1.22V -> -1.01V -> -45%
 
     // D1: 1.55V, D2:
-    // N: 1.64V
-    // F: 4.48V -> +2.84V
-    // B: 0.51V -> -1.13V
-    // L: 6.00V -> +4.36V
-    // R: 3.00V -> +1.36V
+    // N: 1.64V 
+    // F: 4.48V -> +2.84V -> +173%
+    // B: 0.51V -> -1.13V -> -69%
+    // L: 6.00V -> +4.36V -> +265%
+    // R: 3.00V -> +1.36V -> +83%
     // F: 4.5 V, B: 0.5 V, L: 6.0 V, R: 3.0V
 
     // TODO: track neutral voltage and then check closest difference to that?

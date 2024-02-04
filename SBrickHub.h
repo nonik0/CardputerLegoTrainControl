@@ -47,8 +47,8 @@ public:
     // sensor related methods
     byte detectPortSensor(byte port);
     void subscribeSensor(byte port, ChannelValueChangeCallback channelValueChangeCallback = nullptr);
-    byte interpretSensorMotion(float voltage);
-    byte interpretSensorTilt(float voltage);
+    byte interpretSensorMotion(float voltage, float neutralV);
+    byte interpretSensorTilt(float voltage, float neutralV);
 
     void setMotorSpeed(byte port, int speed);
     void stopMotor(byte port);
