@@ -69,7 +69,7 @@ enum RemoteAction
   BtConnection,
   BtColor,
   IrChannel,
-  IrTrackState
+  IrMode
 };
 
 struct Button
@@ -105,5 +105,6 @@ struct State
   bool circuitCubesConnected;
   int circuitCubesRssi;
   byte irChannel;
+  bool irMode;
   bool *irPortFunction;
 };

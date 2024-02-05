@@ -312,6 +312,20 @@ inline void drawIrChannelSymbol(M5Canvas *canvas, int x, int y, byte irChannel, 
   canvas->drawString(String(irChannel + 1), x, y);
 }
 
+inline void drawIrModeSymbol(M5Canvas *canvas, int x, int y, bool irMode)
+{
+  y += 1;
+
+  canvas->fillCircle(x, y, 1, TFT_SILVER);
+  canvas->fillArc(x, y, 4, 4, 140, 40, TFT_SILVER);
+  canvas->fillArc(x, y, 7, 7, 140, 40, TFT_SILVER);
+
+  // canvas->setTextColor(TFT_SILVER, COLOR_LIGHTGRAY);
+  // canvas->setTextDatum(middle_center);
+  // canvas->setTextSize(1);
+  // canvas->drawString(irMode ? "on" : "off", x, y);
+}
+
 inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, State &state)
 {
   x += button.w / 2;
@@ -335,6 +349,9 @@ inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, Sta
     break;
   case RemoteAction::IrChannel:
     drawIrChannelSymbol(canvas, x, y, state.irChannel, button.pressed);
+    break;
+  case RemoteAction::IrMode:
+    drawIrModeSymbol(canvas, x, y, state.irMode);
     break;
   case RemoteAction::SpdUp:
   case RemoteAction::Brake:

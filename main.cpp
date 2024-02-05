@@ -2,15 +2,14 @@
 #include <Lpf2Hub.h>
 #include <M5Cardputer.h>
 #include <M5StackUpdater.h>
-#include <PowerFunctions.h>
 
 #include "CircuitCubesHub.h"
 #include "SBrickHub.h"
 
 #include "common.h"
 #include "draw_helper.h"
+#include "IrBroadcast.hpp"
 
-#define IR_TX_PIN 44
 #define NO_SENSOR_FOUND 0xFF
 
 unsigned short COLOR_GREYORANGEDIM = interpolateColors(COLOR_LIGHTGRAY, COLOR_ORANGE, 25);
@@ -98,8 +97,9 @@ unsigned long circuitCubesLastAction = 0;  // track for auto-disconnect
 // IR train control state
 const int IrMaxSpeed = 105;
 const short IrSpdInc = 15; // hacky but to match 7 levels
-PowerFunctions irTrainCtl(IR_TX_PIN);
+IrBroadcast irTrainCtl;
 bool irTrackState = false;
+bool irMode = false;
 byte irChannel = 0;
 short irPortSpeed[2] = {0, 0};
 bool irPortFunction[2] = {false, false}; // false=motor, true=switch
@@ -196,8 +196,8 @@ Button circuitCubesButtons[] = {
 uint8_t circuitCubesButtonCount = sizeof(circuitCubesButtons) / sizeof(Button);
 
 Button powerFunctionsIrButtons[] = {
-    {AuxTop, AuxCol, Row2, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
-    {AuxMid, HiddenCol, HiddenRow, 0, 0, RemoteDevice::PowerFunctionsIR, 0xFF, IrTrackState, COLOR_LIGHTGRAY, false},
+    {AuxTop, AuxCol, Row1_5, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
+    {AuxMid, AuxCol, Row2_5, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrMode, COLOR_LIGHTGRAY, false},
     {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdUp, COLOR_LIGHTGRAY, false},
     {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, Brake, COLOR_LIGHTGRAY, false},
     {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdDn, COLOR_LIGHTGRAY, false},
@@ -941,7 +941,8 @@ void powerFunctionsIrHandlePortAction(Button *button)
     if (irPortFunction[button->port])
     {
       // this detects when a stop action is triggered by the delay
-      if (irAutoAction) {
+      if (irAutoAction)
+      {
         // we brake but don't update the speed to keep the "state" of the switch shown
         irTrainCtl.single_pwm((PowerFunctionsPort)button->port, PowerFunctionsPwm::BRAKE, irChannel);
         return;
@@ -954,7 +955,8 @@ void powerFunctionsIrHandlePortAction(Button *button)
         irPortSpeed[button->port] = IrMaxSpeed;
         break;
       case Brake:
-        irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;;
+        irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
+        ;
         break;
       case SpdDn:
         irPortSpeed[button->port] = -IrMaxSpeed;
@@ -1103,10 +1105,12 @@ void handle_button_press(Button *button)
   case IrChannel:
     irChannel = (irChannel + 1) % 4;
     break;
-  case IrTrackState:
-    irTrackState = !irTrackState;
-    irPortSpeed[(byte)PowerFunctionsPort::RED] = 0;
-    irPortSpeed[(byte)PowerFunctionsPort::BLUE] = 0;
+  case IrMode:
+    // irTrackState = !irTrackState;
+    // irPortSpeed[(byte)PowerFunctionsPort::RED] = 0;
+    // irPortSpeed[(byte)PowerFunctionsPort::BLUE] = 0;
+    irMode = !irMode;
+    irTrainCtl.setBroadcastMode(irMode);
     break;
   case SpdUp:
   case Brake:
@@ -1130,7 +1134,7 @@ void handle_button_press(Button *button)
   }
 }
 
-unsigned short get_button_color(Button *button)
+unsigned short getButtonColor(Button *button)
 {
   if (button->pressed)
   {
@@ -1164,6 +1168,11 @@ unsigned short get_button_color(Button *button)
       if (lpf2SensorInit)
         return BtColors[lpf2SensorColor];
     }
+  }
+
+  if (button->action == IrMode && irMode)
+  {
+    return COLOR_GREYORANGEDIM;
   }
 
   if (button->action == Brake)
@@ -1577,7 +1586,7 @@ void draw()
   }
 
   int irChannelLabelX = 0;
-  int irChannelLabelY = r2 - 2;
+  int irChannelLabelY = r1_5 - 2;
   if (activeRemoteLeft == RemoteDevice::PowerFunctionsIR)
   {
     irChannelLabelX = c1 + bw / 2;
@@ -1599,13 +1608,13 @@ void draw()
                  lpf2SensorSpdUpFunction, lpf2SensorStopFunction, lpf2SensorSpdDnFunction,
                  sbrickInit, sbrickRssi,
                  circuitCubesInit, circuitCubesRssi,
-                 irChannel, irPortFunction};
+                 irChannel, irMode, irPortFunction};
 
   Button *leftRemoteButton = remoteButton[activeRemoteLeft];
   for (int i = 0; i < remoteButtonCount[activeRemoteLeft]; i++)
   {
     Button button = leftRemoteButton[i];
-    unsigned short color = get_button_color(&button);
+    unsigned short color = getButtonColor(&button);
     int x = getButtonX(button.col, true);
     int y = getButtonY(button.row);
     canvas.fillRoundRect(x, y, button.w, button.h, 3, color);
@@ -1616,7 +1625,7 @@ void draw()
   for (int i = 0; i < remoteButtonCount[activeRemoteRight]; i++)
   {
     Button button = rightRemoteButton[i];
-    unsigned short color = get_button_color(&button);
+    unsigned short color = getButtonColor(&button);
     int x = getButtonX(button.col, false);
     int y = getButtonY(button.row);
     canvas.fillRoundRect(x, y, button.w, button.h, 3, color);
