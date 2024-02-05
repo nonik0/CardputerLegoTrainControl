@@ -937,12 +937,31 @@ void powerFunctionsIrHandlePortAction(Button *button)
   }
   else
   {
+    // switch functionality for IR port
     if (irPortFunction[button->port])
     {
+      // this detects when a stop action is triggered by the delay
+      if (irAutoAction) {
+        // we brake but don't update the speed to keep the "state" of the switch shown
+        irTrainCtl.single_pwm((PowerFunctionsPort)button->port, PowerFunctionsPwm::BRAKE, irChannel);
+        return;
+      }
+
       // turn on motor to full and then set timer to turn off after some time
-      bool portState = irPortSpeed[button->port] > 0;
-      PowerFunctionsPwm portSpeed = portState ? PowerFunctionsPwm::REVERSE7 : PowerFunctionsPwm::FORWARD7;
-      irTrainCtl.single_pwm((PowerFunctionsPort)button->port, portSpeed, irChannel);
+      switch (button->action)
+      {
+      case SpdUp:
+        irPortSpeed[button->port] = IrMaxSpeed;
+        break;
+      case Brake:
+        irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;;
+        break;
+      case SpdDn:
+        irPortSpeed[button->port] = -IrMaxSpeed;
+        break;
+      }
+      PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
+      irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
 
       irSwitchDelay[button->port] = millis() + 1000;
     }
@@ -1152,7 +1171,7 @@ unsigned short get_button_color(Button *button)
     if (button->device == RemoteDevice::PoweredUp && lpf2PortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::SBrick && sbrickPortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::CircuitCubes && circuitCubesPortSpeed[button->port] == 0 ||
-        button->device == RemoteDevice::PowerFunctionsIR && irTrackState && irPortSpeed[button->port] == 0)
+        button->device == RemoteDevice::PowerFunctionsIR && irTrackState && !irPortFunction[button->port] && irPortSpeed[button->port] == 0)
     {
       return COLOR_GREYORANGEDIM;
     }
@@ -1173,7 +1192,7 @@ unsigned short get_button_color(Button *button)
       speed = circuitCubesPortSpeed[button->port];
       break;
     case RemoteDevice::PowerFunctionsIR:
-      speed = irTrackState ? irPortSpeed[button->port] : 0;
+      speed = (irTrackState || irPortFunction[button->port]) ? irPortSpeed[button->port] : 0;
       break;
     }
 
