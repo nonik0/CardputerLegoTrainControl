@@ -105,4 +105,5 @@ struct State
   bool circuitCubesConnected;
   int circuitCubesRssi;
   byte irChannel;
+  bool *irPortFunction;
 };
