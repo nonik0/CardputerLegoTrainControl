@@ -312,18 +312,23 @@ inline void drawIrChannelSymbol(M5Canvas *canvas, int x, int y, byte irChannel, 
   canvas->drawString(String(irChannel + 1), x, y);
 }
 
-inline void drawIrModeSymbol(M5Canvas *canvas, int x, int y, bool irMode)
+inline void drawIrModeSymbol(M5Canvas *canvas, int x, int y, uint8_t irMode)
 {
-  y += 1;
-
   canvas->fillCircle(x, y, 1, TFT_SILVER);
-  canvas->fillArc(x, y, 4, 4, 140, 40, TFT_SILVER);
-  canvas->fillArc(x, y, 7, 7, 140, 40, TFT_SILVER);
 
-  // canvas->setTextColor(TFT_SILVER, COLOR_LIGHTGRAY);
-  // canvas->setTextDatum(middle_center);
-  // canvas->setTextSize(1);
-  // canvas->drawString(irMode ? "on" : "off", x, y);
+  if (irMode == 1 || irMode == 2)
+  {
+    canvas->fillTriangle(x, y + 5, x - 6, y + 9, x + 6, y + 9, TFT_SILVER);
+  }
+  else {
+    canvas->drawTriangle(x, y + 5, x - 6, y + 9, x + 6, y + 9, TFT_SILVER);
+  }
+
+  if (irMode == 2 || irMode == 3)
+  {
+    canvas->fillArc(x, y, 4, 4, 140, 40, TFT_SILVER);
+    canvas->fillArc(x, y, 7, 7, 140, 40, TFT_SILVER);
+  }
 }
 
 inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, State &state)

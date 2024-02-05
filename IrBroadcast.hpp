@@ -26,18 +26,19 @@ struct PowerFunctionsIrMessage
 class IrBroadcast
 {
 private:
-    bool mode = false;
+    bool _mode = false;
 
-    PowerFunctionsIrMessage irBroadcastMsg;
-    uint8_t broadcastAddress[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    PowerFunctionsIrMessage _irBroadcastMsg;
+    uint8_t _broadcastAddress[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    esp_now_peer_info_t _peerInfo;
 
     void _broadcastMessage(PowerFunctionsCall call, PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
     {
-        irBroadcastMsg = {call, port, pwm, channel};
-        esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&irBroadcastMsg, sizeof(irBroadcastMsg));
+        _irBroadcastMsg = {call, port, pwm, channel};
+        esp_err_t result = esp_now_send(_broadcastAddress, (uint8_t *)&_irBroadcastMsg, sizeof(_irBroadcastMsg));
         if (result != ESP_OK)
         {
-            log_e("Error sending message: %d", result);
+            log_e("Error sending message: %s", esp_err_to_name(result));
         }
     }
 
@@ -48,7 +49,7 @@ public:
     {
         _irTrainCtl.single_pwm(port, pwm, channel);
 
-        if (mode)
+        if (_mode)
         {
             _broadcastMessage(PowerFunctionsCall::SinglePwm, port, pwm, channel);
         }
@@ -58,7 +59,7 @@ public:
     {
         _irTrainCtl.single_increment(port, channel);
 
-        if (mode)
+        if (_mode)
         {
             _broadcastMessage(PowerFunctionsCall::SingleIncrement, port, PowerFunctionsPwm::FLOAT, channel);
         }
@@ -68,7 +69,7 @@ public:
     {
         _irTrainCtl.single_decrement(port, channel);
 
-        if (mode)
+        if (_mode)
         {
             _broadcastMessage(PowerFunctionsCall::SingleDecrement, port, PowerFunctionsPwm::FLOAT, channel);
         }
@@ -81,7 +82,12 @@ public:
 
     void setBroadcastMode(bool mode)
     {
-        mode = mode;
+        if (mode == _mode)
+        {
+            return;
+        }
+        _mode = mode;
+
         if (mode)
         {
             log_w("Enabling broadcast mode");
@@ -91,6 +97,16 @@ public:
             if (esp_now_init() != ESP_OK)
             {
                 log_e("Error initializing ESP-NOW");
+                return;
+            }
+
+            memcpy(_peerInfo.peer_addr, _broadcastAddress, 6);
+            _peerInfo.channel = 0;
+            _peerInfo.encrypt = false;
+
+            if (esp_now_add_peer(&_peerInfo) != ESP_OK)
+            {
+                log_e("Failed to add peer");
                 return;
             }
 
