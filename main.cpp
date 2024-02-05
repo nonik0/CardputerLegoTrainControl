@@ -98,8 +98,7 @@ unsigned long circuitCubesLastAction = 0;  // track for auto-disconnect
 const int IrMaxSpeed = 105;
 const short IrSpdInc = 15; // hacky but to match 7 levels
 IrBroadcast irTrainCtl;
-bool irTrackState = false;
-uint8_t irMode = 0;
+uint8_t irMode = 0; // 0=off, 1=track, 2=track, broadcast, 3=broadcast
 byte irChannel = 0;
 short irPortSpeed[2] = {0, 0};
 bool irPortFunction[2] = {false, false}; // false=motor, true=switch
@@ -967,7 +966,7 @@ void powerFunctionsIrHandlePortAction(Button *button)
 
       irSwitchDelay[button->port] = millis() + 1000;
     }
-    else if (irTrackState)
+    else if (irMode == 1 || irMode == 2)
     {
       switch (button->action)
       {
@@ -1106,18 +1105,19 @@ void handle_button_press(Button *button)
     irChannel = (irChannel + 1) % 4;
     break;
   case IrMode:
-    // irMode:
-    // 0: off
-    // 1: track
-    // 2: track+broadcast
-    // 3: broadcast
-
     irMode = (irMode + 1) % 4;
 
-    if (irMode == 1 || irMode == 3) // reset after on and off
+    if (irMode == 1 || irMode == 3) // reset after on and off if not in switch mode
     {
-      irPortSpeed[(byte)PowerFunctionsPort::RED] = 0;
-      irPortSpeed[(byte)PowerFunctionsPort::BLUE] = 0;
+      if (!irPortFunction[(byte)PowerFunctionsPort::RED])
+      {
+        irPortSpeed[(byte)PowerFunctionsPort::RED] = 0;
+      }
+
+      if (!irPortFunction[(byte)PowerFunctionsPort::BLUE])
+      {
+        irPortSpeed[(byte)PowerFunctionsPort::BLUE] = 0;
+      }
     }
 
     irTrainCtl.setBroadcastMode(irMode == 2 || irMode == 3);
@@ -1187,15 +1187,18 @@ unsigned short getButtonColor(Button *button)
       return COLOR_GREYORANGEDIM;
     }
 
-    if (button->action == SpdUp && irPortSpeed[button->port] > 0 ||
-        button->action == SpdDn && irPortSpeed[button->port] < 0)
+    if (irPortFunction[button->port])
     {
-      return irSwitchDelay[button->port] > 0 ? COLOR_GREYORANGEBRIGHT : COLOR_GREYORANGEDIM;
-    }
+      if (button->action == SpdUp && irPortSpeed[button->port] > 0 ||
+          button->action == SpdDn && irPortSpeed[button->port] < 0)
+      {
+        return irSwitchDelay[button->port] > 0 ? COLOR_GREYORANGEBRIGHT : COLOR_GREYORANGEDIM;
+      }
 
-    if (button->action == Brake)
-    {
-      return button->color;
+      if (button->action == Brake)
+      {
+        return button->color;
+      }
     }
   }
 
@@ -1204,7 +1207,7 @@ unsigned short getButtonColor(Button *button)
     if (button->device == RemoteDevice::PoweredUp && lpf2PortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::SBrick && sbrickPortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::CircuitCubes && circuitCubesPortSpeed[button->port] == 0 ||
-        button->device == RemoteDevice::PowerFunctionsIR && irTrackState && irPortSpeed[button->port] == 0)
+        button->device == RemoteDevice::PowerFunctionsIR && (irMode == 1 || irMode == 2) && irPortSpeed[button->port] == 0)
     {
       return COLOR_GREYORANGEDIM;
     }
@@ -1225,7 +1228,7 @@ unsigned short getButtonColor(Button *button)
       speed = circuitCubesPortSpeed[button->port];
       break;
     case RemoteDevice::PowerFunctionsIR:
-      speed = irTrackState ? irPortSpeed[button->port] : 0;
+      speed = (irMode == 1 || irMode == 2) ? irPortSpeed[button->port] : 0;
       break;
     }
 
