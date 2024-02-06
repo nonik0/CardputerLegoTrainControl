@@ -1,3 +1,9 @@
+## TODO: this README needs lots update with lots more functionality.
+- Support for SBrick, including basic support for WeDo motion and tilt sensors
+- Support for CircuitCubes
+- New IR broadcast mode for Powered Up IR control: use ESP-NOW and secondary ESP+IR to vastly extend IR range
+- UX design/controls -- switching remotes, changing ports, changing port functions, etc.
+
 
 ## Overview
 
