@@ -20,12 +20,14 @@ const unsigned short BtColors[] = {TFT_BLACK, TFT_PINK, TFT_PURPLE, TFT_BLUE, 0x
 
 // will map to keys in either left or right remote layouts
 enum RemoteKey {
-  AuxTop, // '`' or KEY_BACKSPACE
-  AuxMid, // KEY_TAB or '\'
-  AuxBot, // KEY_FN or KEY_ENTER
+  AuxOne, // '`' or KEY_BACKSPACE
+  AuxTwo, // KEY_TAB or '\'
+  AuxFunction, // KEY_FN or KEY_ENTER
+  LeftPortFunction, // '3' or '8'
   LeftPortSpdUp, // 'e' or 'i'
   LeftPortBrake, // 's' or 'j'
   LeftPortSpdDn, // 'z' or 'n'
+  RightPortFunction, // '4' or '9'
   RightPortSpdUp, // 'r' or 'o'
   RightPortBrake, // 'd' or 'k'
   RightPortSpdDn, // 'x' or 'm'
@@ -63,11 +65,12 @@ enum RemoteDevice
 enum RemoteAction
 {
   NoAction,
-  SpdUp,
-  Brake,
   SpdDn,
+  Brake,
+  SpdUp,
+  PortFunction,
   BtConnection,
-  BtColor,
+  Lpf2Color,
   IrChannel,
   IrMode
 };

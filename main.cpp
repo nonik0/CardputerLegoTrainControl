@@ -161,8 +161,8 @@ int rrtx = (rx + rw + rrx + rrw) / 2;
 int rrty = rry + (rrh / 2);
 
 Button lpf2HubButtons[] = {
-    {AuxTop, AuxCol, Row1_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
-    {AuxMid, AuxCol, Row2_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, BtColor, COLOR_LIGHTGRAY, false},
+    {AuxOne, AuxCol, Row1_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {AuxTwo, AuxCol, Row2_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, Lpf2Color, COLOR_LIGHTGRAY, false},
     {NoTouchy, AuxCol, Row3_5, bw, bwhh, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::LED, NoAction, COLOR_MEDGRAY, false},
     {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
     {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
@@ -173,10 +173,12 @@ Button lpf2HubButtons[] = {
 uint8_t lpf2ButtonCount = sizeof(lpf2HubButtons) / sizeof(Button);
 
 Button sbrickHubButtons[] = {
-    {AuxTop, AuxCol, Row2, bw, bw, RemoteDevice::SBrick, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {AuxOne, AuxCol, Row2, bw, bw, RemoteDevice::SBrick, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {LeftPortFunction, HiddenCol, HiddenRow, 0, 0, RemoteDevice::SBrick, (byte)SBrickHubPort::A, PortFunction, COLOR_LIGHTGRAY, false},
     {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
     {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::A, Brake, COLOR_LIGHTGRAY, false},
     {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortFunction, HiddenCol, HiddenRow, 0, 0, RemoteDevice::SBrick, (byte)SBrickHubPort::B, PortFunction, COLOR_LIGHTGRAY, false},
     {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
     {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::B, Brake, COLOR_LIGHTGRAY, false},
     {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::SBrick, (byte)SBrickHubPort::B, SpdDn, COLOR_LIGHTGRAY, false},
@@ -184,10 +186,12 @@ Button sbrickHubButtons[] = {
 uint8_t sbrickButtonCount = sizeof(sbrickHubButtons) / sizeof(Button);
 
 Button circuitCubesButtons[] = {
-    {AuxTop, AuxCol, Row2, bw, bw, RemoteDevice::CircuitCubes, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {AuxOne, AuxCol, Row2, bw, bw, RemoteDevice::CircuitCubes, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
+    {LeftPortFunction, HiddenCol, HiddenRow, 0, 0, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::A, PortFunction, COLOR_LIGHTGRAY, false},
     {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
     {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::A, Brake, COLOR_LIGHTGRAY, false},
     {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortFunction, HiddenCol, HiddenRow, 0, 0, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::B, PortFunction, COLOR_LIGHTGRAY, false},
     {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
     {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::B, Brake, COLOR_LIGHTGRAY, false},
     {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::CircuitCubes, (byte)CircuitCubesHubPort::B, SpdDn, COLOR_LIGHTGRAY, false},
@@ -195,11 +199,13 @@ Button circuitCubesButtons[] = {
 uint8_t circuitCubesButtonCount = sizeof(circuitCubesButtons) / sizeof(Button);
 
 Button powerFunctionsIrButtons[] = {
-    {AuxTop, AuxCol, Row1_5, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
-    {AuxMid, AuxCol, Row2_5, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrMode, COLOR_LIGHTGRAY, false},
+    {AuxOne, AuxCol, Row1_5, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrChannel, COLOR_LIGHTGRAY, false},
+    {AuxTwo, AuxCol, Row2_5, bw, bw, RemoteDevice::PowerFunctionsIR, 0xFF, IrMode, COLOR_LIGHTGRAY, false},
+    {LeftPortFunction, HiddenCol, HiddenRow, 0, 0, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, PortFunction, COLOR_LIGHTGRAY, false},
     {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdUp, COLOR_LIGHTGRAY, false},
     {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, Brake, COLOR_LIGHTGRAY, false},
     {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::RED, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortFunction, HiddenCol, HiddenRow, 0, 0, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, PortFunction, COLOR_LIGHTGRAY, false},
     {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdUp, COLOR_LIGHTGRAY, false},
     {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, Brake, COLOR_LIGHTGRAY, false},
     {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::PowerFunctionsIR, (byte)PowerFunctionsPort::BLUE, SpdDn, COLOR_LIGHTGRAY, false},
@@ -252,7 +258,7 @@ void lpf2ButtonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pD
       Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
       for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
       {
-        if (lpf2Button[i].action == BtColor)
+        if (lpf2Button[i].action == Lpf2Color)
         {
           lpf2Button[i].pressed = true;
           break;
@@ -261,7 +267,7 @@ void lpf2ButtonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pD
     }
     else
     {
-      lpf2AutoAction = BtColor;
+      lpf2AutoAction = Lpf2Color;
     }
   }
 }
@@ -729,7 +735,7 @@ void sbrickHandlePortAction(Button *button)
   if (!sbrickHub.isConnected())
     return;
 
-  if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  if (button->action == PortFunction || M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
   {
     // determine which port to move to foreground
     byte portToBg = button->port;
@@ -850,7 +856,7 @@ void circuitCubesHandlePortAction(Button *button)
   if (!circuitCubesHub.isConnected())
     return;
 
-  if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  if (button->action == PortFunction || M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
   {
     // determine which port to move to foreground
     byte portToBg = button->port;
@@ -930,7 +936,7 @@ void circuitCubesUpdate()
 
 void powerFunctionsIrHandlePortAction(Button *button)
 {
-  if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  if (button->action == PortFunction || M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
   {
     irPortFunction[button->port] = !irPortFunction[button->port];
   }
@@ -1084,7 +1090,7 @@ void handle_button_press(Button *button)
       break;
     }
     break;
-  case BtColor:
+  case Lpf2Color:
     // function like hub button
     if (lpf2SensorStopDelay > 0)
     {
@@ -1122,6 +1128,7 @@ void handle_button_press(Button *button)
 
     irTrainCtl.setMode((irMode == 2 || irMode == 3) ? PowerFunctionsRepeatMode::Broadcast : PowerFunctionsRepeatMode::Off);
     break;
+  case PortFunction:
   case SpdUp:
   case Brake:
   case SpdDn:
@@ -1168,7 +1175,7 @@ unsigned short getButtonColor(Button *button)
       }
     }
 
-    if (button->action == BtColor)
+    if (button->action == Lpf2Color)
     {
       return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpf2LedColor], 50);
     }
@@ -1246,7 +1253,17 @@ bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
   pressedKey = RemoteKey::NoTouchy;
 
   // left port
-  if (M5Cardputer.Keyboard.isKeyPressed('e'))
+  if (M5Cardputer.Keyboard.isKeyPressed('3'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::LeftPortFunction;
+  }
+  if (M5Cardputer.Keyboard.isKeyPressed('8'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::LeftPortFunction;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('e'))
   {
     isLeftRemote = true;
     pressedKey = RemoteKey::LeftPortSpdUp;
@@ -1278,6 +1295,16 @@ bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
   }
 
   // right port
+  else if (M5Cardputer.Keyboard.isKeyPressed('4'))
+  {
+    isLeftRemote = true;
+    pressedKey = RemoteKey::RightPortFunction;
+  }
+  else if (M5Cardputer.Keyboard.isKeyPressed('9'))
+  {
+    isLeftRemote = false;
+    pressedKey = RemoteKey::RightPortFunction;
+  }
   else if (M5Cardputer.Keyboard.isKeyPressed('r'))
   {
     isLeftRemote = true;
@@ -1313,32 +1340,32 @@ bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
   else if (M5Cardputer.Keyboard.isKeyPressed('`'))
   {
     isLeftRemote = true;
-    pressedKey = RemoteKey::AuxTop;
+    pressedKey = RemoteKey::AuxOne;
   }
   else if (M5Cardputer.Keyboard.isKeyPressed(KEY_BACKSPACE))
   {
     isLeftRemote = false;
-    pressedKey = RemoteKey::AuxTop;
+    pressedKey = RemoteKey::AuxOne;
   }
   else if (M5Cardputer.Keyboard.isKeyPressed(KEY_TAB))
   {
     isLeftRemote = true;
-    pressedKey = RemoteKey::AuxMid;
+    pressedKey = RemoteKey::AuxTwo;
   }
   else if (M5Cardputer.Keyboard.isKeyPressed('\\'))
   {
     isLeftRemote = false;
-    pressedKey = RemoteKey::AuxMid;
+    pressedKey = RemoteKey::AuxTwo;
   }
   else if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
   {
     isLeftRemote = true;
-    pressedKey = RemoteKey::AuxBot;
+    pressedKey = RemoteKey::AuxFunction;
   }
   else if (M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
   {
     isLeftRemote = false;
-    pressedKey = RemoteKey::AuxBot;
+    pressedKey = RemoteKey::AuxFunction;
   }
 
   return pressedKey != RemoteKey::NoTouchy;
@@ -1558,6 +1585,7 @@ void draw()
   canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas.setTextDatum(bottom_center);
   canvas.setTextSize(1);
+  // canvas.drawString(getRemoteAuxOneLabel(activeRemoteLeft), c1 + bw / 2, r1 - 2);
   canvas.drawString(getRemoteLeftPortString(activeRemoteLeft), c2 + bw / 2, r1 - 2);
   canvas.drawString(getRemoteRightPortString(activeRemoteLeft), c3 + bw / 2, r1 - 2);
   canvas.drawString(getRemoteLeftPortString(activeRemoteRight), c4 + bw / 2, r1 - 2);
