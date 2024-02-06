@@ -97,7 +97,7 @@ unsigned long circuitCubesLastAction = 0;  // track for auto-disconnect
 // IR train control state
 const int IrMaxSpeed = 105;
 const short IrSpdInc = 15; // hacky but to match 7 levels
-IrBroadcast irTrainCtl;
+PowerFunctionsIrBroadcast irTrainCtl;
 uint8_t irMode = 0; // 0=off, 1=track, 2=track, broadcast, 3=broadcast
 byte irChannel = 0;
 short irPortSpeed[2] = {0, 0};
@@ -1120,7 +1120,7 @@ void handle_button_press(Button *button)
       }
     }
 
-    irTrainCtl.setBroadcastMode(irMode == 2 || irMode == 3);
+    irTrainCtl.setMode((irMode == 2 || irMode == 3) ? PowerFunctionsRepeatMode::Broadcast : PowerFunctionsRepeatMode::Off);
     break;
   case SpdUp:
   case Brake:

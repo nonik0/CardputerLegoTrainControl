@@ -1,11 +1,18 @@
+#pragma once
+
 #include <Arduino.h>
 #include <esp_now.h>
 #include <PowerFunctions.h>
 #include <WiFi.h>
 
-#define IR_TX_PIN 44
+PowerFunctions powerFunctionsCtl(IR_TX_PIN);
 
-PowerFunctions _irTrainCtl(IR_TX_PIN);
+enum struct PowerFunctionsRepeatMode
+{
+    Off = 0x00,
+    Broadcast = 0x01,
+    Repeat = 0x02,
+};
 
 enum struct PowerFunctionsCall
 {
@@ -23,33 +30,55 @@ struct PowerFunctionsIrMessage
     uint8_t channel;
 };
 
-class IrBroadcast
+class PowerFunctionsIrBroadcast
 {
 private:
-    bool _mode = false;
+    static PowerFunctionsIrMessage _recvMessage;
 
-    PowerFunctionsIrMessage _irBroadcastMsg;
+    PowerFunctionsRepeatMode _mode = PowerFunctionsRepeatMode::Off;
+    PowerFunctionsIrMessage _message;
     uint8_t _broadcastAddress[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    esp_now_peer_info_t _peerInfo;
+    esp_now_peer_info_t _broadcastPeerInfo;
 
     void _broadcastMessage(PowerFunctionsCall call, PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
     {
-        _irBroadcastMsg = {call, port, pwm, channel};
-        esp_err_t result = esp_now_send(_broadcastAddress, (uint8_t *)&_irBroadcastMsg, sizeof(_irBroadcastMsg));
+        _message = {call, port, pwm, channel};
+        esp_err_t result = esp_now_send(_broadcastAddress, (uint8_t *)&_message, sizeof(_message));
         if (result != ESP_OK)
         {
             log_e("Error sending message: %s", esp_err_to_name(result));
         }
     }
 
+    static void _onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
+    {
+        PowerFunctionsIrMessage message = _recvMessage;
+
+        memcpy(&message, incomingData, sizeof(message));
+        Serial.printf("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
+
+        switch (message.call)
+        {
+        case PowerFunctionsCall::SinglePwm:
+            powerFunctionsCtl.single_pwm(message.port, message.pwm, message.channel);
+            break;
+        case PowerFunctionsCall::SingleIncrement:
+            powerFunctionsCtl.single_increment(message.port, message.channel);
+            break;
+        case PowerFunctionsCall::SingleDecrement:
+            powerFunctionsCtl.single_decrement(message.port, message.channel);
+            break;
+        }
+    }
+
 public:
-    IrBroadcast() {}
+    PowerFunctionsIrBroadcast() {}
 
     void single_pwm(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
     {
-        _irTrainCtl.single_pwm(port, pwm, channel);
+        powerFunctionsCtl.single_pwm(port, pwm, channel);
 
-        if (_mode)
+        if (_mode == PowerFunctionsRepeatMode::Broadcast)
         {
             _broadcastMessage(PowerFunctionsCall::SinglePwm, port, pwm, channel);
         }
@@ -57,9 +86,9 @@ public:
 
     void single_increment(PowerFunctionsPort port, uint8_t channel)
     {
-        _irTrainCtl.single_increment(port, channel);
+        powerFunctionsCtl.single_increment(port, channel);
 
-        if (_mode)
+        if (_mode == PowerFunctionsRepeatMode::Broadcast)
         {
             _broadcastMessage(PowerFunctionsCall::SingleIncrement, port, PowerFunctionsPwm::FLOAT, channel);
         }
@@ -67,9 +96,9 @@ public:
 
     void single_decrement(PowerFunctionsPort port, uint8_t channel)
     {
-        _irTrainCtl.single_decrement(port, channel);
+        powerFunctionsCtl.single_decrement(port, channel);
 
-        if (_mode)
+        if (_mode == PowerFunctionsRepeatMode::Broadcast)
         {
             _broadcastMessage(PowerFunctionsCall::SingleDecrement, port, PowerFunctionsPwm::FLOAT, channel);
         }
@@ -77,10 +106,10 @@ public:
 
     PowerFunctionsPwm speedToPwm(byte speed)
     {
-        return _irTrainCtl.speedToPwm(speed);
+        return powerFunctionsCtl.speedToPwm(speed);
     }
 
-    void setBroadcastMode(bool mode)
+    void setMode(PowerFunctionsRepeatMode mode)
     {
         if (mode == _mode)
         {
@@ -88,39 +117,40 @@ public:
         }
         _mode = mode;
 
-        if (mode)
-        {
-            log_w("Enabling broadcast mode");
-
-            WiFi.mode(WIFI_STA);
-
-            if (esp_now_init() != ESP_OK)
-            {
-                log_e("Error initializing ESP-NOW");
-                return;
-            }
-
-            memcpy(_peerInfo.peer_addr, _broadcastAddress, 6);
-            _peerInfo.channel = 0;
-            _peerInfo.encrypt = false;
-
-            if (esp_now_add_peer(&_peerInfo) != ESP_OK)
-            {
-                log_e("Failed to add peer");
-                return;
-            }
-
-            // esp_now_register_send_cb([](const uint8_t *mac_addr, esp_now_send_status_t status)
-            // {
-            //     log_w("\r\nLast Packet Send Status:\t");
-            //     log_w(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
-            // });
-        }
-        else
+        if (_mode == PowerFunctionsRepeatMode::Off)
         {
             log_w("Disabling broadcast mode");
             esp_now_deinit();
             WiFi.mode(WIFI_OFF);
+            return;
+        }
+
+        WiFi.mode(WIFI_STA);
+
+        esp_err_t result;
+        if ((result = esp_now_init()) != ESP_OK)
+        {
+            log_e("Error initializing ESP-NOW: %s", esp_err_to_name(result));
+            return;
+        }
+
+        if (_mode == PowerFunctionsRepeatMode::Broadcast)
+        {
+            log_w("Enabling broadcast mode");
+            memcpy(_broadcastPeerInfo.peer_addr, _broadcastAddress, 6);
+            _broadcastPeerInfo.channel = 0;
+            _broadcastPeerInfo.encrypt = false;
+
+            if (esp_now_add_peer(&_broadcastPeerInfo) != ESP_OK)
+            {
+                log_e("Failed to add peer");
+                return;
+            }
+        }
+        if (_mode == PowerFunctionsRepeatMode::Repeat)
+        {
+            log_w("Enabling repeat mode");
+            esp_now_register_recv_cb(_onDataRecv);
         }
     }
 };
