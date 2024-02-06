@@ -34,7 +34,7 @@ volatile int lpf2Rssi = -1000;
 short lpf2PortSpeed[2] = {0, 0};
 unsigned long lpf2DisconnectDelay;    // debounce disconnects
 unsigned long lpf2ButtonDebounce = 0; // debounce button presses
-volatile Color lpf2LedColor = Color::ORANGE;
+volatile Color lpf2LedColor = Color::NONE;
 unsigned short lpf2LedColorDelay = 0;
 unsigned long lpf2LastAction = 0; // track for auto-disconnect
 volatile RemoteAction lpf2AutoAction = NoAction;
@@ -1397,7 +1397,7 @@ String getRemoteAuxTwoLabel(bool isLeftRemote, RemoteDevice remote, int &y)
   switch (remote)
   {
   case RemoteDevice::PoweredUp:
-    return "LED";
+    return lpf2SensorStopDelay > 0 ? "GO" : "LED";
   case RemoteDevice::PowerFunctionsIR:
     return "MODE";
   default:

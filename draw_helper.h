@@ -152,6 +152,27 @@ inline void drawRssiSymbol(M5Canvas *canvas, int x, int y, bool init, int rssi)
   }
 }
 
+inline void drawLedColorSymbol(M5Canvas *canvas, int x, int y, Color color)
+{
+  const uint16_t FADE_RED = interpolateColors(COLOR_LIGHTGRAY, TFT_RED, 50);
+  const uint16_t FADE_YELLOW = interpolateColors(COLOR_LIGHTGRAY, TFT_YELLOW, 50);
+  const uint16_t FADE_GREEN = interpolateColors(COLOR_LIGHTGRAY, TFT_GREEN, 50);
+  const uint16_t FADE_BLUE = interpolateColors(COLOR_LIGHTGRAY, TFT_BLUE, 50);
+
+  int r = 5;
+  int t = 2;
+  canvas->fillArc(x, y, r, r + t, 180, 270, FADE_RED);
+  canvas->fillArc(x, y, r, r + t, 270, 360, FADE_YELLOW);
+  canvas->fillArc(x, y, r, r + t, 0, 90, FADE_GREEN);
+  canvas->fillArc(x, y, r, r + t, 90, 180, FADE_BLUE);
+
+  // show raw sensor color in middle if on
+  if (color != Color::NONE)
+  {
+    canvas->floodFill(x, y, BtColors[color]);
+  }
+}
+
 inline void drawPauseSymbol(M5Canvas *canvas, int x, int y)
 {
   int w = 9;
@@ -351,6 +372,9 @@ inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, Sta
       drawRssiSymbol(canvas, x, y, state.circuitCubesConnected, state.circuitCubesRssi);
       break;
     }
+    break;
+  case RemoteAction::Lpf2Color:
+    drawLedColorSymbol(canvas, x, y, state.lpf2LedColor);
     break;
   case RemoteAction::IrChannel:
     drawIrChannelSymbol(canvas, x, y, state.irChannel, button.pressed);
