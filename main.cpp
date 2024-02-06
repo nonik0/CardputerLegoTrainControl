@@ -3,8 +3,8 @@
 #include <M5Cardputer.h>
 #include <M5StackUpdater.h>
 
-#include "CircuitCubesHub.h"
-#include "SBrickHub.h"
+#include "CircuitCubes/CircuitCubesHub.h"
+#include "SBrick/SBrickHub.h"
 
 #include "common.h"
 #include "draw_helper.h"
