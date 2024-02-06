@@ -1600,7 +1600,7 @@ void draw()
   drawRemoteTitle(&canvas, true, activeRemoteLeft, lrtx, lrty);
   drawRemoteTitle(&canvas, false, activeRemoteRight, rrtx, rrty);
 
-//  x = isLeftRemote ? c1 + bw / 2 : c6 + bw / 2;
+  //  x = isLeftRemote ? c1 + bw / 2 : c6 + bw / 2;
 
   // draw port labels
   int auxY;
@@ -1608,7 +1608,7 @@ void draw()
   canvas.setTextDatum(bottom_center);
   canvas.setTextSize(1);
   canvas.drawString(getRemoteAuxOneLabel(true, activeRemoteLeft, auxY), c1 + bw / 2, auxY);
-  canvas.drawString(getRemoteAuxTwoLabel(true, activeRemoteLeft, auxY), c1 + bw / 2, auxY); 
+  canvas.drawString(getRemoteAuxTwoLabel(true, activeRemoteLeft, auxY), c1 + bw / 2, auxY);
 
   canvas.drawString(getRemotePortString(true, activeRemoteLeft), c2 + bw / 2, r1 - 2);
   canvas.drawString(getRemotePortString(false, activeRemoteLeft), c3 + bw / 2, r1 - 2);
@@ -1636,14 +1636,51 @@ void draw()
       canvas.drawString(String(sbrickBatteryV, 2), sbrickDataCol + bw / 2, r1_5 - 13);
       canvas.drawString(String(sbrickTempF, 1), sbrickDataCol + bw / 2, r1_5 - 2);
 
-      if (sbrickMotionSensorInit)
-      {
-        canvas.drawString(String(motionV, 2), sbrickDataCol + bw / 2, r3_5 - 2);
-      }
+      // if (sbrickMotionSensorInit)
+      // {
+      //   canvas.drawString(String(motionV, 2), sbrickDataCol + bw / 2, r3_5 - 2);
+      // }
 
-      if (sbrickTiltSensorInit)
+      // if (sbrickTiltSensorInit)
+      // {
+      //   canvas.drawString(String(tiltV, 2), sbrickDataCol + bw / 2, r3_5 + 9);
+      // }
+
+      if (sbrickMotionSensorInit || sbrickTiltSensorInit)
       {
-        canvas.drawString(String(tiltV, 2), sbrickDataCol + bw / 2, r3_5 + 9);
+        int tiltW = 12;
+        int tiltPL = 3;
+        int tiltPW = 3;
+        int tiltT = 2;
+        int tiltX = sbrickDataCol + bw / 2;
+        int tiltY = r3 + bw / 2;
+        int indicatorColor = sbrickSensorMotion ? TFT_RED : TFT_SILVER;
+
+        switch (sbrickSensorTilt)
+        {
+        case WedoTilt::Forward:
+        case WedoTilt::Backward:
+          canvas.fillRect(tiltX - tiltW / 2, tiltY - tiltT / 2, tiltW, tiltT, indicatorColor);
+          canvas.fillRect(tiltX - tiltT / 2, tiltY - tiltW / 2, tiltT, tiltW, TFT_RED);
+          break;
+        case WedoTilt::Left:
+        case WedoTilt::Right:
+          canvas.fillRect(tiltX - tiltT / 2, tiltY - tiltW / 2, tiltT, tiltW, indicatorColor);
+          canvas.fillRect(tiltX - tiltW / 2, tiltY - tiltT / 2, tiltW, tiltT, TFT_RED);
+          break;
+        case WedoTilt::Neutral:
+          canvas.fillRect(tiltX - tiltT / 2, tiltY - tiltW / 2, tiltT, tiltW, indicatorColor);
+          canvas.fillRect(tiltX - tiltW / 2, tiltY - tiltT / 2, tiltW, tiltT, indicatorColor);
+        }
+
+        canvas.fillTriangle(tiltX, tiltY - tiltW / 2 - tiltPL, tiltX - tiltPW, tiltY - tiltW / 2, tiltX + tiltPW, tiltY - tiltW / 2,
+                            sbrickSensorTilt == WedoTilt::Forward ? TFT_RED : indicatorColor);
+        canvas.fillTriangle(tiltX, tiltY + tiltW / 2 + tiltPL, tiltX - tiltPW, tiltY + tiltW / 2, tiltX + tiltPW, tiltY + tiltW / 2,
+                            sbrickSensorTilt == WedoTilt::Backward ? TFT_RED : indicatorColor);
+        canvas.fillTriangle(tiltX - tiltW / 2 - tiltPL, tiltY, tiltX - tiltW / 2, tiltY - tiltPW, tiltX - tiltW / 2, tiltY + tiltPW,
+                            sbrickSensorTilt == WedoTilt::Left ? TFT_RED : indicatorColor);
+        canvas.fillTriangle(tiltX + tiltW / 2 + tiltPL, tiltY, tiltX + tiltW / 2, tiltY - tiltPW, tiltX + tiltW / 2, tiltY + tiltPW,
+                            sbrickSensorTilt == WedoTilt::Right ? TFT_RED : indicatorColor);
       }
     }
   }
