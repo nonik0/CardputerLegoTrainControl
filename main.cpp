@@ -163,7 +163,7 @@ int rrty = rry + (rrh / 2);
 Button lpf2HubButtons[] = {
     {AuxOne, AuxCol, Row1_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
     {AuxTwo, AuxCol, Row2_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, Lpf2Color, COLOR_LIGHTGRAY, false},
-    {NoTouchy, AuxCol, Row3_5, bw, bwhh, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::LED, NoAction, COLOR_MEDGRAY, false},
+    {NoTouchy, AuxCol, Row0, bw, bwhh, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::LED, NoAction, COLOR_MEDGRAY, false},
     {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
     {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
     {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
@@ -213,10 +213,10 @@ Button powerFunctionsIrButtons[] = {
 uint8_t powerFunctionsIrButtonCount = sizeof(powerFunctionsIrButtons) / sizeof(Button);
 
 // must match order of RemoteDevice enum
-Button *remoteButton[] = {lpf2HubButtons, sbrickHubButtons, circuitCubesButtons, powerFunctionsIrButtons};
-uint8_t remoteButtonCount[] = {lpf2ButtonCount, sbrickButtonCount, circuitCubesButtonCount, powerFunctionsIrButtonCount};
+Button *remoteButton[] = {lpf2HubButtons, powerFunctionsIrButtons, sbrickHubButtons, circuitCubesButtons};
+uint8_t remoteButtonCount[] = {lpf2ButtonCount, powerFunctionsIrButtonCount, sbrickButtonCount, circuitCubesButtonCount};
 RemoteDevice activeRemoteLeft = RemoteDevice::PoweredUp;
-RemoteDevice activeRemoteRight = RemoteDevice::SBrick;
+RemoteDevice activeRemoteRight = RemoteDevice::PowerFunctionsIR;
 
 bool isIgnoredColor(Color color)
 {
@@ -1371,35 +1371,52 @@ bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
   return pressedKey != RemoteKey::NoTouchy;
 }
 
-String getRemoteLeftPortString(RemoteDevice remote)
+String getRemoteAuxOneLabel(bool isLeftRemote, RemoteDevice remote, int &y)
 {
   switch (remote)
   {
   case RemoteDevice::PoweredUp:
-    return "A";
-  case RemoteDevice::SBrick:
-    return String(SBrickPortToChar[sbrickLeftPort]);
+    y = r1_5 - 2;
+    return "BT";
   case RemoteDevice::PowerFunctionsIR:
-    return "RED";
+    y = r1_5 - 2;
+    return "CH";
+  case RemoteDevice::SBrick:
   case RemoteDevice::CircuitCubes:
-    return String(CircuitCubesPortToChar[circuitCubesLeftPort]);
+    y = r2 - 2;
+    return "BT";
   default:
-    return "?";
+    return "";
   }
 }
 
-String getRemoteRightPortString(RemoteDevice remote)
+String getRemoteAuxTwoLabel(bool isLeftRemote, RemoteDevice remote, int &y)
+{
+  y = r2_5 + bw + 11; // TODO: incorporate font height?
+
+  switch (remote)
+  {
+  case RemoteDevice::PoweredUp:
+    return "LED";
+  case RemoteDevice::PowerFunctionsIR:
+    return "MODE";
+  default:
+    return "";
+  }
+}
+
+String getRemotePortString(bool isLeftPort, RemoteDevice remote)
 {
   switch (remote)
   {
   case RemoteDevice::PoweredUp:
-    return "B";
-  case RemoteDevice::SBrick:
-    return String(SBrickPortToChar[sbrickRightPort]);
+    return isLeftPort ? "A" : "B";
   case RemoteDevice::PowerFunctionsIR:
-    return "BLUE";
+    return isLeftPort ? "RED" : "BLUE";
+  case RemoteDevice::SBrick:
+    return isLeftPort ? String(SBrickPortToChar[sbrickLeftPort]) : String(SBrickPortToChar[sbrickRightPort]);
   case RemoteDevice::CircuitCubes:
-    return String(CircuitCubesPortToChar[circuitCubesRightPort]);
+    return isLeftPort ? String(CircuitCubesPortToChar[circuitCubesLeftPort]) : String(CircuitCubesPortToChar[circuitCubesRightPort]);
   default:
     return "?";
   }
@@ -1436,6 +1453,8 @@ int getButtonY(RemoteRow row)
     return r2_5;
   case Row3_5:
     return r3_5;
+  case Row0:
+    return ry + 2 * om;
   default:
     return -h;
   }
@@ -1581,15 +1600,23 @@ void draw()
   drawRemoteTitle(&canvas, true, activeRemoteLeft, lrtx, lrty);
   drawRemoteTitle(&canvas, false, activeRemoteRight, rrtx, rrty);
 
+//  x = isLeftRemote ? c1 + bw / 2 : c6 + bw / 2;
+
   // draw port labels
+  int auxY;
   canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
   canvas.setTextDatum(bottom_center);
   canvas.setTextSize(1);
-  // canvas.drawString(getRemoteAuxOneLabel(activeRemoteLeft), c1 + bw / 2, r1 - 2);
-  canvas.drawString(getRemoteLeftPortString(activeRemoteLeft), c2 + bw / 2, r1 - 2);
-  canvas.drawString(getRemoteRightPortString(activeRemoteLeft), c3 + bw / 2, r1 - 2);
-  canvas.drawString(getRemoteLeftPortString(activeRemoteRight), c4 + bw / 2, r1 - 2);
-  canvas.drawString(getRemoteRightPortString(activeRemoteRight), c5 + bw / 2, r1 - 2);
+  canvas.drawString(getRemoteAuxOneLabel(true, activeRemoteLeft, auxY), c1 + bw / 2, auxY);
+  canvas.drawString(getRemoteAuxTwoLabel(true, activeRemoteLeft, auxY), c1 + bw / 2, auxY); 
+
+  canvas.drawString(getRemotePortString(true, activeRemoteLeft), c2 + bw / 2, r1 - 2);
+  canvas.drawString(getRemotePortString(false, activeRemoteLeft), c3 + bw / 2, r1 - 2);
+  canvas.drawString(getRemotePortString(true, activeRemoteRight), c4 + bw / 2, r1 - 2);
+  canvas.drawString(getRemotePortString(false, activeRemoteRight), c5 + bw / 2, r1 - 2);
+
+  canvas.drawString(getRemoteAuxOneLabel(false, activeRemoteRight, auxY), c6 + bw / 2, auxY);
+  canvas.drawString(getRemoteAuxTwoLabel(false, activeRemoteRight, auxY), c6 + bw / 2, auxY);
 
   // sbrick sensor data
   int sbrickDataCol = 0;
@@ -1606,8 +1633,8 @@ void draw()
 
     if (sbrickDataCol)
     {
-      canvas.drawString(String(sbrickBatteryV, 2), sbrickDataCol + bw / 2, r1_5 - 2);
-      canvas.drawString(String(sbrickTempF, 1), sbrickDataCol + bw / 2, r1_5 + 9);
+      canvas.drawString(String(sbrickBatteryV, 2), sbrickDataCol + bw / 2, r1_5 - 13);
+      canvas.drawString(String(sbrickTempF, 1), sbrickDataCol + bw / 2, r1_5 - 2);
 
       if (sbrickMotionSensorInit)
       {
@@ -1638,22 +1665,6 @@ void draw()
     {
       canvas.drawString(String(circuitCubesBatteryV, 2), circuitCubesDataX + bw / 2, r1_5 + 9);
     }
-  }
-
-  int irChannelLabelX = 0;
-  int irChannelLabelY = r1_5 - 2;
-  if (activeRemoteLeft == RemoteDevice::PowerFunctionsIR)
-  {
-    irChannelLabelX = c1 + bw / 2;
-  }
-  else if (activeRemoteRight == RemoteDevice::PowerFunctionsIR)
-  {
-    irChannelLabelX = c6 + bw / 2;
-  }
-
-  if (irChannelLabelX)
-  {
-    canvas.drawString("CH", irChannelLabelX, irChannelLabelY);
   }
 
   // draw layout for both active remotes

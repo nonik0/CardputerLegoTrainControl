@@ -44,6 +44,7 @@ enum RemoteColumn
 
 enum RemoteRow
 {
+  Row0,
   Row1,
   Row1_5,
   Row2,
@@ -56,9 +57,9 @@ enum RemoteRow
 enum RemoteDevice
 {
   PoweredUp = 0x00,
-  SBrick = 0x01,
-  CircuitCubes = 0x02,
-  PowerFunctionsIR = 0x03,
+  PowerFunctionsIR = 0x01,
+  SBrick = 0x02,
+  CircuitCubes = 0x03,
   NUM_DEVICES = 4
 };
 
