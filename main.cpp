@@ -163,7 +163,6 @@ int rrty = rry + (rrh / 2);
 Button lpf2HubButtons[] = {
     {AuxOne, AuxCol, Row1_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
     {AuxTwo, AuxCol, Row2_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, Lpf2Color, COLOR_LIGHTGRAY, false},
-    {NoTouchy, AuxCol, Row0, bw, bwhh, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::LED, NoAction, COLOR_MEDGRAY, false},
     {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
     {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
     {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
@@ -285,7 +284,7 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
   }
 }
 
-void lpf2SensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *pData)
+void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *pData)
 {
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
 
@@ -403,6 +402,8 @@ void lpf2ConnectionToggle()
     lpf2PortSpeed[0] = lpf2PortSpeed[1] = 0;
     lpf2MotorPort = NO_SENSOR_FOUND;
     lpf2SensorPort = NO_SENSOR_FOUND;
+    lpf2LedColor = Color::NONE;
+    lpf2SensorColor = Color::NONE;
     lpf2SensorSpdUpColor = Color::GREEN;
     lpf2SensorStopColor = Color::RED;
     lpf2SensorSpdDnColor = Color::YELLOW;
@@ -524,12 +525,12 @@ void lpf2Update()
       }
     }
 
-    if (!lpf2SensorInit) // TODO: timeout for checking for sensor?
+    if (!lpf2SensorInit)
     {
       lpf2SensorPort = lpf2Hub.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
       if (lpf2SensorPort == (byte)PoweredUpHubPort::A || lpf2SensorPort == (byte)PoweredUpHubPort::B)
       {
-        lpf2Hub.activatePortDevice(lpf2SensorPort, lpf2SensorCallback);
+        lpf2Hub.activatePortDevice(lpf2SensorPort, lpf2DeviceCallback);
         lpf2MotorPort = (lpf2SensorPort == (byte)PoweredUpHubPort::A) ? (byte)PoweredUpHubPort::B : (byte)PoweredUpHubPort::A;
         lpf2SensorColor = Color::NONE;
         lpf2SensorInit = true;
@@ -551,10 +552,10 @@ void lpf2Update()
           break;
         }
       }
-      return; // TODO: make sure OK
     }
 
-    if (millis() - lpf2LastAction > BtInactiveTimeoutMs && lpf2PortSpeed[lpf2MotorPort] == 0) // TODO: check both, only works with sensor?
+    // disconnect from hub if no activity (motor off with sensor or both motors off)
+    if (millis() - lpf2LastAction > BtInactiveTimeoutMs && ((lpf2SensorInit && lpf2PortSpeed[lpf2MotorPort] == 0) || (lpf2PortSpeed[0] == 0 && lpf2PortSpeed[1] == 0)))
     {
       lpf2ConnectionToggle();
       redraw = true;
@@ -714,7 +715,6 @@ void sbrickConnectionToggle()
   }
   else if (sbrickDisconnectDelay < millis())
   {
-    // TODO: not getting called??
     sbrickHub.disconnectHub();
     delay(200);
     sbrickInit = false;
@@ -1580,13 +1580,10 @@ void draw()
   canvas.fillRoundRect(lrx, lry, lrw, lrh, 6, COLOR_MEDGRAY);
   canvas.fillRoundRect(rrx, rry, rrw, rrh, 6, COLOR_MEDGRAY);
 
-  canvas.setTextColor(TFT_SILVER, COLOR_DARKGRAY);
+  canvas.setTextColor(TFT_SILVER);
   canvas.setTextDatum(middle_center);
   canvas.setTextSize(1);
   canvas.drawString("Lego Train Control", w / 2, hy + hh / 2, &fonts::Font2);
-
-  canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
-  canvas.setTextSize(1.8);
 
   // system bar indicators
   drawActiveRemoteIndicator(&canvas, 2 * om, hy + (hh / 2), activeRemoteLeft, activeRemoteRight);
@@ -1600,7 +1597,7 @@ void draw()
 
   // draw port labels
   int auxY;
-  canvas.setTextColor(TFT_SILVER, COLOR_MEDGRAY);
+
   canvas.setTextDatum(bottom_center);
   canvas.setTextSize(1);
   canvas.drawString(getRemoteAuxOneLabel(true, activeRemoteLeft, auxY), c1 + bw / 2, auxY);
@@ -1702,7 +1699,7 @@ void draw()
 
   // draw layout for both active remotes
   State state = {lpf2Init, lpf2Rssi,
-                 lpf2LedColor, lpf2SensorPort,
+                 lpf2SensorColor, lpf2SensorPort,
                  lpf2SensorSpdUpColor, lpf2SensorStopColor, lpf2SensorSpdDnColor,
                  lpf2SensorSpdUpFunction, lpf2SensorStopFunction, lpf2SensorSpdDnFunction,
                  sbrickInit, sbrickRssi,
@@ -1772,7 +1769,6 @@ void loop()
       remoteButton[activeRemoteRight][i].pressed = false;
     redraw = true;
 
-    // TODO
     lpf2LastAction = millis();
   }
 

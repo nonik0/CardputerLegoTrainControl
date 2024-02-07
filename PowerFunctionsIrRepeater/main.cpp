@@ -23,4 +23,6 @@ void loop()
 {
   Serial.print('.');
   delay(1000);
+
+  // TODO: callbacks for various functionality on repeaters (lights, sounds, etc.)
 }

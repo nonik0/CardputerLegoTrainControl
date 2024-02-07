@@ -152,7 +152,7 @@ inline void drawRssiSymbol(M5Canvas *canvas, int x, int y, bool init, int rssi)
   }
 }
 
-inline void drawLedColorSymbol(M5Canvas *canvas, int x, int y, Color color)
+inline void drawSensorColor(M5Canvas *canvas, int x, int y, Color color)
 {
   const uint16_t FADE_RED = interpolateColors(COLOR_LIGHTGRAY, TFT_RED, 50);
   const uint16_t FADE_YELLOW = interpolateColors(COLOR_LIGHTGRAY, TFT_YELLOW, 50);
@@ -165,6 +165,8 @@ inline void drawLedColorSymbol(M5Canvas *canvas, int x, int y, Color color)
   canvas->fillArc(x, y, r, r + t, 270, 360, FADE_YELLOW);
   canvas->fillArc(x, y, r, r + t, 0, 90, FADE_GREEN);
   canvas->fillArc(x, y, r, r + t, 90, 180, FADE_BLUE);
+  canvas->drawCircle(x, y, r - 1, TFT_SILVER);
+  canvas->drawCircle(x, y, r + t + 1, TFT_SILVER);
 
   // show raw sensor color in middle if on
   if (color != Color::NONE)
@@ -204,43 +206,6 @@ inline void drawMotorSymbol(M5Canvas *canvas, int x, int y, RemoteAction action)
   }
 }
 
-inline void drawSensorStopSymbol(M5Canvas *canvas, int x, int y, Color color, int8_t stopFunction)
-{
-  int w = 17;
-  if (color != Color::NONE)
-  {
-    if (stopFunction == 0)
-    {
-      drawMotorSymbol(canvas, x, y, RemoteAction::Brake);
-    }
-    else if (stopFunction > 0)
-    {
-      int gap = canvas->fontWidth();
-
-      drawPauseSymbol(canvas, x - gap, y);
-
-      // match muted background color of button
-      int adjustedColor = interpolateColors(COLOR_LIGHTGRAY, BtColors[color], 50);
-
-      canvas->setTextColor(TFT_SILVER, adjustedColor);
-      canvas->setTextDatum(middle_center);
-      canvas->setTextSize(1);
-      canvas->drawString(String(stopFunction), x + gap, y + 1);
-    }
-    else
-    {
-      // // NOOP/off symbol?
-      // int x1 = x - w / 2, x2 = x + w / 2;
-      // int y1 = y - w / 2, y2 = y + w / 2;
-      // for (int i = 0; i < 2; i++)
-      // {
-      //   canvas->drawLine(x1 + i, y1 + i, x2 , y2, TFT_RED);
-      //   canvas->drawLine(x2 - (barW - i), y1, x1 + i, y2, TFT_RED);
-      // }
-    }
-  }
-}
-
 inline void drawSensorSymbol(M5Canvas *canvas, int x, int y, Color color, RemoteAction action, int spdupFunction, int8_t stopFunction, int8_t spddnFunction)
 {
   switch (action)
@@ -263,7 +228,7 @@ inline void drawSensorSymbol(M5Canvas *canvas, int x, int y, Color color, Remote
       // match muted background color of button
       int adjustedColor = interpolateColors(COLOR_LIGHTGRAY, BtColors[color], 50);
 
-      canvas->setTextColor(TFT_SILVER, adjustedColor); // TODO: what does setting only one color do?
+      canvas->setTextColor(TFT_SILVER);
       canvas->setTextDatum(middle_center);
       canvas->setTextSize(1);
       canvas->drawString(String(stopFunction), x + gap, y + 1);
@@ -325,12 +290,11 @@ inline void drawSwitchSymbol(M5Canvas *canvas, int x, int y, RemoteAction action
   }
 }
 
-inline void drawIrChannelSymbol(M5Canvas *canvas, int x, int y, byte irChannel, bool isPressed)
+inline void drawIrChannelSymbol(M5Canvas *canvas, int x, int y, byte irChannel)
 {
-  canvas->setTextColor(TFT_SILVER, isPressed ? COLOR_ORANGE : COLOR_LIGHTGRAY);
+  canvas->setTextColor(TFT_SILVER);
   canvas->setTextDatum(middle_center);
-  canvas->setTextSize(1.5);
-  canvas->drawString(String(irChannel + 1), x, y);
+  canvas->drawString(String(irChannel + 1), x + 1, y, &fonts::Font2);
 }
 
 inline void drawIrModeSymbol(M5Canvas *canvas, int x, int y, uint8_t irMode)
@@ -373,11 +337,12 @@ inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, Sta
       break;
     }
     break;
+    
   case RemoteAction::Lpf2Color:
-    drawLedColorSymbol(canvas, x, y, state.lpf2LedColor);
+    drawSensorColor(canvas, x, y, state.lpf2SensorColor);
     break;
   case RemoteAction::IrChannel:
-    drawIrChannelSymbol(canvas, x, y, state.irChannel, button.pressed);
+    drawIrChannelSymbol(canvas, x, y, state.irChannel);
     break;
   case RemoteAction::IrMode:
     drawIrModeSymbol(canvas, x, y, state.irMode);

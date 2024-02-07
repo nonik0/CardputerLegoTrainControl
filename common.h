@@ -96,7 +96,7 @@ struct State
 {
   bool lpf2Connected;
   int lpf2Rssi;
-  Color lpf2LedColor;
+  Color lpf2SensorColor;
   byte lpf2SensorPort;
   Color lpf2SensorSpdUpColor;
   Color lpf2SensorStopColor;
