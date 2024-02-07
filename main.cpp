@@ -236,61 +236,53 @@ void lpf2ResumeTrainMotion()
   lpf2PortSpeed[lpf2MotorPort] = lpf2SensorStopSavedSpd + btSpdAdjust;
 }
 
-void lpf2ButtonCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
+void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 {
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
 
-  if (hubProperty != HubPropertyReference::BUTTON || millis() < lpf2ButtonDebounce)
+  if (hubProperty == HubPropertyReference::RSSI)
   {
+    int rssi = trainCtl->parseRssi(pData);
+
+    if (rssi == lpf2Rssi)
+    {
+      return;
+    }
+
+    log_d("rssiCallback: %d", rssi);
+    lpf2Rssi = rssi;
+    redraw = true;
     return;
   }
-
-  lpf2ButtonDebounce = millis() + 200;
-  ButtonState buttonState = trainCtl->parseHubButton(pData);
-
-  if (buttonState == ButtonState::PRESSED)
+  else if (hubProperty == HubPropertyReference::BUTTON && millis() > lpf2ButtonDebounce)
   {
-    if (lpf2SensorStopDelay > 0)
-    {
-      lpf2ResumeTrainMotion();
+    lpf2ButtonDebounce = millis() + 200;
+    ButtonState buttonState = trainCtl->parseHubButton(pData);
 
-      // also show press for led color button
-      Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
-      for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
+    log_d("buttonState: %d", buttonState);
+    if (buttonState == ButtonState::PRESSED)
+    {
+      if (lpf2SensorStopDelay > 0)
       {
-        if (lpf2Button[i].action == Lpf2Color)
+        lpf2ResumeTrainMotion();
+
+        // also show press for led color button
+        Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
+        for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
         {
-          lpf2Button[i].pressed = true;
-          break;
+          if (lpf2Button[i].action == Lpf2Color)
+          {
+            lpf2Button[i].pressed = true;
+            break;
+          }
         }
       }
+      else
+      {
+        lpf2AutoAction = Lpf2Color;
+      }
     }
-    else
-    {
-      lpf2AutoAction = Lpf2Color;
-    }
   }
-}
-
-void lpf2RssiCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
-{
-  Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
-
-  if (hubProperty != HubPropertyReference::RSSI)
-  {
-    return;
-  }
-
-  int rssi = trainCtl->parseRssi(pData);
-
-  if (rssi == lpf2Rssi)
-  {
-    return;
-  }
-
-  log_d("rssiCallback: %d", rssi);
-  lpf2Rssi = rssi;
-  redraw = true;
 }
 
 void lpf2SensorCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8_t *pData)
@@ -390,10 +382,12 @@ void lpf2ConnectionToggle()
 
     if (lpf2Hub.isConnecting() && lpf2Hub.connectHub())
     {
+      delay(200);
+
       lpf2Init = true;
       lpf2LedColor = Color::NONE;
-      lpf2Hub.activateHubPropertyUpdate(HubPropertyReference::BUTTON, lpf2ButtonCallback); // TODO: not working anymore??
-      lpf2Hub.activateHubPropertyUpdate(HubPropertyReference::RSSI, lpf2RssiCallback);
+      lpf2Hub.activateHubPropertyUpdate(HubPropertyReference::BUTTON, lpf2HubCallback);
+      lpf2Hub.activateHubPropertyUpdate(HubPropertyReference::RSSI, lpf2HubCallback);
     }
 
     lpf2DisconnectDelay = millis() + 500;
@@ -401,7 +395,9 @@ void lpf2ConnectionToggle()
   else if (lpf2DisconnectDelay < millis())
   {
     lpf2Hub.shutDownHub();
+
     delay(200);
+
     lpf2Init = false;
     lpf2SensorInit = false;
     lpf2PortSpeed[0] = lpf2PortSpeed[1] = 0;
@@ -606,7 +602,7 @@ void sbrickMotionSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
-  log_w("motion: %d", motion);
+  log_d("motion: %d", motion);
   sbrickAutoAction = Brake;
 }
 
@@ -649,7 +645,7 @@ void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
-  log_w("tilt: %d", tilt);
+  log_d("tilt: %d", tilt);
   sbrickAutoAction = Brake;
 }
 
@@ -1633,18 +1629,18 @@ void draw()
 
     if (sbrickDataCol)
     {
-      canvas.drawString(String(sbrickBatteryV, 2), sbrickDataCol + bw / 2, r1_5 - 13);
-      canvas.drawString(String(sbrickTempF, 1), sbrickDataCol + bw / 2, r1_5 - 2);
+      canvas.drawString(String(sbrickBatteryV, 1) + "V", sbrickDataCol + bw / 2, r1_5 - 13);
+      canvas.drawString(String(sbrickTempF, 0) + "C", sbrickDataCol + bw / 2, r1_5 - 2);
 
-      if (sbrickMotionSensorInit)
-      {
-        canvas.drawString(String(motionV, 2), sbrickDataCol + bw, r3_5 - 2);
-      }
+      // if (sbrickMotionSensorInit)
+      // {
+      //   canvas.drawString(String(motionV, 2), sbrickDataCol + bw, r3_5 - 2);
+      // }
 
-      if (sbrickTiltSensorInit)
-      {
-        canvas.drawString(String(tiltV, 2), sbrickDataCol + bw, r3_5 + 9);
-      }
+      // if (sbrickTiltSensorInit)
+      // {
+      //   canvas.drawString(String(tiltV, 2), sbrickDataCol + bw, r3_5 + 9);
+      // }
 
       if (sbrickMotionSensorInit || sbrickTiltSensorInit)
       {

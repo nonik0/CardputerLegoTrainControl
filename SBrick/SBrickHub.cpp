@@ -468,7 +468,7 @@ byte SBrickHub::interpretSensorTilt(float voltage, float neutralV)
     float deltaPerc = (delta / neutralV) * 100;
 
     if (deltaPerc > 15) {
-        log_w("voltage: %f, neutral: %f, delta: %f, perc: %f", voltage, neutralV, delta, deltaPerc);
+        log_d("voltage: %f, neutral: %f, delta: %f, perc: %f", voltage, neutralV, delta, deltaPerc);
     }
 
     if (deltaPerc > 60)
@@ -483,7 +483,7 @@ byte SBrickHub::interpretSensorTilt(float voltage, float neutralV)
     {
         return (byte)WedoTilt::Right;
     }
-    else if (deltaPerc < 30)
+    else if (deltaPerc > 30)
     {
         return (byte)WedoTilt::Forward;
     }
