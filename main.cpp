@@ -1636,15 +1636,15 @@ void draw()
       canvas.drawString(String(sbrickBatteryV, 2), sbrickDataCol + bw / 2, r1_5 - 13);
       canvas.drawString(String(sbrickTempF, 1), sbrickDataCol + bw / 2, r1_5 - 2);
 
-      // if (sbrickMotionSensorInit)
-      // {
-      //   canvas.drawString(String(motionV, 2), sbrickDataCol + bw / 2, r3_5 - 2);
-      // }
+      if (sbrickMotionSensorInit)
+      {
+        canvas.drawString(String(motionV, 2), sbrickDataCol + bw, r3_5 - 2);
+      }
 
-      // if (sbrickTiltSensorInit)
-      // {
-      //   canvas.drawString(String(tiltV, 2), sbrickDataCol + bw / 2, r3_5 + 9);
-      // }
+      if (sbrickTiltSensorInit)
+      {
+        canvas.drawString(String(tiltV, 2), sbrickDataCol + bw, r3_5 + 9);
+      }
 
       if (sbrickMotionSensorInit || sbrickTiltSensorInit)
       {
