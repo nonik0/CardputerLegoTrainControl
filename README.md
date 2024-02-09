@@ -7,14 +7,29 @@
 
 ## Overview
 
-This is a simple remote for the [M5Stack Cardputer](https://shop.m5stack.com/products/m5stack-cardputer-kit-w-m5stamps3) to control two LEGO trains with one device. One LEGO train should be a newer [Powered Up hub](https://www.lego.com/en-us/product/hub-88009) train (BT) and the other LEGO train should be an older [Power Functions](https://www.lego.com/en-us/product/lego-power-functions-ir-receiver-8884) train (IR). It makes sense for the trains I own. :) The remote is able to control the speed of both ports of the BT hub and IR controller, change the LED color of the BT hub, and change IR channels. I have lights on the second channel of each train hub so I control the motor with one channel and the light brightness with the other. I also have functionality that uses the [color/distance sensor](https://www.lego.com/en-us/product/color-distance-sensor-88007) to automatically control the bluetooth train based on what color is seen by the sensor.
+This is a simple program for the [M5Stack Cardputer](https://shop.m5stack.com/products/m5stack-cardputer-kit-w-m5stamps3) to control several LEGO trains or accessories with one device. All supported hubs/devices have functionality to control the motor speed, with specific functionality described in the section for each device type. Supported devices are:
+- [Powered Up hub](https://www.lego.com/en-us/product/hub-88009) train
+- [Power Functions](https://www.lego.com/en-us/product/lego-power-functions-ir-receiver-8884) train (IR)
+- [SBrick](https://sbrick.com/product/sbrick-plus/)
+- [CircuitCubes](https://circuitcubes.com/collections/cubes/products/bluetooth-battery-cube)
 
-Thanks to the [Legoino library](https://github.com/corneliusmunz/legoino) for making this a lot easier.  
+Thanks to the [Legoino library](https://github.com/corneliusmunz/legoino) for making this a lot easier to work with Power Functions and Powered Up, and giving me some initial boilerplate and design work for the SBrick and CircuitCubes BT libraries I wrote.  
 
-## Key Bindings:
-The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard to aid memory.
+## UI / Key Bindings:
+Two remotes can be shown at the same time. The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard to aid memory.
 
-### Bluetooth Control:
+Function|Left Remote Key|Right Remote Key|Description
+---|---|---|---
+SPEED UP | . | . | . 
+BRAKE | . | . | .
+SPEED DOWN | . | . | .
+AUX1 | ESC | BACKSPACE | BT connection toggle, channel toggle
+AUX2 | . | . | .
+FUNCTION SHIFT | . | . | .
+PORT FUNCTION | . | . | .
+
+
+### Powered Up Control
 ![btControl](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/5bf50171-f444-4a10-8230-2677134f0437)
 Function|Key Mapping
 ---|---
@@ -25,7 +40,7 @@ Port B control|r, d, x
 
 Port control actions are the speed up, stop, and speed down actions, respectively.
 
-### Bluetooth Control with Sensor:
+### Powered Up Control with Color & Distance Sensor:
 ![btControlWithSensor](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/c2dd324b-3905-4366-8ffa-ee84e73a4140)
 Button Function|Default Color|Sensor Function
 ---|---|---
@@ -35,7 +50,7 @@ Speed Down|yellow|Decrement motor speed, TBD
 
 When a distance/color sensor is plugged into the hub, it will be auto-detected. The corresponding buttons for the sensor's port will change to the colors that trigger the sensor functions. Pressing the button for the sensor function will toggle the function (i.e. if sensor is on channel B, pressing 'd' key will toggle the sensor's stop function). The trigger colors can also be changed by holding the fn key and pressing a sensor function button (e.g. if sensor is on port B, press fn+d to change sensor stop function's trigger color)
 
-### IR Control:
+### Power Functions (IR) Control:
 ![irControl](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/73e08288-a04e-4e22-aecf-69632ee6648b)
 Function|Key Mapping
 ---|---
@@ -44,6 +59,14 @@ Blue Port Control|o, k, n
 Switch Channel|ok/enter
 
 Port control actions are the speed up, stop, and speed down actions, respectively.
+
+### SBrick Control
+
+SBrick has 4 ports to control. Currently 2 ports are hardcoded to be the motion and tilt sesnor.
+
+### CircuitCubes Control
+
+CircuitCubes control is fairly simple and just has 3 ports to control motors (or LEDs, etc.)
 
 ## Ideas
 - track speed to increment speed as battery voltage falls
