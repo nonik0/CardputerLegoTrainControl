@@ -101,11 +101,11 @@ enum struct SBrickCommandResponseReturnCodes {
     SystemStateInvalidForCommand = 0x09
 };
 
-enum struct WedoSensor {
+enum struct SBrickDevice {
     NotFound = 0x00,
-    Motion = 0x01,
-    Tilt = 0x02,
-    Unknown = 0x0FF
+    Motor = 0x0FF,
+    MotionSensor = 0x01,
+    TiltSensor = 0x02,
 };
 
 enum struct WedoTilt {

@@ -676,17 +676,7 @@ void sbrickConnectionToggle()
       {
         byte detectedSensor = sbrickHub.detectPortSensor(port);
 
-        // testing
-        if (port == (byte)SBrickHubPort::C)
-        {
-          detectedSensor = (byte)WedoSensor::Motion;
-        }
-        if (port == (byte)SBrickHubPort::D)
-        {
-          detectedSensor = (byte)WedoSensor::Tilt;
-        }
-
-        if (detectedSensor == (byte)WedoSensor::Motion)
+        if (detectedSensor == (byte)SBrickDevice::MotionSensor && !sbrickMotionSensorInit)
         {
           log_w("sbrick port %d detected as motion sensor %d", port, detectedSensor);
           sbrickHub.subscribeSensor(port, sbrickMotionSensorCallback);
@@ -694,7 +684,7 @@ void sbrickConnectionToggle()
           sbrickMotionSensorPort = port;
           sbrickSensorMotion = false;
         }
-        else if (detectedSensor == (byte)WedoSensor::Tilt)
+        else if (detectedSensor == (byte)SBrickDevice::TiltSensor && !sbrickTiltSensorInit)
         {
           log_w("sbrick port %d detected as tilt sensor %d", port, detectedSensor);
           sbrickHub.subscribeSensor(port, sbrickTiltSensorCallback);
@@ -704,11 +694,10 @@ void sbrickConnectionToggle()
         }
       }
 
-      // TODO: eventually figure out cadence for readings and set this appropriately
-      if (sbrickHub.getWatchdogTimeout())
+      if (sbrickHub.getWatchdogTimeout() != 11)
       {
-        log_w("disabling sbrick watchdog");
-        sbrickHub.setWatchdogTimeout(0);
+        log_w("setting sbrick watchdog to 1.1s");
+        sbrickHub.setWatchdogTimeout(11); // we read at least 1/s so 1.1s should be safe
       }
 
       sbrickDisconnectDelay = millis() + 500;
@@ -763,19 +752,17 @@ void sbrickHandlePortAction(Button *button)
   }
   else
   {
-    // can reset neutral V by pressing spddn button for port with sensor
+    // can recalibrate/reset neutral V by pressing spddn button for port with sensor
     if (button->port == sbrickMotionSensorPort)
     {
       if (button->action == SpdDn)
         sbrickMotionSensorNeutralV = sbrickMotionSensorV;
-
       return;
     }
     else if (button->port == sbrickTiltSensorPort)
     {
       if (button->action == SpdDn)
         sbrickTiltSensorNeutralV = sbrickTiltSensorV;
-
       return;
     }
 

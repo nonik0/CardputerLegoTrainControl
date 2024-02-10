@@ -39,8 +39,6 @@ public:
     void subscribeAdcChannel(byte channel, ChannelValueChangeCallback channelValueChangeCallback = nullptr);
     void unsubscribeAdcChannel(byte channel);
     float readAdcChannel(byte port);
-    // void getActiveChannels();
-    // void getSubscribedChannels();
     float getBatteryLevel();
     float getTemperature();
     
