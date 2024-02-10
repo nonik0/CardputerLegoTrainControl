@@ -305,7 +305,8 @@ inline void drawIrModeSymbol(M5Canvas *canvas, int x, int y, uint8_t irMode)
   {
     canvas->fillTriangle(x, y + 5, x - 6, y + 9, x + 6, y + 9, TFT_SILVER);
   }
-  else {
+  else
+  {
     canvas->drawTriangle(x, y + 5, x - 6, y + 9, x + 6, y + 9, TFT_SILVER);
   }
 
@@ -313,6 +314,37 @@ inline void drawIrModeSymbol(M5Canvas *canvas, int x, int y, uint8_t irMode)
   {
     canvas->fillArc(x, y, 4, 4, 140, 40, TFT_SILVER);
     canvas->fillArc(x, y, 7, 7, 140, 40, TFT_SILVER);
+  }
+}
+
+inline void drawSBrickSensorReading(M5Canvas *canvas, int x, int y, RemoteAction action, bool isMotionSensor, float voltage, float neutralV)
+{
+  char deltaV[6];
+  uint8_t gap = 4;
+  int sx;
+  y += 1;
+  x += 3;
+
+  canvas->setTextDatum(middle_center);
+  String name = (isMotionSensor) ? "Motion" : "Tilt";
+
+  switch (action)
+  {
+  case RemoteAction::SpdUp:
+    canvas->drawString(name, x, y - gap, &fonts::TomThumb);
+    canvas->drawString("Sensr", x, y + gap, &fonts::TomThumb);
+    break;
+  case RemoteAction::Brake:
+    canvas->drawLine(x - 9, y - gap + 1, x - 4, y - gap - 3, TFT_SILVER);
+    canvas->drawLine(x - 4, y - gap - 3, x, y - gap, TFT_SILVER);
+    canvas->drawLine(x, y - gap - 1, x + 4, y - gap - 5, TFT_SILVER);
+    canvas->drawString(String(voltage, 2) + "V", x, y + gap, &fonts::TomThumb);
+    break;
+  case RemoteAction::SpdDn:
+    canvas->drawTriangle(x - 6, y - gap + 1, x + 1, y - gap + 1, x - 2, y - gap - 5, TFT_SILVER);
+    sprintf(deltaV, "%+5.2f", voltage - neutralV);
+    canvas->drawString(String(deltaV) + "V", x, y + gap, &fonts::TomThumb);
+    break;
   }
 }
 
@@ -337,7 +369,7 @@ inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, Sta
       break;
     }
     break;
-    
+
   case RemoteAction::Lpf2Color:
     drawSensorColor(canvas, x, y, state.lpf2SensorColor);
     break;
@@ -354,6 +386,10 @@ inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, Sta
       drawSensorSymbol(canvas, x, y, state.lpf2SensorSpdUpColor, button.action, state.lpf2SensorSpdUpFunction, state.lpf2SensorStopFunction, state.lpf2SensorSpdDnFunction);
     else if (button.device == RemoteDevice::PowerFunctionsIR && state.irPortFunction[button.port])
       drawSwitchSymbol(canvas, x, y, button.action, state.irPortFunction);
+    else if (button.device == RemoteDevice::SBrick && button.port == state.sbrickMotionSensorPort)
+      drawSBrickSensorReading(canvas, x, y, button.action, true, state.sbrickMotionSensorV, state.sbrickMotionSensorNeutralV);
+    else if (button.device == RemoteDevice::SBrick && button.port == state.sbrickTiltSensorPort)
+      drawSBrickSensorReading(canvas, x, y, button.action, false, state.sbrickTiltSensorV, state.sbrickTiltSensorNeutralV);
     else
       drawMotorSymbol(canvas, x, y, button.action);
     break;

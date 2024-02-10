@@ -91,7 +91,7 @@ struct Button
 };
 
 // used for conveying current state when drawing
-// TODO: better way to do this...eventually pass pointers to object instance?
+// TODO: better way to do this...eventually pass pointers to object instances?
 struct State
 {
   bool lpf2Connected;
@@ -106,6 +106,12 @@ struct State
   int8_t lpf2SensorSpdDnFunction;
   bool sBrickConnected;
   int sbrickRssi;
+  byte sbrickMotionSensorPort;
+  float sbrickMotionSensorV;
+  float sbrickMotionSensorNeutralV;
+  byte sbrickTiltSensorPort;
+  float sbrickTiltSensorV;
+  float sbrickTiltSensorNeutralV;
   bool circuitCubesConnected;
   int circuitCubesRssi;
   byte irChannel;

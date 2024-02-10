@@ -78,6 +78,8 @@ float sbrickMotionSensorNeutralV = -1.0f;
 bool sbrickTiltSensorInit = false;
 byte sbrickTiltSensorPort = NO_SENSOR_FOUND;
 float sbrickTiltSensorNeutralV = -1.0f;
+float sbrickMotionSensorV;
+float sbrickTiltSensorV;
 WedoTilt sbrickSensorTilt;
 bool sbrickSensorMotion;
 
@@ -563,7 +565,6 @@ void lpf2Update()
   }
 }
 
-float motionV, tiltV; // temp
 void sbrickMotionSensorCallback(void *hub, byte channel, float voltage)
 {
   SBrickHub *sbrickHub = (SBrickHub *)hub;
@@ -586,7 +587,7 @@ void sbrickMotionSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
-  motionV = voltage;
+  sbrickMotionSensorV = voltage;
   byte motion = sbrickHub->interpretSensorMotion(voltage, sbrickMotionSensorNeutralV);
 
   // filter noise
@@ -629,7 +630,7 @@ void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
-  tiltV = voltage;
+  sbrickTiltSensorV = voltage;
   WedoTilt tilt = (WedoTilt)sbrickHub->interpretSensorTilt(voltage, sbrickTiltSensorNeutralV);
 
   // filter noise
@@ -762,6 +763,22 @@ void sbrickHandlePortAction(Button *button)
   }
   else
   {
+    // can reset neutral V by pressing spddn button for port with sensor
+    if (button->port == sbrickMotionSensorPort)
+    {
+      if (button->action == SpdDn)
+        sbrickMotionSensorNeutralV = sbrickMotionSensorV;
+
+      return;
+    }
+    else if (button->port == sbrickTiltSensorPort)
+    {
+      if (button->action == SpdDn)
+        sbrickTiltSensorNeutralV = sbrickTiltSensorV;
+
+      return;
+    }
+
     switch (button->action)
     {
     case SpdUp:
@@ -1202,6 +1219,18 @@ unsigned short getButtonColor(Button *button)
       {
         return button->color;
       }
+    }
+  }
+
+  if (button->device == RemoteDevice::SBrick)
+  {
+    if (button->port == sbrickMotionSensorPort)
+    {
+      return sbrickSensorMotion ? COLOR_GREYORANGEDIM : button->color;
+    }
+    else if (button->port == sbrickTiltSensorPort)
+    {
+      return sbrickSensorTilt != WedoTilt::Neutral ? COLOR_GREYORANGEDIM : button->color;
     }
   }
 
@@ -1703,6 +1732,8 @@ void draw()
                  lpf2SensorSpdUpColor, lpf2SensorStopColor, lpf2SensorSpdDnColor,
                  lpf2SensorSpdUpFunction, lpf2SensorStopFunction, lpf2SensorSpdDnFunction,
                  sbrickInit, sbrickRssi,
+                 sbrickMotionSensorPort, sbrickMotionSensorV, sbrickMotionSensorNeutralV,
+                 sbrickTiltSensorPort, sbrickTiltSensorV, sbrickTiltSensorNeutralV,
                  circuitCubesInit, circuitCubesRssi,
                  irChannel, irMode, irPortFunction};
 
