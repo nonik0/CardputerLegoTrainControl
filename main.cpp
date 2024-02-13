@@ -56,6 +56,19 @@ int8_t lpf2SensorSpdDnFunction = 0; // <0=disabled, >0 speed down
 unsigned long lpf2SensorStopDelay = 0;
 short lpf2SensorStopSavedSpd = 0; // saved speed before stopping
 
+// IR train control state
+const int IrMaxSpeed = 105;
+const short IrSpdInc = 15; // hacky but to match 7 levels
+PowerFunctionsIrBroadcast irTrainCtl;
+uint8_t irMode = 0; // 0=off, 1=track, 2=track, broadcast, 3=broadcast
+byte irChannel = 0;
+short irPortSpeed[2] = {0, 0};
+bool irPortFunction[2] = {false, false}; // false=motor, true=switch
+unsigned long irSwitchDelay[2] = {0, 0};
+volatile RemoteAction irAutoAction = NoAction;
+volatile byte irAutoActionPort = 0xFF;
+volatile bool irAutoActionRecv = false; // reflect action on display, but don't do
+
 // SBrick state
 const short SBrickSpdInc = 35; // ~ 255 / 10
 SBrickHub sbrickHub;
@@ -95,18 +108,6 @@ volatile int circuitCubesRssi = -1000;
 unsigned long circuitCubesDisconnectDelay; // debounce disconnects
 unsigned long circuitCubesLastAction = 0;  // track for auto-disconnect
 // volatile Action circuitCubesAutoAction = NoAction;
-
-// IR train control state
-const int IrMaxSpeed = 105;
-const short IrSpdInc = 15; // hacky but to match 7 levels
-PowerFunctionsIrBroadcast irTrainCtl;
-uint8_t irMode = 0; // 0=off, 1=track, 2=track, broadcast, 3=broadcast
-byte irChannel = 0;
-short irPortSpeed[2] = {0, 0};
-bool irPortFunction[2] = {false, false}; // false=motor, true=switch
-unsigned long irSwitchDelay[2] = {0, 0};
-volatile RemoteAction irAutoAction = NoAction;
-volatile byte irAutoActionPort = 0xFF;
 
 // system bar state
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
@@ -467,8 +468,8 @@ void lpf2HandlePortAction(Button *button)
           else if (lpf2SensorStopFunction == 2)
             lpf2SensorStopFunction = 5;
           else if (lpf2SensorStopFunction == 5)
-            lpf2SensorStopFunction = 10;
-          else if (lpf2SensorStopFunction == 10)
+            lpf2SensorStopFunction = 9;
+          else if (lpf2SensorStopFunction == 9)
             lpf2SensorStopFunction = -1;
           else
             lpf2SensorStopFunction = 0;
@@ -561,6 +562,154 @@ void lpf2Update()
     {
       lpf2ConnectionToggle();
       redraw = true;
+    }
+  }
+}
+
+void powerFunctionsIrHandlePortAction(Button *button)
+{
+  if (button->action == PortFunction || M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  {
+    irPortFunction[button->port] = !irPortFunction[button->port];
+  }
+  else
+  {
+    // switch functionality for IR port
+    if (irPortFunction[button->port])
+    {
+      // this detects when a stop action is triggered by the delay
+      if (irAutoAction)
+      {
+        // we brake but don't update the speed to keep the "state" of the switch shown
+        irTrainCtl.single_pwm((PowerFunctionsPort)button->port, PowerFunctionsPwm::BRAKE, irChannel);
+        return;
+      }
+
+      // turn on motor to full and then set timer to turn off after some time
+      switch (button->action)
+      {
+      case SpdUp:
+        irPortSpeed[button->port] = IrMaxSpeed;
+        break;
+      case Brake:
+        irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
+        ;
+        break;
+      case SpdDn:
+        irPortSpeed[button->port] = -IrMaxSpeed;
+        break;
+      }
+      PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
+      irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
+
+      irSwitchDelay[button->port] = millis() + 1000;
+    }
+    else if (irMode == 1 || irMode == 2)
+    {
+      switch (button->action)
+      {
+      case SpdUp:
+        irPortSpeed[button->port] = min(IrMaxSpeed, irPortSpeed[button->port] + IrSpdInc);
+        break;
+      case Brake:
+        irPortSpeed[button->port] = 0;
+        break;
+      case SpdDn:
+        irPortSpeed[button->port] = max(-IrMaxSpeed, irPortSpeed[button->port] - IrSpdInc);
+        break;
+      }
+
+      PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
+      irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
+    }
+    else
+    {
+      switch (button->action)
+      {
+      case SpdUp:
+        irTrainCtl.single_increment((PowerFunctionsPort)button->port, irChannel);
+        break;
+      case Brake:
+        irTrainCtl.single_pwm((PowerFunctionsPort)button->port, PowerFunctionsPwm::BRAKE, irChannel);
+        break;
+      case SpdDn:
+        irTrainCtl.single_decrement((PowerFunctionsPort)button->port, irChannel);
+        break;
+      }
+    }
+  }
+}
+
+void powerFunctionsHandleRecv(Button *button)
+{
+  button->pressed = true;
+
+  switch (button->action)
+  {
+  case SpdUp:
+    irPortSpeed[button->port] = IrMaxSpeed;
+    break;
+  case Brake:
+    irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
+    ;
+    break;
+  case SpdDn:
+    irPortSpeed[button->port] = -IrMaxSpeed;
+    break;
+  }
+}
+
+void powerFunctionsIrRecvCallback(PowerFunctionsIrMessage receivedMessage)
+{
+  if (receivedMessage.channel != irChannel)
+  {
+    return;
+  }
+
+  RemoteAction buttonAction;
+  switch (receivedMessage.pwm)
+  {
+  case PowerFunctionsPwm::FLOAT:
+    // switchState = existing state
+    break;
+  case PowerFunctionsPwm::BRAKE:
+    buttonAction = Brake;
+    break;
+  case PowerFunctionsPwm::FORWARD1:
+  case PowerFunctionsPwm::FORWARD2:
+  case PowerFunctionsPwm::FORWARD3:
+  case PowerFunctionsPwm::FORWARD4:
+  case PowerFunctionsPwm::FORWARD5:
+  case PowerFunctionsPwm::FORWARD6:
+  case PowerFunctionsPwm::FORWARD7:
+    buttonAction = SpdUp;
+    break;
+  case PowerFunctionsPwm::REVERSE1:
+  case PowerFunctionsPwm::REVERSE2:
+  case PowerFunctionsPwm::REVERSE3:
+  case PowerFunctionsPwm::REVERSE4:
+  case PowerFunctionsPwm::REVERSE5:
+  case PowerFunctionsPwm::REVERSE6:
+  case PowerFunctionsPwm::REVERSE7:
+    buttonAction = SpdDn;
+    break;
+  }
+
+  irAutoAction = buttonAction;
+  irAutoActionPort = (byte)receivedMessage.port;
+  irAutoActionRecv = true;
+}
+
+void powerFunctionsUpdate()
+{
+  for (auto irPort : {(byte)PowerFunctionsPort::RED, (byte)PowerFunctionsPort::BLUE})
+  {
+    if (irSwitchDelay[irPort] > 0 && irSwitchDelay[irPort] < millis())
+    {
+      irSwitchDelay[irPort] = 0;
+      irAutoAction = Brake;
+      irAutoActionPort = irPort;
+      break;
     }
   }
 }
@@ -934,80 +1083,6 @@ void circuitCubesUpdate()
   }
 }
 
-void powerFunctionsIrHandlePortAction(Button *button)
-{
-  if (button->action == PortFunction || M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
-  {
-    irPortFunction[button->port] = !irPortFunction[button->port];
-  }
-  else
-  {
-    // switch functionality for IR port
-    if (irPortFunction[button->port])
-    {
-      // this detects when a stop action is triggered by the delay
-      if (irAutoAction)
-      {
-        // we brake but don't update the speed to keep the "state" of the switch shown
-        irTrainCtl.single_pwm((PowerFunctionsPort)button->port, PowerFunctionsPwm::BRAKE, irChannel);
-        return;
-      }
-
-      // turn on motor to full and then set timer to turn off after some time
-      switch (button->action)
-      {
-      case SpdUp:
-        irPortSpeed[button->port] = IrMaxSpeed;
-        break;
-      case Brake:
-        irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
-        ;
-        break;
-      case SpdDn:
-        irPortSpeed[button->port] = -IrMaxSpeed;
-        break;
-      }
-      PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
-      irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
-
-      irSwitchDelay[button->port] = millis() + 1000;
-    }
-    else if (irMode == 1 || irMode == 2)
-    {
-      switch (button->action)
-      {
-      case SpdUp:
-        irPortSpeed[button->port] = min(IrMaxSpeed, irPortSpeed[button->port] + IrSpdInc);
-        break;
-      case Brake:
-        irPortSpeed[button->port] = 0;
-        break;
-      case SpdDn:
-        irPortSpeed[button->port] = max(-IrMaxSpeed, irPortSpeed[button->port] - IrSpdInc);
-        break;
-      }
-
-      PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
-      irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
-    }
-    else
-    {
-      switch (button->action)
-      {
-      case SpdUp:
-        irTrainCtl.single_increment((PowerFunctionsPort)button->port, irChannel);
-        break;
-      case Brake:
-        irTrainCtl.single_pwm((PowerFunctionsPort)button->port, PowerFunctionsPwm::BRAKE, irChannel);
-        break;
-      case SpdDn:
-        irTrainCtl.single_decrement((PowerFunctionsPort)button->port, irChannel);
-        break;
-      }
-    }
-  }
-}
-
 bool sdCardInit()
 {
   uint8_t retries = 3;
@@ -1068,7 +1143,7 @@ void saveScreenshot()
   free(pngBytes);
 }
 
-void handle_button_press(Button *button)
+void handleButtonPress(Button *button)
 {
   log_d("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
 
@@ -1126,7 +1201,14 @@ void handle_button_press(Button *button)
       }
     }
 
-    irTrainCtl.setMode((irMode == 2 || irMode == 3) ? PowerFunctionsRepeatMode::Broadcast : PowerFunctionsRepeatMode::Off);
+    if (irMode == 2) {
+      irTrainCtl.enableBroadcast();
+      irTrainCtl.registerRecvCallback(powerFunctionsIrRecvCallback);
+    }
+    else if (irMode == 4) {
+      irTrainCtl.unregisterRecvCallback();
+      irTrainCtl.disableBroadcast();
+    }
     break;
   case PortFunction:
   case SpdUp:
@@ -1489,7 +1571,7 @@ void handleKeyboardInput(bool &actionTaken)
       {
         if (remoteButton[activeRemote][i].key == remoteKeyPressed)
         {
-          handle_button_press(&remoteButton[activeRemote][i]);
+          handleButtonPress(&remoteButton[activeRemote][i]);
           actionTaken = true;
           break;
         }
@@ -1546,27 +1628,12 @@ void handleRemoteInput(bool &actionTaken)
     {
       if (lpf2Button[i].action == lpf2AutoAction && (lpf2Button[i].port == 0xFF || lpf2Button[i].port == lpf2MotorPort))
       {
-        handle_button_press(&lpf2Button[i]);
+        handleButtonPress(&lpf2Button[i]);
         actionTaken = true;
       }
     }
 
     lpf2AutoAction = NoAction;
-  }
-
-  if (sbrickAutoAction != NoAction)
-  {
-    Button *sbrickButton = remoteButton[RemoteDevice::SBrick];
-    for (int i = 0; i < remoteButtonCount[RemoteDevice::SBrick]; i++)
-    {
-      if (sbrickButton[i].action == sbrickAutoAction && sbrickPortSpeed[sbrickButton[i].port] != 0)
-      {
-        handle_button_press(&sbrickButton[i]);
-        actionTaken = true;
-      }
-    }
-
-    sbrickAutoAction = NoAction;
   }
 
   if (irAutoAction != NoAction)
@@ -1576,13 +1643,36 @@ void handleRemoteInput(bool &actionTaken)
     {
       if (irButton[i].action == irAutoAction && irButton[i].port == irAutoActionPort)
       {
-        handle_button_press(&irButton[i]);
+        if (irAutoActionRecv)
+        {
+          powerFunctionsHandleRecv(&irButton[i]);
+        }
+        else
+        {
+          handleButtonPress(&irButton[i]);
+        }
         actionTaken = true;
       }
     }
 
     irAutoAction = NoAction;
     irAutoActionPort = 0xFF;
+    irAutoActionRecv = false;
+  }
+
+  if (sbrickAutoAction != NoAction)
+  {
+    Button *sbrickButton = remoteButton[RemoteDevice::SBrick];
+    for (int i = 0; i < remoteButtonCount[RemoteDevice::SBrick]; i++)
+    {
+      if (sbrickButton[i].action == sbrickAutoAction && sbrickPortSpeed[sbrickButton[i].port] != 0)
+      {
+        handleButtonPress(&sbrickButton[i]);
+        actionTaken = true;
+      }
+    }
+
+    sbrickAutoAction = NoAction;
   }
 }
 
@@ -1807,6 +1897,8 @@ void loop()
       lpf2Update();
     }
 
+    powerFunctionsUpdate();
+
     if (sbrickInit)
     {
       sbrickUpdate();
@@ -1815,17 +1907,6 @@ void loop()
     if (circuitCubesInit)
     {
       circuitCubesUpdate();
-    }
-
-    for (auto irPort : {(byte)PowerFunctionsPort::RED, (byte)PowerFunctionsPort::BLUE})
-    {
-      if (irSwitchDelay[irPort] > 0 && irSwitchDelay[irPort] < millis())
-      {
-        irSwitchDelay[irPort] = 0;
-        irAutoAction = Brake;
-        irAutoActionPort = irPort;
-        break;
-      }
     }
   }
 

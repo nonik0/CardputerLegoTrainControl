@@ -5,6 +5,8 @@
 #include <PowerFunctions.h>
 #include <WiFi.h>
 
+using namespace std::placeholders;
+
 PowerFunctions powerFunctionsCtl(IR_TX_PIN);
 
 enum struct PowerFunctionsRepeatMode
@@ -30,12 +32,16 @@ struct PowerFunctionsIrMessage
     uint8_t channel;
 };
 
+typedef void (*PowerFunctionsIrRecvCallback)(PowerFunctionsIrMessage message);
+
+PowerFunctionsIrRecvCallback powerFunctionsIrRecvCallBackInstance;
+
 class PowerFunctionsIrBroadcast
 {
 private:
     static PowerFunctionsIrMessage _recvMessage;
 
-    PowerFunctionsRepeatMode _mode = PowerFunctionsRepeatMode::Off;
+    bool _broadcastEnabled = false;
     PowerFunctionsIrMessage _message;
     uint8_t _broadcastAddress[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     esp_now_peer_info_t _broadcastPeerInfo;
@@ -50,55 +56,47 @@ private:
         }
     }
 
+public:
     static void _onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
     {
         PowerFunctionsIrMessage message = _recvMessage;
 
         memcpy(&message, incomingData, sizeof(message));
-        Serial.printf("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
+        log_w("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
 
-        switch (message.call)
+        if (powerFunctionsIrRecvCallBackInstance != nullptr)
         {
-        case PowerFunctionsCall::SinglePwm:
-            powerFunctionsCtl.single_pwm(message.port, message.pwm, message.channel);
-            break;
-        case PowerFunctionsCall::SingleIncrement:
-            powerFunctionsCtl.single_increment(message.port, message.channel);
-            break;
-        case PowerFunctionsCall::SingleDecrement:
-            powerFunctionsCtl.single_decrement(message.port, message.channel);
-            break;
+            powerFunctionsIrRecvCallBackInstance(message);
         }
     }
 
-public:
     PowerFunctionsIrBroadcast() {}
 
-    void single_pwm(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
+    void single_pwm(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel, bool rebroadcast = true)
     {
         powerFunctionsCtl.single_pwm(port, pwm, channel);
 
-        if (_mode == PowerFunctionsRepeatMode::Broadcast)
+        if (_broadcastEnabled && rebroadcast)
         {
             _broadcastMessage(PowerFunctionsCall::SinglePwm, port, pwm, channel);
         }
     }
 
-    void single_increment(PowerFunctionsPort port, uint8_t channel)
+    void single_increment(PowerFunctionsPort port, uint8_t channel, bool rebroadcast = true)
     {
         powerFunctionsCtl.single_increment(port, channel);
 
-        if (_mode == PowerFunctionsRepeatMode::Broadcast)
+        if (_broadcastEnabled && rebroadcast)
         {
             _broadcastMessage(PowerFunctionsCall::SingleIncrement, port, PowerFunctionsPwm::FLOAT, channel);
         }
     }
 
-    void single_decrement(PowerFunctionsPort port, uint8_t channel)
+    void single_decrement(PowerFunctionsPort port, uint8_t channel, bool rebroadcast = true)
     {
         powerFunctionsCtl.single_decrement(port, channel);
 
-        if (_mode == PowerFunctionsRepeatMode::Broadcast)
+        if (_broadcastEnabled && rebroadcast)
         {
             _broadcastMessage(PowerFunctionsCall::SingleDecrement, port, PowerFunctionsPwm::FLOAT, channel);
         }
@@ -109,21 +107,47 @@ public:
         return powerFunctionsCtl.speedToPwm(speed);
     }
 
-    void setMode(PowerFunctionsRepeatMode mode)
+    void registerRecvCallback(PowerFunctionsIrRecvCallback callback = nullptr)
     {
-        if (mode == _mode)
+        if (!_broadcastEnabled)
         {
+            log_w("Broadcast not enabled, callback will not be registered");
             return;
         }
-        _mode = mode;
 
-        if (_mode == PowerFunctionsRepeatMode::Off)
+        if (callback != nullptr)
         {
-            log_w("Disabling broadcast mode");
-            esp_now_deinit();
-            WiFi.mode(WIFI_OFF);
+            powerFunctionsIrRecvCallBackInstance = callback;
+        }
+    }
+
+    void unregisterRecvCallback()
+    {
+        powerFunctionsIrRecvCallBackInstance = nullptr;
+    }
+
+    void disableBroadcast()
+    {
+        if (!_broadcastEnabled)
+        {
+            log_w("Broadcast already disabled");
             return;
         }
+
+        log_w("Disabling broadcast");
+        esp_now_deinit();
+        WiFi.mode(WIFI_OFF);
+    }
+
+    void enableBroadcast()
+    {
+        if (_broadcastEnabled)
+        {
+            log_w("Broadcast already enabled");
+            return;
+        }
+
+        log_w("Enabling broadcast");
 
         WiFi.mode(WIFI_STA);
 
@@ -134,23 +158,17 @@ public:
             return;
         }
 
-        if (_mode == PowerFunctionsRepeatMode::Broadcast)
-        {
-            log_w("Enabling broadcast mode");
-            memcpy(_broadcastPeerInfo.peer_addr, _broadcastAddress, 6);
-            _broadcastPeerInfo.channel = 0;
-            _broadcastPeerInfo.encrypt = false;
+        memcpy(_broadcastPeerInfo.peer_addr, _broadcastAddress, 6);
+        _broadcastPeerInfo.channel = 0;
+        _broadcastPeerInfo.encrypt = false;
 
-            if (esp_now_add_peer(&_broadcastPeerInfo) != ESP_OK)
-            {
-                log_e("Failed to add peer");
-                return;
-            }
-        }
-        if (_mode == PowerFunctionsRepeatMode::Repeat)
+        if (esp_now_add_peer(&_broadcastPeerInfo) != ESP_OK)
         {
-            log_w("Enabling repeat mode");
-            esp_now_register_recv_cb(_onDataRecv);
+            log_e("Failed to add peer");
+            return;
         }
+
+        esp_now_register_recv_cb(_onDataRecv);
+        _broadcastEnabled = true;
     }
 };

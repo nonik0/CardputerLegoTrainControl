@@ -223,7 +223,7 @@ inline void drawSensorSymbol(M5Canvas *canvas, int x, int y, Color color, Remote
     {
       int gap = canvas->fontWidth();
 
-      drawPauseSymbol(canvas, x - gap, y);
+      drawPauseSymbol(canvas, x - gap + 1 , y);
 
       // match muted background color of button
       int adjustedColor = interpolateColors(COLOR_LIGHTGRAY, BtColors[color], 50);
