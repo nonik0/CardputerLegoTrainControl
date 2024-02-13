@@ -54,6 +54,9 @@ private:
         {
             log_e("Error sending message: %s", esp_err_to_name(result));
         }
+        else {
+            log_d("Broadcast message sent");
+        }
     }
 
 public:
@@ -62,7 +65,7 @@ public:
         PowerFunctionsIrMessage message = _recvMessage;
 
         memcpy(&message, incomingData, sizeof(message));
-        log_w("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
+        log_d("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
 
         if (powerFunctionsIrRecvCallBackInstance != nullptr)
         {

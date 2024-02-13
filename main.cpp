@@ -650,8 +650,7 @@ void powerFunctionsHandleRecv(Button *button)
     irPortSpeed[button->port] = IrMaxSpeed;
     break;
   case Brake:
-    irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
-    ;
+    irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? IrMaxSpeed : -IrMaxSpeed;
     break;
   case SpdDn:
     irPortSpeed[button->port] = -IrMaxSpeed;
@@ -667,31 +666,42 @@ void powerFunctionsIrRecvCallback(PowerFunctionsIrMessage receivedMessage)
   }
 
   RemoteAction buttonAction;
-  switch (receivedMessage.pwm)
+  switch (receivedMessage.call)
   {
-  case PowerFunctionsPwm::FLOAT:
-    // switchState = existing state
+  case PowerFunctionsCall::SingleDecrement:
+    buttonAction = SpdDn;
     break;
-  case PowerFunctionsPwm::BRAKE:
-    buttonAction = Brake;
-    break;
-  case PowerFunctionsPwm::FORWARD1:
-  case PowerFunctionsPwm::FORWARD2:
-  case PowerFunctionsPwm::FORWARD3:
-  case PowerFunctionsPwm::FORWARD4:
-  case PowerFunctionsPwm::FORWARD5:
-  case PowerFunctionsPwm::FORWARD6:
-  case PowerFunctionsPwm::FORWARD7:
+  case PowerFunctionsCall::SingleIncrement:
     buttonAction = SpdUp;
     break;
-  case PowerFunctionsPwm::REVERSE1:
-  case PowerFunctionsPwm::REVERSE2:
-  case PowerFunctionsPwm::REVERSE3:
-  case PowerFunctionsPwm::REVERSE4:
-  case PowerFunctionsPwm::REVERSE5:
-  case PowerFunctionsPwm::REVERSE6:
-  case PowerFunctionsPwm::REVERSE7:
-    buttonAction = SpdDn;
+  case PowerFunctionsCall::SinglePwm:
+    switch (receivedMessage.pwm)
+    {
+    case PowerFunctionsPwm::FLOAT:
+      // switchState = existing state
+      break;
+    case PowerFunctionsPwm::BRAKE:
+      buttonAction = Brake;
+      break;
+    case PowerFunctionsPwm::FORWARD1:
+    case PowerFunctionsPwm::FORWARD2:
+    case PowerFunctionsPwm::FORWARD3:
+    case PowerFunctionsPwm::FORWARD4:
+    case PowerFunctionsPwm::FORWARD5:
+    case PowerFunctionsPwm::FORWARD6:
+    case PowerFunctionsPwm::FORWARD7:
+      buttonAction = SpdUp;
+      break;
+    case PowerFunctionsPwm::REVERSE1:
+    case PowerFunctionsPwm::REVERSE2:
+    case PowerFunctionsPwm::REVERSE3:
+    case PowerFunctionsPwm::REVERSE4:
+    case PowerFunctionsPwm::REVERSE5:
+    case PowerFunctionsPwm::REVERSE6:
+    case PowerFunctionsPwm::REVERSE7:
+      buttonAction = SpdDn;
+      break;
+    }
     break;
   }
 
@@ -1201,11 +1211,13 @@ void handleButtonPress(Button *button)
       }
     }
 
-    if (irMode == 2) {
+    if (irMode == 2)
+    {
       irTrainCtl.enableBroadcast();
       irTrainCtl.registerRecvCallback(powerFunctionsIrRecvCallback);
     }
-    else if (irMode == 4) {
+    else if (irMode == 4)
+    {
       irTrainCtl.unregisterRecvCallback();
       irTrainCtl.disableBroadcast();
     }
