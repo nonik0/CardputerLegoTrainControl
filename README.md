@@ -30,8 +30,7 @@ PORT FUNCTION | . | . | .
 
 
 ### Powered Up Control
-![pu_0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/b3bf5688-521c-4152-85a0-a81d316036f5) ![pu 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/96a9bf02-faa8-4c22-b871-32faa0d1c135)
-
+![pu_0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/b3bf5688-521c-4152-85a0-a81d316036f5) ![pu 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/96a9bf02-faa8-4c22-b871-32faa0d1c135) ![pu 2](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/6d80bd5f-246f-413b-90f1-6d7ad0c0e6c3)
 
 Function|Key Mapping
 ---|---
@@ -42,8 +41,8 @@ Port B control|r, d, x
 
 Port control actions are the speed up, stop, and speed down actions, respectively.
 
-### Powered Up Control with Color & Distance Sensor:
-![btControlWithSensor](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/c2dd324b-3905-4366-8ffa-ee84e73a4140)
+## with Color & Distance Sensor:
+
 Button Function|Default Color|Sensor Function
 ---|---|---
 Speed Up|green|Increment motor speed, TBD
@@ -54,8 +53,6 @@ When a distance/color sensor is plugged into the hub, it will be auto-detected. 
 
 ### Power Functions (IR) Control:
 ![pf 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/e86164c6-09c4-43ae-8f12-f5abf81bdc0b) ![pf 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/08ec4ebe-c890-48d8-826a-fd4885625818) ![pf 2](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/3453f76d-1aac-4895-ba0b-72ba40b0dc3d)
-
-
 
 Function|Key Mapping
 ---|---
@@ -68,15 +65,10 @@ Port control actions are the speed up, stop, and speed down actions, respectivel
 ### SBrick Control
 ![sb 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/4cfd4a95-b84b-43b6-9d35-43b9bec420ea) ![sb 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/6d868b47-a0a2-4b16-ae91-9f238340835b) ![sb 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/faf889aa-e815-472d-80a9-a64d1f1c70bb)
 
-
-
-
 SBrick has 4 ports to control. Currently 2 ports are hardcoded to be the motion and tilt sesnor.
 
 ### CircuitCubes Control
 ![cc 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/3fa51683-2be4-45fc-97ec-67601e9f7b19) ![cc 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/ba52a255-dab0-4d76-a298-05d9549f51fb)
-
-
 
 CircuitCubes control is fairly simple and just has 3 ports to control motors (or LEDs, etc.)
 
