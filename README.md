@@ -13,23 +13,30 @@ This is a simple program for the [M5Stack Cardputer](https://shop.m5stack.com/pr
 - [SBrick](https://sbrick.com/product/sbrick-plus/)
 - [CircuitCubes](https://circuitcubes.com/collections/cubes/products/bluetooth-battery-cube)
 
+![fullui](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/d713165a-d66a-4d2f-bdc0-0e0b87c3a16d) 
+
 Thanks to the [Legoino library](https://github.com/corneliusmunz/legoino) for making this a lot easier to work with Power Functions and Powered Up, and giving me some initial boilerplate and design work for the SBrick and CircuitCubes BT libraries I wrote.  
 
-## UI / Key Bindings:
-![fullui](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/d713165a-d66a-4d2f-bdc0-0e0b87c3a16d")
 
 
-Two remotes can be shown at the same time. The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard to aid memory.
 
-Function|Left Remote Key|Right Remote Key|Description
+## UI / Controls:
+
+Two remote devices can be seen and controlled at the same time. The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard. See images and table.
+
+<img src="https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/bd67b872-6862-4e7d-930b-4c32f1ba2417" height="150">
+<img src="https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/8cdf71d5-faee-4006-82c4-5f3f162098a8" height="150">
+
+
+Function|Left Remote|Right Remote|Description
 ---|---|---|---
-SPEED UP | . | . | . 
-BRAKE | . | . | .
-SPEED DOWN | . | . | .
-AUX1 | ESC | BACKSPACE | BT connection toggle, channel toggle
-AUX2 | . | . | .
-FUNCTION SHIFT | . | . | .
-PORT FUNCTION | . | . | .
+Left Port Control | e, s, d | i, j, n | motor control
+Right Port Control | r, d, x | o, k, m | motor control
+Change Remote | ctrl | space | change remote to show/control
+Aux1 | esc | backspace | BT connection toggle, channel toggle
+Aux2 | tab | \ | specific to remote device
+Function Shift | fn | ok/enter | hold down to change function of certain keys
+Port Function Toggle | 3, 4 | 8, 9 | specific to remote device
 
 
 ### Powered Up Control
@@ -57,13 +64,19 @@ When a distance/color sensor is plugged into the hub, it will be auto-detected. 
 ### Power Functions (IR) Control:
 ![pf 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/e86164c6-09c4-43ae-8f12-f5abf81bdc0b) ![pf 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/08ec4ebe-c890-48d8-826a-fd4885625818) ![pf 2](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/3453f76d-1aac-4895-ba0b-72ba40b0dc3d)
 
-Function|Key Mapping
+Function|Description
 ---|---
-Red Port Control|i, j, n
-Blue Port Control|o, k, n
-Switch Channel|ok/enter
+Aux1 | Change IR channel (1-4)
+Aux2 | Change between modes
+Port Function Toggle | toggle between motor and switch mode
 
-Port control actions are the speed up, stop, and speed down actions, respectively.
+Aux1 simply changes the IR channel being controlled and needs to match IR receiver.
+
+Aux2 controls the remote modes, which cycle between normal -> state -> state/broadcast -> broadcast -> normal.
+- State mode: tracks the speed of the motor on the Cardputer and sends specific speed commands to the remote device, as opposed to sending simple motor speed increment signals.
+- Broadcast mode: broadcasts all IR commands using ESP-NOW such that other ESP devices can pick up and rebroadcast the IR signal, extending the range of the Cardputer's weak IR. See the [PowerFunctionsIRRepeater project](https://github.com/nonik0/CardputerLegoTrainControl/tree/main/PowerFunctionsIrRepeater) for a simple implementation of a repeater using M5Atom.
+
+Port Function Toggle will switch a port between motor and switch functionality. Switch functionality is for when a motor is used to control a track switch and pressing up/down will send a 1 second pulse to the motor to switch the trick to that direction, and the "stop" button will toggle the switch state.
 
 ### SBrick Control
 ![sb 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/4cfd4a95-b84b-43b6-9d35-43b9bec420ea) ![sb 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/6d868b47-a0a2-4b16-ae91-9f238340835b) ![sb 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/faf889aa-e815-472d-80a9-a64d1f1c70bb)
