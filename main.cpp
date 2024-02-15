@@ -23,7 +23,7 @@ const unsigned long KeyboardDebounce = 200;
 // bluetooth train control constants
 const int BtMaxSpeed = 100;
 const short BtSpdInc = 10; // TODO configurable
-const short BtConnWait = 100;
+const short BtConnWait = 500;
 const int BtInactiveTimeoutMs = 5 * 60 * 1000;
 const short BtDistanceStopThreshold = 100; // when train is "picked up"
 
@@ -62,12 +62,12 @@ const short IrSpdInc = 15; // hacky but to match 7 levels
 PowerFunctionsIrBroadcast irTrainCtl;
 uint8_t irMode = 0; // 0=off, 1=track, 2=track, broadcast, 3=broadcast
 byte irChannel = 0;
-short irPortSpeed[2] = {0, 0};
-bool irPortFunction[2] = {false, false}; // false=motor, true=switch
+short irPortSpeed[4][2] = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
+bool irPortFunction[4][2] = {{false, false}, {false, false}, {false, false}, {false, false}}; // false=motor, true=switch
 unsigned long irSwitchDelay[2] = {0, 0};
 volatile RemoteAction irAutoAction = NoAction;
 volatile byte irAutoActionPort = 0xFF;
-volatile bool irAutoActionRecv = false; // reflect action on display, but don't do
+volatile bool irActionBroadcastRecv = false; // reflect action on display, but don't do
 
 // SBrick state
 const short SBrickSpdInc = 35; // ~ 255 / 10
@@ -496,7 +496,19 @@ void lpf2HandlePortAction(Button *button)
       break;
     }
 
-    lpf2Hub.setBasicMotorSpeed(button->port, lpf2PortSpeed[button->port]);
+    // do not update motor speed on device if actively stopped due to sensor action
+    if (lpf2SensorStopDelay > 0)
+    {
+      // turn off active wait/stop if braking motor
+      if (button->action == Brake)
+      {
+        lpf2SensorStopDelay = 0;
+      }
+    }
+    else
+    {
+      lpf2Hub.setBasicMotorSpeed(button->port, lpf2PortSpeed[button->port]);
+    }
   }
 }
 
@@ -566,16 +578,16 @@ void lpf2Update()
   }
 }
 
-void powerFunctionsIrHandlePortAction(Button *button)
+void powerFunctionsHandlePortAction(Button *button)
 {
   if (button->action == PortFunction || M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
   {
-    irPortFunction[button->port] = !irPortFunction[button->port];
+    irPortFunction[irChannel][button->port] = !irPortFunction[irChannel][button->port];
   }
   else
   {
     // switch functionality for IR port
-    if (irPortFunction[button->port])
+    if (irPortFunction[irChannel][button->port])
     {
       // this detects when a stop action is triggered by the delay
       if (irAutoAction)
@@ -589,17 +601,18 @@ void powerFunctionsIrHandlePortAction(Button *button)
       switch (button->action)
       {
       case SpdUp:
-        irPortSpeed[button->port] = IrMaxSpeed;
+        irPortSpeed[irChannel][button->port] = IrMaxSpeed;
         break;
       case Brake:
-        irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
+        irPortSpeed[irChannel][button->port] = irPortSpeed[irChannel][button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
         ;
         break;
       case SpdDn:
-        irPortSpeed[button->port] = -IrMaxSpeed;
+        irPortSpeed[irChannel][button->port] = -IrMaxSpeed;
         break;
       }
-      PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
+
+      PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[irChannel][button->port]);
       irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
 
       irSwitchDelay[button->port] = millis() + 1000;
@@ -609,17 +622,17 @@ void powerFunctionsIrHandlePortAction(Button *button)
       switch (button->action)
       {
       case SpdUp:
-        irPortSpeed[button->port] = min(IrMaxSpeed, irPortSpeed[button->port] + IrSpdInc);
+        irPortSpeed[irChannel][button->port] = min(IrMaxSpeed, irPortSpeed[irChannel][button->port] + IrSpdInc);
         break;
       case Brake:
-        irPortSpeed[button->port] = 0;
+        irPortSpeed[irChannel][button->port] = 0;
         break;
       case SpdDn:
-        irPortSpeed[button->port] = max(-IrMaxSpeed, irPortSpeed[button->port] - IrSpdInc);
+        irPortSpeed[irChannel][button->port] = max(-IrMaxSpeed, irPortSpeed[irChannel][button->port] - IrSpdInc);
         break;
       }
 
-      PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[button->port]);
+      PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[irChannel][button->port]);
       irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
     }
     else
@@ -640,31 +653,48 @@ void powerFunctionsIrHandlePortAction(Button *button)
   }
 }
 
-void powerFunctionsHandleRecv(Button *button)
+void powerFunctionsHandleBroadcastAction(byte recvChannel, RemoteAction action, byte port)
 {
-  button->pressed = true;
-
-  switch (button->action)
+  if (irPortFunction[recvChannel][port])
   {
-  case SpdUp:
-    irPortSpeed[button->port] = IrMaxSpeed;
-    break;
-  case Brake:
-    irPortSpeed[button->port] = irPortSpeed[button->port] > 0 ? IrMaxSpeed : -IrMaxSpeed;
-    break;
-  case SpdDn:
-    irPortSpeed[button->port] = -IrMaxSpeed;
-    break;
+    switch (action)
+    {
+    case SpdUp:
+      irPortSpeed[recvChannel][port] = IrMaxSpeed;
+      break;
+    case Brake:
+      irPortSpeed[recvChannel][port] = irPortSpeed[recvChannel][port] > 0 ? IrMaxSpeed : -IrMaxSpeed;
+      break;
+    case SpdDn:
+      irPortSpeed[recvChannel][port] = -IrMaxSpeed;
+      break;
+    }
+  }
+  else
+  {
+    switch (action)
+    {
+    case SpdUp:
+      irPortSpeed[recvChannel][port] = min(IrMaxSpeed, irPortSpeed[recvChannel][port] + IrSpdInc);
+      break;
+    case Brake:
+      irPortSpeed[recvChannel][port] = 0;
+      break;
+    case SpdDn:
+      irPortSpeed[recvChannel][port] = max(-IrMaxSpeed, irPortSpeed[recvChannel][port] - IrSpdInc);
+      break;
+    }
   }
 }
 
-void powerFunctionsIrRecvCallback(PowerFunctionsIrMessage receivedMessage)
+void powerFunctionsHandleBroadcastAction(Button *button)
 {
-  if (receivedMessage.channel != irChannel)
-  {
-    return;
-  }
+  button->pressed = true;
+  powerFunctionsHandleBroadcastAction(irChannel, button->action, button->port);
+}
 
+void powerFunctionsRecvCallback(PowerFunctionsIrMessage receivedMessage)
+{
   RemoteAction buttonAction;
   switch (receivedMessage.call)
   {
@@ -705,9 +735,18 @@ void powerFunctionsIrRecvCallback(PowerFunctionsIrMessage receivedMessage)
     break;
   }
 
-  irAutoAction = buttonAction;
-  irAutoActionPort = (byte)receivedMessage.port;
-  irAutoActionRecv = true;
+  // if receiving on channel different than active, update state in the background otherwise send as action to show on screen
+  if (receivedMessage.channel != irChannel)
+  {
+    powerFunctionsHandleBroadcastAction(receivedMessage.channel, buttonAction, (byte)receivedMessage.port);
+    return;
+  }
+  else
+  {
+    irAutoAction = buttonAction;
+    irAutoActionPort = (byte)receivedMessage.port;
+    irActionBroadcastRecv = true;
+  }
 }
 
 void powerFunctionsUpdate()
@@ -812,22 +851,27 @@ void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
 
 void sbrickConnectionToggle()
 {
-  log_w("sbrickConnectionToggle");
-
   if (!sbrickInit)
   {
     if (!sbrickHub.isConnecting())
     {
+      log_w("init sbrick");
       sbrickHub.init();
-      // sbrickHub.init("88:6b:0f:80:35:b8");
     }
 
     unsigned long exp = millis() + BtConnWait;
     while (!sbrickHub.isConnecting() && exp > millis())
       ;
 
+    if (!sbrickHub.isConnecting())
+    {
+      log_w("sbrick not connecting");
+      return;
+    }
+
     if (sbrickHub.isConnecting() && sbrickHub.connectHub())
     {
+      log_w("connected to sbrick");
       sbrickInit = true;
 
       // detect sensors and subscribe to them
@@ -864,6 +908,7 @@ void sbrickConnectionToggle()
   }
   else if (sbrickDisconnectDelay < millis())
   {
+    log_w("disconnecting sbrick");
     sbrickHub.disconnectHub();
     delay(200);
     sbrickInit = false;
@@ -1128,7 +1173,22 @@ void saveScreenshot()
   }
 
   size_t pngLen;
+  // TODO: memory issue? can't take whole screnshot
   uint8_t *pngBytes = (uint8_t *)M5Cardputer.Display.createPng(&pngLen, 0, 0, 240, 135);
+
+  delay(5000);
+
+  if (pngLen == 0)
+  {
+    log_w("screenshot has 0 bytes, trying half screen");
+    pngBytes = (uint8_t *)M5Cardputer.Display.createPng(&pngLen, 120, 0, 120, 135);
+
+    if (pngLen == 0)
+    {
+      log_w("screenshot has 0 bytes, giving up");
+      return;
+    }
+  }
 
   int i = 0;
   String filename;
@@ -1143,17 +1203,17 @@ void saveScreenshot()
     file.write(pngBytes, pngLen);
     file.flush();
     file.close();
-    log_i("saved screenshot to %s", filename);
+    log_w("saved screenshot to %s, %d bytes", filename.c_str(), pngLen);
   }
   else
   {
-    log_w("cannot save screenshot to file %s", filename);
+    log_w("cannot save screenshot to file %s, %d bytes", filename.c_str(), pngLen);
   }
 
   free(pngBytes);
 }
 
-void handleButtonPress(Button *button)
+void handleRemoteButtonPress(Button *button)
 {
   log_d("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
 
@@ -1200,21 +1260,24 @@ void handleButtonPress(Button *button)
 
     if (irMode == 1 || irMode == 3) // reset after on and off if not in switch mode
     {
-      if (!irPortFunction[(byte)PowerFunctionsPort::RED])
+      for (byte i = 0; i < 4; i++)
       {
-        irPortSpeed[(byte)PowerFunctionsPort::RED] = 0;
-      }
+        if (!irPortFunction[i][0])
+        {
+          irPortSpeed[i][0] = 0;
+        }
 
-      if (!irPortFunction[(byte)PowerFunctionsPort::BLUE])
-      {
-        irPortSpeed[(byte)PowerFunctionsPort::BLUE] = 0;
+        if (!irPortFunction[i][1])
+        {
+          irPortSpeed[i][1] = 0;
+        }
       }
     }
 
     if (irMode == 2)
     {
       irTrainCtl.enableBroadcast();
-      irTrainCtl.registerRecvCallback(powerFunctionsIrRecvCallback);
+      irTrainCtl.registerRecvCallback(powerFunctionsRecvCallback);
     }
     else if (irMode == 4)
     {
@@ -1231,14 +1294,14 @@ void handleButtonPress(Button *button)
     case RemoteDevice::PoweredUp:
       lpf2HandlePortAction(button);
       break;
+    case RemoteDevice::PowerFunctionsIR:
+      powerFunctionsHandlePortAction(button);
+      break;
     case RemoteDevice::SBrick:
       sbrickHandlePortAction(button);
       break;
     case RemoteDevice::CircuitCubes:
       circuitCubesHandlePortAction(button);
-      break;
-    case RemoteDevice::PowerFunctionsIR:
-      powerFunctionsIrHandlePortAction(button);
       break;
     }
     break;
@@ -1288,10 +1351,10 @@ unsigned short getButtonColor(Button *button)
       return COLOR_GREYORANGEDIM;
     }
 
-    if (irPortFunction[button->port])
+    if (irPortFunction[irChannel][button->port])
     {
-      if (button->action == SpdUp && irPortSpeed[button->port] > 0 ||
-          button->action == SpdDn && irPortSpeed[button->port] < 0)
+      if (button->action == SpdUp && irPortSpeed[irChannel][button->port] > 0 ||
+          button->action == SpdDn && irPortSpeed[irChannel][button->port] < 0)
       {
         return irSwitchDelay[button->port] > 0 ? COLOR_GREYORANGEBRIGHT : COLOR_GREYORANGEDIM;
       }
@@ -1320,7 +1383,7 @@ unsigned short getButtonColor(Button *button)
     if (button->device == RemoteDevice::PoweredUp && lpf2PortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::SBrick && sbrickPortSpeed[button->port] == 0 ||
         button->device == RemoteDevice::CircuitCubes && circuitCubesPortSpeed[button->port] == 0 ||
-        button->device == RemoteDevice::PowerFunctionsIR && (irMode == 1 || irMode == 2) && irPortSpeed[button->port] == 0)
+        button->device == RemoteDevice::PowerFunctionsIR && (irMode == 1 || irMode == 2) && irPortSpeed[irChannel][button->port] == 0)
     {
       return COLOR_GREYORANGEDIM;
     }
@@ -1341,7 +1404,7 @@ unsigned short getButtonColor(Button *button)
       speed = circuitCubesPortSpeed[button->port];
       break;
     case RemoteDevice::PowerFunctionsIR:
-      speed = (irMode == 1 || irMode == 2) ? irPortSpeed[button->port] : 0;
+      speed = (irMode == 1 || irMode == 2) ? irPortSpeed[irChannel][button->port] : 0;
       break;
     }
 
@@ -1568,11 +1631,13 @@ int getButtonY(RemoteRow row)
 
 void handleKeyboardInput(bool &actionTaken)
 {
-  // keyboard triggered action
+  M5Cardputer.update();
+
   if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed() && millis() - lastKeyPressMillis > KeyboardDebounce)
   {
     lastKeyPressMillis = millis();
 
+    // handle remote key
     bool isLeftRemote;
     RemoteKey remoteKeyPressed;
     if (getPressedRemoteKey(remoteKeyPressed, isLeftRemote))
@@ -1583,7 +1648,7 @@ void handleKeyboardInput(bool &actionTaken)
       {
         if (remoteButton[activeRemote][i].key == remoteKeyPressed)
         {
-          handleButtonPress(&remoteButton[activeRemote][i]);
+          handleRemoteButtonPress(&remoteButton[activeRemote][i]);
           actionTaken = true;
           break;
         }
@@ -1619,12 +1684,12 @@ void handleKeyboardInput(bool &actionTaken)
       log_i("brightness: %d", brightness);
       M5Cardputer.Display.setBrightness(brightness);
     }
+  }
 
-    // take screenshot
-    if (M5Cardputer.BtnA.isPressed())
-    {
-      saveScreenshot();
-    }
+  // take screenshot
+  if (M5Cardputer.BtnA.isPressed())
+  {
+    saveScreenshot();
   }
 }
 
@@ -1640,7 +1705,7 @@ void handleRemoteInput(bool &actionTaken)
     {
       if (lpf2Button[i].action == lpf2AutoAction && (lpf2Button[i].port == 0xFF || lpf2Button[i].port == lpf2MotorPort))
       {
-        handleButtonPress(&lpf2Button[i]);
+        handleRemoteButtonPress(&lpf2Button[i]);
         actionTaken = true;
       }
     }
@@ -1655,13 +1720,13 @@ void handleRemoteInput(bool &actionTaken)
     {
       if (irButton[i].action == irAutoAction && irButton[i].port == irAutoActionPort)
       {
-        if (irAutoActionRecv)
+        if (irActionBroadcastRecv)
         {
-          powerFunctionsHandleRecv(&irButton[i]);
+          powerFunctionsHandleBroadcastAction(&irButton[i]);
         }
         else
         {
-          handleButtonPress(&irButton[i]);
+          handleRemoteButtonPress(&irButton[i]);
         }
         actionTaken = true;
       }
@@ -1669,7 +1734,7 @@ void handleRemoteInput(bool &actionTaken)
 
     irAutoAction = NoAction;
     irAutoActionPort = 0xFF;
-    irAutoActionRecv = false;
+    irActionBroadcastRecv = false;
   }
 
   if (sbrickAutoAction != NoAction)
@@ -1679,7 +1744,7 @@ void handleRemoteInput(bool &actionTaken)
     {
       if (sbrickButton[i].action == sbrickAutoAction && sbrickPortSpeed[sbrickButton[i].port] != 0)
       {
-        handleButtonPress(&sbrickButton[i]);
+        handleRemoteButtonPress(&sbrickButton[i]);
         actionTaken = true;
       }
     }
@@ -1811,7 +1876,7 @@ void draw()
 
     if (circuitCubesDataX)
     {
-      canvas.drawString(String(circuitCubesBatteryV, 2), circuitCubesDataX + bw / 2, r1_5 + 9);
+      canvas.drawString(String(circuitCubesBatteryV, 1) + "V", circuitCubesDataX + bw / 2, r1_5 - 7);
     }
   }
 
@@ -1824,7 +1889,7 @@ void draw()
                  sbrickMotionSensorPort, sbrickMotionSensorV, sbrickMotionSensorNeutralV,
                  sbrickTiltSensorPort, sbrickTiltSensorV, sbrickTiltSensorNeutralV,
                  circuitCubesInit, circuitCubesRssi,
-                 irChannel, irMode, irPortFunction};
+                 irChannel, irMode, irPortFunction[irChannel]};
 
   Button *leftRemoteButton = remoteButton[activeRemoteLeft];
   for (int i = 0; i < remoteButtonCount[activeRemoteLeft]; i++)
@@ -1872,8 +1937,6 @@ void setup()
 
 void loop()
 {
-  M5Cardputer.update();
-
   bool actionTaken = false;
   handleKeyboardInput(actionTaken);
   handleRemoteInput(actionTaken);

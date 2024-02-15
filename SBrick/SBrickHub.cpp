@@ -405,6 +405,7 @@ byte SBrickHub::detectPortSensor(byte port)
 
     delay(200); // values read ~5x/sec, so this should be enough
 
+    //float batV = getBatteryLevel();
     float idVoltage = readAdcChannel(sensorIdChannel);
     float valueVoltage = readAdcChannel(sensorValueChannel);
     log_w("[port: %d] [c1: %f] [c2: %f]", port, idVoltage, valueVoltage);
@@ -416,11 +417,11 @@ byte SBrickHub::detectPortSensor(byte port)
         deactivateAdcChannel(sensorValueChannel);
         return (byte)SBrickDevice::Motor;
     }
-    else if (idVoltage < 3.3 && idVoltage > 3.0 && valueVoltage < 2.75 && valueVoltage > 2.3)    
+    else if (idVoltage < 3.5 && idVoltage > 3.0 && valueVoltage < 3.0 && valueVoltage > 2.3)    
     {
         return (byte)SBrickDevice::MotionSensor;
     }
-    else if (idVoltage < 1.65 && idVoltage > 1.35 && valueVoltage < 3.0 && valueVoltage > 2.7)
+    else if (idVoltage < 1.65 && idVoltage > 1.35 && valueVoltage < 3.25 && valueVoltage > 2.7)
     {
         return (byte)SBrickDevice::TiltSensor;
     }
