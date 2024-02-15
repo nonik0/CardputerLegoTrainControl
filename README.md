@@ -12,7 +12,7 @@ Thanks to the [Legoino library](https://github.com/corneliusmunz/legoino) for ma
 
 ## UI / Controls:
 
-Two remote devices can be seen and controlled at the same time. The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard. See images and table.
+Two remote devices can be seen and controlled at the same time, and easily toggled between the four supported remote types using the controls. The active remotes shown will be referenced as the left remote and the right remote. There is an indicator in the upper left that shows the active remotes (left is red and right is blue). The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard. See images and table.
 
 <img src="https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/bd67b872-6862-4e7d-930b-4c32f1ba2417" height="150">
 <img src="https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/8cdf71d5-faee-4006-82c4-5f3f162098a8" height="150">
@@ -21,11 +21,11 @@ Function|Left Remote|Right Remote|Description
 ---|---|---|---
 Left Port Control | e, s, d | i, j, n | motor control
 Right Port Control | r, d, x | o, k, m | motor control
-Aux1 | esc | backspace | BT connection toggle, channel toggle
+Aux1 | esc | del/backspace | BT connection toggle, channel toggle
 Aux2 | tab | \ | specific to remote device
 Change Remote | ctrl | space | change remote to show/control
-Function Shift | fn | ok/enter | hold down to change function of certain keys
-Port Function Toggle | 3, 4 | 8, 9 | specific to remote device
+Port Function Toggle | 3, 4 | 8, 9 | change function of port, specific to remote device
+Function Shift | fn | ok/enter | hold down to change function of certain keys, specific to remote device
 Display Brightness | | | control brightness of display
 
 ## Powered Up Control
@@ -76,7 +76,6 @@ switch the track to that direction, and the stop/center port button will toggle 
 Function|Description
 ---|---
 Aux1 | toggle BT connection
-Aux2 | change between modes
 Port Function Toggle | change port controlled on device (A, B, C, D)
 
 SBrick has 4 ports to control. Use the port function toggle to change control between ports A, B, C, and D. Battery voltage and temperature are shown. The WeDo [motion](https://www.bricklink.com/v2/catalog/catalogitem.page?S=9583-1) and [tilt](https://www.bricklink.com/v2/catalog/catalogitem.page?S=9583-1) sensors are also (potentially) auto-detected and configured. When detected, an indicator on the remote is shown as the sensoor readings on the corresponding port buttons. If any motion or tilt is detected, like when the train is derailed, all motors will be turned off. If a sensor is not functioning properly, the sensor can be recalibrated by pressing any port key for the sensor.
