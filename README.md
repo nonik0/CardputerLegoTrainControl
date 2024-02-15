@@ -1,10 +1,3 @@
-## TODO: this README needs lots update with lots more functionality.
-- Support for SBrick, including basic support for WeDo motion and tilt sensors
-- Support for CircuitCubes
-- New IR broadcast mode for Powered Up IR control: use ESP-NOW and secondary ESP+IR to vastly extend IR range
-- UX design/controls -- switching remotes, changing ports, changing port functions, etc.
-
-
 ## Overview
 
 This is a simple program for the [M5Stack Cardputer](https://shop.m5stack.com/products/m5stack-cardputer-kit-w-m5stamps3) to control several LEGO trains or accessories with one device. All supported hubs/devices have functionality to control the motor speed, with specific functionality described in the section for each device type. Supported devices are:
@@ -81,18 +74,26 @@ Port Function Toggle will switch a port between motor and switch functionality. 
 ### SBrick Control
 ![sb 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/4cfd4a95-b84b-43b6-9d35-43b9bec420ea) ![sb 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/6d868b47-a0a2-4b16-ae91-9f238340835b) ![sb 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/faf889aa-e815-472d-80a9-a64d1f1c70bb)
 
-SBrick has 4 ports to control. Currently 2 ports are hardcoded to be the motion and tilt sesnor.
+Function|Description
+---|---
+Aux1 | Toggle BT connection
+Aux2 | Change between modes
+Port Function Toggle | toggle between motor and switch mode
+
+SBrick has 4 ports to control. Use the port function toggle to change control between ports A, B, and C, D. Battery voltage and temperature is also shown. The WeDo motion and tilt sensors are also (potentially) auto-detected and configured and will show an indicator on the remote as well as the voltage readings on the port. They will stop any active motors if they detect any motion or tilt. If a sensor is not functioning propery, the sensor can be recalibrated by pressing a port key for the sensor.
 
 ### CircuitCubes Control
 ![cc 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/3fa51683-2be4-45fc-97ec-67601e9f7b19) ![cc 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/ba52a255-dab0-4d76-a298-05d9549f51fb)
 
-CircuitCubes control is fairly simple and just has 3 ports to control motors (or LEDs, etc.)
+Function|Description
+---|---
+Aux1 | Toggle BT connection
+Port Function Toggle | change port controlled on device
+
+CircuitCubes has 3 ports to control motors (or other devices via PWM like LEDs, etc.). Use the port function toggle to change control between ports A, B, and C. Battery voltage is also shown.
 
 ## Ideas
 - track speed to increment speed as battery voltage falls
 -- use calibration tiles and measure time between
 -- track average period between colors/actions
-- toggle to replace IR with second BT control
-- secondary device for making train noises (M5 Atom Echo + battery?)
-- add support for controlling 2 BT trains
--- longer term potentially connect to several devices, can "page" through connected remotes, showing two at time, or more potentially? great for controlling whole setup with switches, multiple trains, etc.
+- support for multiple of one device type
