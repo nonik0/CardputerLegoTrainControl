@@ -48,10 +48,10 @@ The BT connection will autodisconnect if the hub is left connected and no motors
 
 Function|Description
 ---|---
-Aux2 | Shows last color detected by sensor, resume after stop
-Port Control Up|toggle "speed up" action: increment speed, off
-Port Control Stop|toggle "stop" action: stop until interrupt (button on train or aux2 key), wait 2s/5s/9s and continue, off
-Port Control Down|toggle "speed down" action: decrement speed, off
+Aux2 | shows last color detected by sensor, resume after stop
+Port Control Up | toggle "speed up" action: increment speed, off
+Port Control Stop | toggle "stop" action: stop until interrupt (button on train or aux2 key), wait 2s/5s/9s and continue, off
+Port Control Down | toggle "speed down" action: decrement speed, off
 Function Shift + Port Key | change trigger color (defaults green, red, yellow)
 
 When a distance/color sensor is plugged in, it will be auto-detected and the port function will change. The sensor should attached to the train facing down onto the track. The color sensor will trigger three different auto-actions when it sees the corresponding color on the button (colors can be changed). The sensor distance is also measured and the train motor will turn off if the distance measured is too great (i.e. the train tips over on the track).
@@ -61,8 +61,8 @@ When a distance/color sensor is plugged in, it will be auto-detected and the por
 
 Function|Description
 ---|---
-Aux1 | Change IR channel (1-4)
-Aux2 | Change between modes
+Aux1 | change IR channel (1-4)
+Aux2 | change between modes
 Port Function Toggle | toggle between motor and switch mode
 
 Aux1 simply changes the IR channel being controlled and needs to match IR receiver.
@@ -78,11 +78,11 @@ Port Function Toggle will switch a port between motor and switch functionality. 
 
 Function|Description
 ---|---
-Aux1 | Toggle BT connection
-Aux2 | Change between modes
+Aux1 | toggle BT connection
+Aux2 | change between modes
 Port Function Toggle | change port controlled on device (A, B, C, D)
 
-SBrick has 4 ports to control. Use the port function toggle to change control between ports A, B, and C, D. Battery voltage and temperature is also shown. The WeDo motion and tilt sensors are also (potentially) auto-detected and configured and will show an indicator on the remote as well as the voltage readings on the port. They will stop any active motors if they detect any motion or tilt. If a sensor is not functioning propery, the sensor can be recalibrated by pressing a port key for the sensor.
+SBrick has 4 ports to control. Use the port function toggle to change control between ports A, B, C, and D. Battery voltage and temperature are shown. The WeDo [motion]([url](https://www.bricklink.com/v2/catalog/catalogitem.page?S=9583-1)) and [tilt](https://www.bricklink.com/v2/catalog/catalogitem.page?S=9583-1) sensors are also (potentially) auto-detected and configured. When detected, an indicator on the remote is shown as the sensoor readings on the corresponding port buttons. If any motion or tilt is detected, like when the train is derailed, all motors will be turned off. If a sensor is not functioning properly, the sensor can be recalibrated by pressing any port key for the sensor.
 
 ## CircuitCubes Control
 ![cc 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/3fa51683-2be4-45fc-97ec-67601e9f7b19) ![cc 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/ba52a255-dab0-4d76-a298-05d9549f51fb)
