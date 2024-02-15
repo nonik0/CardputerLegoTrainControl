@@ -16,6 +16,9 @@ This is a simple program for the [M5Stack Cardputer](https://shop.m5stack.com/pr
 Thanks to the [Legoino library](https://github.com/corneliusmunz/legoino) for making this a lot easier to work with Power Functions and Powered Up, and giving me some initial boilerplate and design work for the SBrick and CircuitCubes BT libraries I wrote.  
 
 ## UI / Key Bindings:
+![fullui](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/d713165a-d66a-4d2f-bdc0-0e0b87c3a16d")
+
+
 Two remotes can be shown at the same time. The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard to aid memory.
 
 Function|Left Remote Key|Right Remote Key|Description
