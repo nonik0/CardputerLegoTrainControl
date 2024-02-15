@@ -1,6 +1,6 @@
 ## Overview
 
-This is a simple program for the [M5Stack Cardputer](https://shop.m5stack.com/products/m5stack-cardputer-kit-w-m5stamps3) to control several LEGO trains or accessories with one device. All supported hubs/devices have functionality to control the motor speed, with specific functionality described in the section for each device type. Supported devices are:
+This is a simple program for the [M5Stack Cardputer](https://shop.m5stack.com/products/m5stack-cardputer-kit-w-m5stamps3) to control several LEGO trains or accessories with one device. All supported hubs/devices have functionality to control the motor speed with specific functionality described in the section for each device type. Supported devices are:
 - [Powered Up hub](https://www.lego.com/en-us/product/hub-88009)
 - [Power Functions](https://www.lego.com/en-us/product/lego-power-functions-ir-receiver-8884) (IR)
 - [SBrick](https://sbrick.com/product/sbrick-plus/)
@@ -12,7 +12,7 @@ Thanks to the [Legoino library](https://github.com/corneliusmunz/legoino) for ma
 
 ## UI / Controls:
 
-Two remote devices can be seen and controlled at the same time, and easily toggled between the four supported remote types using the controls. The active remotes shown will be referenced as the left remote and the right remote. There is an indicator in the upper left that shows the active remotes (left is red and right is blue). The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard. See images and table.
+Two remote devices can be viewed on screen and controlled at the same time. The two active, on-screen remotes can be easily toggled between the four supported remote types using the controls and will be referenced as the left remote and the right remote. There is an indicator in the upper left that shows which types of the remote are active (left is red and right is blue). The button layout displayed on the screen roughly maps to the layout of the keys on the Cardputer's keyboard.
 
 <img src="https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/bd67b872-6862-4e7d-930b-4c32f1ba2417" height="150">
 <img src="https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/8cdf71d5-faee-4006-82c4-5f3f162098a8" height="150">
@@ -91,7 +91,7 @@ Port Function Toggle | change port controlled on device (A, B, C)
 CircuitCubes has 3 ports to control motors (or other devices via PWM like LEDs, etc.). Use the port function toggle to change control between ports A, B, and C. Battery voltage is also shown.
 
 ## Ideas
-- track speed to increment speed as battery voltage falls
--- use calibration tiles and measure time between
--- track average period between colors/actions
-- support for multiple of one device type
+- track speed to be able to keep constant as battery voltage falls
+  - track speed with specific calibration tile colors? measure time between two tiles and track
+  - track speed with color sensor and rate of change? (i.e. motor moving but no color change after X time -> bump speed)
+- support for using multiple remotes for one device type
