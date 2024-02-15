@@ -25,9 +25,9 @@ Function|Left Remote|Right Remote|Description
 ---|---|---|---
 Left Port Control | e, s, d | i, j, n | motor control
 Right Port Control | r, d, x | o, k, m | motor control
-Change Remote | ctrl | space | change remote to show/control
 Aux1 | esc | backspace | BT connection toggle, channel toggle
 Aux2 | tab | \ | specific to remote device
+Change Remote | ctrl | space | change remote to show/control
 Function Shift | fn | ok/enter | hold down to change function of certain keys
 Port Function Toggle | 3, 4 | 8, 9 | specific to remote device
 Display Brightness | | | control brightness of display
@@ -54,7 +54,7 @@ Port Control Stop|toggle "stop" action: stop until interrupt (button on train or
 Port Control Down|toggle "speed down" action: decrement speed, off
 Function Shift + Port Key | change trigger color (defaults green, red, yellow)
 
-When a distance/color sensor is plugged in, it will be auto-detected and the port function will change. The sensor should attached to the train facing down onto the track. The color sensor will trigger three different auto-actions when it sees the corresponding color on the button (colors can be changed). The distance is also measure and the train motor will turn off if the distance is too great (i.e. the train tips over on the track).
+When a distance/color sensor is plugged in, it will be auto-detected and the port function will change. The sensor should attached to the train facing down onto the track. The color sensor will trigger three different auto-actions when it sees the corresponding color on the button (colors can be changed). The sensor distance is also measured and the train motor will turn off if the distance measured is too great (i.e. the train tips over on the track).
 
 ## Power Functions (IR) Control:
 ![pf 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/e86164c6-09c4-43ae-8f12-f5abf81bdc0b) ![pf 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/08ec4ebe-c890-48d8-826a-fd4885625818) ![pf 2](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/3453f76d-1aac-4895-ba0b-72ba40b0dc3d)
@@ -69,7 +69,7 @@ Aux1 simply changes the IR channel being controlled and needs to match IR receiv
 
 Aux2 controls the remote modes, which cycle between normal -> state -> state/broadcast -> broadcast -> normal.
 - State mode: tracks the speed of the motor on the Cardputer and sends specific speed commands to the remote device, as opposed to sending simple motor speed increment signals.
-- Broadcast mode: broadcasts all IR commands using ESP-NOW such that other ESP devices can pick up and rebroadcast the IR signal, extending the range of the Cardputer's weak IR. See the [PowerFunctionsIRRepeater project](https://github.com/nonik0/CardputerLegoTrainControl/tree/main/PowerFunctionsIrRepeater) for a simple implementation of a repeater using M5Atom.
+- Broadcast mode: broadcasts all IR commands using ESP-NOW such that other ESP devices can pick up and rebroadcast the IR signal, extending the range of the Cardputer's weak IR. See the [PowerFunctionsIRRepeater project](PowerFunctionsIrRepeater) for a simple implementation of a repeater using M5Atom.
 
 Port Function Toggle will switch a port between motor and switch functionality. Switch functionality is for when a motor is used to control a track switch and pressing up/down will send a 1 second pulse to the motor to switch the trick to that direction, and the "stop" button will toggle the switch state.
 
@@ -80,7 +80,7 @@ Function|Description
 ---|---
 Aux1 | Toggle BT connection
 Aux2 | Change between modes
-Port Function Toggle | toggle between motor and switch mode
+Port Function Toggle | change port controlled on device (A, B, C, D)
 
 SBrick has 4 ports to control. Use the port function toggle to change control between ports A, B, and C, D. Battery voltage and temperature is also shown. The WeDo motion and tilt sensors are also (potentially) auto-detected and configured and will show an indicator on the remote as well as the voltage readings on the port. They will stop any active motors if they detect any motion or tilt. If a sensor is not functioning propery, the sensor can be recalibrated by pressing a port key for the sensor.
 
@@ -90,7 +90,7 @@ SBrick has 4 ports to control. Use the port function toggle to change control be
 Function|Description
 ---|---
 Aux1 | Toggle BT connection
-Port Function Toggle | change port controlled on device
+Port Function Toggle | change port controlled on device (A, B, C)
 
 CircuitCubes has 3 ports to control motors (or other devices via PWM like LEDs, etc.). Use the port function toggle to change control between ports A, B, and C. Battery voltage is also shown.
 
