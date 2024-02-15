@@ -50,7 +50,7 @@ Port Control Stop | toggle "stop" action: stop until interrupt (button on train 
 Port Control Down | toggle "speed down" action: decrement speed, off
 Function Shift + Port Key | change trigger color (defaults green, red, yellow)
 
-When a [color & distance sensor]([url](https://www.lego.com/en-us/product/color-distance-sensor-88007)) is plugged in, it will be auto-detected and the port function will change. The sensor should attached to the train facing down onto the track. The sensor can trigger three different auto-actions when the corresponding color on the port button is seen by the sensor. These trigger colors can be changed, see the table. The sensor distance is also measured and the train motor will turn off if the distance measured is too great, such as when the train tips over on the track.
+When a [color & distance sensor](https://www.lego.com/en-us/product/color-distance-sensor-88007) is plugged in, it will be auto-detected and the port function will change. The sensor should attached to the train facing down onto the track. The sensor can trigger three different auto-actions when the corresponding color on the port button is seen by the sensor. These trigger colors can be changed, see the table. The sensor distance is also measured and the train motor will turn off if the distance measured is too great, such as when the train tips over on the track.
 
 ## Power Functions (IR) Control:
 ![pf 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/e86164c6-09c4-43ae-8f12-f5abf81bdc0b) ![pf 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/08ec4ebe-c890-48d8-826a-fd4885625818) ![pf 2](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/3453f76d-1aac-4895-ba0b-72ba40b0dc3d)
