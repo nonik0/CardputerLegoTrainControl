@@ -30,31 +30,33 @@ Aux1 | esc | backspace | BT connection toggle, channel toggle
 Aux2 | tab | \ | specific to remote device
 Function Shift | fn | ok/enter | hold down to change function of certain keys
 Port Function Toggle | 3, 4 | 8, 9 | specific to remote device
+Display Brightness | | | control brightness of display
 
 
-### Powered Up Control
-![pu_0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/b3bf5688-521c-4152-85a0-a81d316036f5) ![pu 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/96a9bf02-faa8-4c22-b871-32faa0d1c135) ![pu 2](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/6d80bd5f-246f-413b-90f1-6d7ad0c0e6c3)
+## Powered Up Control
+![pu_0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/b3bf5688-521c-4152-85a0-a81d316036f5)
 
-Function|Key Mapping
+Function|Description
 ---|---
-BT toggle connection|esc
-BT toggle LED color|tab
-Port A control|e, s, z
-Port B control|r, d, x
+Aux1 | Toggle BT connection
+Aux2 | Toggle LED color
 
-Port control actions are the speed up, stop, and speed down actions, respectively.
+The BT connection will autodisconnect if the hub is left connected and no motors are on.
 
-## with Color & Distance Sensor:
+#### with Color & Distance Sensor:
+![pu 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/96a9bf02-faa8-4c22-b871-32faa0d1c135) ![pu 2](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/6d80bd5f-246f-413b-90f1-6d7ad0c0e6c3)
 
-Button Function|Default Color|Sensor Function
----|---|---
-Speed Up|green|Increment motor speed, TBD
-Stop|red|stop until interrupt (button on train or LED key), wait 2s/5s/10s and continue
-Speed Down|yellow|Decrement motor speed, TBD
+Function|Description
+---|---
+Aux2 | Shows last color detected by sensor, resume after stop
+Port Control Up|toggle "speed up" action: increment speed, off
+Port Control Stop|toggle "stop" action: stop until interrupt (button on train or aux2 key), wait 2s/5s/9s and continue, off
+Port Control Down|toggle "speed down" action: decrement speed, off
+Function Shift + Port Key | change trigger color (defaults green, red, yellow)
 
-When a distance/color sensor is plugged into the hub, it will be auto-detected. The corresponding buttons for the sensor's port will change to the colors that trigger the sensor functions. Pressing the button for the sensor function will toggle the function (i.e. if sensor is on channel B, pressing 'd' key will toggle the sensor's stop function). The trigger colors can also be changed by holding the fn key and pressing a sensor function button (e.g. if sensor is on port B, press fn+d to change sensor stop function's trigger color)
+When a distance/color sensor is plugged in, it will be auto-detected and the port function will change. The sensor should attached to the train facing down onto the track. The color sensor will trigger three different auto-actions when it sees the corresponding color on the button (colors can be changed). The distance is also measure and the train motor will turn off if the distance is too great (i.e. the train tips over on the track).
 
-### Power Functions (IR) Control:
+## Power Functions (IR) Control:
 ![pf 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/e86164c6-09c4-43ae-8f12-f5abf81bdc0b) ![pf 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/08ec4ebe-c890-48d8-826a-fd4885625818) ![pf 2](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/3453f76d-1aac-4895-ba0b-72ba40b0dc3d)
 
 Function|Description
@@ -71,7 +73,7 @@ Aux2 controls the remote modes, which cycle between normal -> state -> state/bro
 
 Port Function Toggle will switch a port between motor and switch functionality. Switch functionality is for when a motor is used to control a track switch and pressing up/down will send a 1 second pulse to the motor to switch the trick to that direction, and the "stop" button will toggle the switch state.
 
-### SBrick Control
+## SBrick Control
 ![sb 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/4cfd4a95-b84b-43b6-9d35-43b9bec420ea) ![sb 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/6d868b47-a0a2-4b16-ae91-9f238340835b) ![sb 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/faf889aa-e815-472d-80a9-a64d1f1c70bb)
 
 Function|Description
@@ -82,7 +84,7 @@ Port Function Toggle | toggle between motor and switch mode
 
 SBrick has 4 ports to control. Use the port function toggle to change control between ports A, B, and C, D. Battery voltage and temperature is also shown. The WeDo motion and tilt sensors are also (potentially) auto-detected and configured and will show an indicator on the remote as well as the voltage readings on the port. They will stop any active motors if they detect any motion or tilt. If a sensor is not functioning propery, the sensor can be recalibrated by pressing a port key for the sensor.
 
-### CircuitCubes Control
+## CircuitCubes Control
 ![cc 0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/3fa51683-2be4-45fc-97ec-67601e9f7b19) ![cc 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/ba52a255-dab0-4d76-a298-05d9549f51fb)
 
 Function|Description
