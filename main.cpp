@@ -236,6 +236,7 @@ void lpf2ResumeTrainMotion()
   lpf2AutoAction = lpf2SensorStopSavedSpd > 0 ? SpdUp : SpdDn;
   short btSpdAdjust = lpf2SensorStopSavedSpd > 0 ? -BtSpdInc : BtSpdInc;
   lpf2PortSpeed[lpf2MotorPort] = lpf2SensorStopSavedSpd + btSpdAdjust;
+  log_w("resuming train motion: %d", lpf2PortSpeed[lpf2MotorPort]);
 }
 
 void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
@@ -334,20 +335,20 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   RemoteAction action;
   if (color == lpf2SensorSpdUpColor && lpf2SensorSpdUpFunction >= 0)
   {
-    log_i("bt action: spdup");
+    log_w("lpf2 action: spdup");
     lpf2AutoAction = SpdUp;
   }
   else if (color == lpf2SensorStopColor && lpf2SensorStopFunction >= 0)
   {
     // resumed by calling resumeTrainMotion() after delay
-    log_i("bt action: brake");
+    log_w("lpf2 action: brake");
     lpf2AutoAction = Brake;
     lpf2SensorStopDelay = millis() + lpf2SensorStopFunction * 1000;
     lpf2SensorStopSavedSpd = lpf2PortSpeed[lpf2MotorPort];
   }
   else if (color == lpf2SensorSpdDnColor && lpf2SensorSpdDnFunction >= 0)
   {
-    log_i("bt action: spddn");
+    log_w("lpf2 action: spddn");
     lpf2AutoAction = SpdDn;
   }
   else
@@ -417,6 +418,7 @@ void lpf2ConnectionToggle()
 
 void lpf2HandlePortAction(Button *button)
 {
+  log_w("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
 
   if (!lpf2Hub.isConnected())
     return;
@@ -473,6 +475,12 @@ void lpf2HandlePortAction(Button *button)
             lpf2SensorStopFunction = -1;
           else
             lpf2SensorStopFunction = 0;
+
+          // if currently waiting, reset delay to new setting or clear pause state
+          if (lpf2SensorStopDelay > 0)
+          {
+            lpf2SensorStopDelay = lpf2SensorStopFunction > 0 ? millis() + (lpf2SensorStopFunction * 1000) : 0;
+          }
         }
         break;
       case SpdDn:
@@ -483,6 +491,12 @@ void lpf2HandlePortAction(Button *button)
   }
   else
   {
+    // if stopped and waiting and manual action, clear wait state
+    if (lpf2SensorStopDelay > 0 && lpf2AutoAction == NoAction) {
+      lpf2SensorStopDelay = 0;
+      lpf2PortSpeed[button->port] = 0;
+    }
+
     switch (button->action)
     {
     case SpdUp:
@@ -496,19 +510,7 @@ void lpf2HandlePortAction(Button *button)
       break;
     }
 
-    // do not update motor speed on device if actively stopped due to sensor action
-    if (lpf2SensorStopDelay > 0)
-    {
-      // turn off active wait/stop if braking motor
-      if (button->action == Brake)
-      {
-        lpf2SensorStopDelay = 0;
-      }
-    }
-    else
-    {
-      lpf2Hub.setBasicMotorSpeed(button->port, lpf2PortSpeed[button->port]);
-    }
+    lpf2Hub.setBasicMotorSpeed(button->port, lpf2PortSpeed[button->port]);
   }
 }
 
@@ -1215,7 +1217,7 @@ void saveScreenshot()
 
 void handleRemoteButtonPress(Button *button)
 {
-  log_d("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
+  log_w("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
 
   button->pressed = true;
 
@@ -1247,7 +1249,7 @@ void handleRemoteButtonPress(Button *button)
       lpf2LedColor = (lpf2LedColor == Color(1))
                          ? Color(Color::NUM_COLORS - 1)
                          : (Color)(lpf2LedColor - 1);
-      log_i("bt color: %d", lpf2LedColor);
+      log_w("bt color: %d", lpf2LedColor);
       if (lpf2Hub.isConnected())
         lpf2Hub.setLedColor(lpf2LedColor);
     }
