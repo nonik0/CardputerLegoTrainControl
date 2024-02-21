@@ -2,6 +2,8 @@ name: PlatformIO CI
 
 on: [push]
 
+# TODO: get bin/artifact name from context or at least as variables
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,3 +34,30 @@ jobs:
           name: CardputerLegoTrainRemote
           path: LegoTrainRemote.bin
           if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-latest
+    environment: github_release
+    needs: [build]
+    if: github.ref_type == 'tag'
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        merge-multiple: true
+
+    - name: List all files
+      if: always()
+      run: |
+        set -x
+        pwd
+        ls -all
+        tree
+
+    - name: Release ${{ github.ref_name }}
+      uses: softprops/action-gh-release@v1
+      with:
+        name: ${{ github.ref_name }}
+        tag_name: ${{ github.ref_name }}
+        generate_release_notes: true
+        files: LegoTrainRemote.bin
