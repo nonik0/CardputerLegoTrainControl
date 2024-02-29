@@ -43,7 +43,7 @@ volatile RemoteAction lpf2AutoAction = NoAction;
 bool lpf2SensorInit = false;
 byte lpf2SensorPort = NO_SENSOR_FOUND; // set to A or B if detected
 byte lpf2MotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if detected
-short lpf2DistanceMovingAverage = 0;
+short lpf2SensorDistanceMovingAverage = 0;
 volatile Color lpf2SensorColor = Color::NONE; // detected color by sensor
 unsigned long lpf2SensorDebounce = 0;         // debounce sensor color changes
 Color lpf2SensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
@@ -301,8 +301,8 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   Color color = (Color)(trainCtl->parseColor(pData));
 
   // track moving average of distance to random noisy spikes, turn off motor if not on track
-  lpf2DistanceMovingAverage = (lpf2DistanceMovingAverage * 3 + distance) >> 2; // I bet compiler does this anyway for dividing by 4
-  if (lpf2DistanceMovingAverage > BtDistanceStopThreshold && lpf2PortSpeed[lpf2MotorPort] != 0)
+  lpf2SensorDistanceMovingAverage = (lpf2SensorDistanceMovingAverage * 3 + distance) >> 2; // I bet compiler does this anyway for dividing by 4
+  if (lpf2SensorDistanceMovingAverage > BtDistanceStopThreshold && lpf2PortSpeed[lpf2MotorPort] != 0)
   {
     log_w("off track, distance moving avg: %d", distance);
 
@@ -1795,6 +1795,27 @@ void draw()
 
   canvas.drawString(getRemoteAuxOneLabel(false, activeRemoteRight, auxY), c6 + bw / 2, auxY);
   canvas.drawString(getRemoteAuxTwoLabel(false, activeRemoteRight, auxY), c6 + bw / 2, auxY);
+
+  // power functions distance data
+  // int lpf2DistanceX = 0;
+  // if (lpf2SensorInit)
+  // {
+  //   if (activeRemoteLeft == RemoteDevice::PoweredUp)
+  //   {
+  //     lpf2DistanceX = c1;
+  //   }
+  //   else if (activeRemoteRight == RemoteDevice::PoweredUp)
+  //   {
+  //     lpf2DistanceX = c6;
+  //   }
+
+  //   if (lpf2DistanceX)
+  //   {
+  //     unsigned short distanceColor = lpf2SensorDistanceMovingAverage > BtDistanceStopThreshold ? TFT_RED : TFT_SILVER;
+  //     canvas.setTextColor(distanceColor);
+  //     canvas.drawString(String(lpf2SensorDistanceMovingAverage) + "cm", lpf2DistanceX + bw / 2, r1 - 2);
+  //   }
+  // }
 
   // sbrick sensor data
   int sbrickDataCol = 0;
