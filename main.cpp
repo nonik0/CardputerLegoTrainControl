@@ -1,14 +1,12 @@
 #include <Arduino.h>
 #include <Lpf2Hub.h>
 #include <M5Cardputer.h>
-#include <M5StackUpdater.h>
-
-#include "CircuitCubes/CircuitCubesHub.h"
-#include "SBrick/SBrickHub.h"
 
 #include "common.h"
 #include "draw_helper.h"
 #include "IrBroadcast.hpp"
+#include "CircuitCubes/CircuitCubesHub.h"
+#include "SBrick/SBrickHub.h"
 
 #define NO_SENSOR_FOUND 0xFF
 
@@ -1155,17 +1153,6 @@ bool sdCardInit()
   return sdInit;
 }
 
-void checkForMenuBoot()
-{
-  M5Cardputer.update();
-
-  if (M5Cardputer.Keyboard.isKeyPressed('a') && sdCardInit())
-  {
-    updateFromFS(SD, "/menu.bin");
-    ESP.restart();
-  }
-}
-
 void saveScreenshot()
 {
   if (!sdInit && !sdCardInit())
@@ -1944,8 +1931,6 @@ void setup()
   USBSerial.begin(115200);
   auto cfg = M5.config();
   M5Cardputer.begin(cfg, true);
-
-  checkForMenuBoot();
 
   M5Cardputer.Display.setRotation(1);
   M5Cardputer.Display.setBrightness(brightness);
