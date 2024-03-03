@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Lpf2Hub.h>
 #include <M5Cardputer.h>
+#include <SD.h>
 
 #include "common.h"
 #include "draw_helper.h"
@@ -1170,7 +1171,7 @@ void saveScreenshot()
   if (pngLen == 0)
   {
     log_w("screenshot has 0 bytes, trying half screen");
-    pngBytes = (uint8_t *)M5Cardputer.Display.createPng(&pngLen, 120, 0, 120, 135);
+    pngBytes = (uint8_t *)M5Cardputer.Display.createPng(&pngLen, 0, 0, 120, 135);
 
     if (pngLen == 0)
     {
