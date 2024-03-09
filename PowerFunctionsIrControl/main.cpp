@@ -4,6 +4,8 @@
 #include <WiFi.h>
 
 #include "..\IrBroadcast.hpp"
+#include "IrReflective.hpp"
+#include "TrackSwitch.h"
 #include "Ultrasonic.h"
 
 // ATOMIC PortABC Extension Base
@@ -15,12 +17,12 @@
 #define ATOM_PORT_C_W 19
 
 // Port A: IR TX/RX
-//#define IR_TX_PIN ATOM_PORT_A_Y # defined in platformio.ini
+// #define IR_TX_PIN ATOM_PORT_A_Y # defined in platformio.ini
 
 // Port B: Reflective IR Sensor
 #define IR_DOUT_PIN ATOM_PORT_B_Y
 
-// Port C: Ultrasonic Sensor 
+// Port C: Ultrasonic Sensor
 #define US_ECHO_PIN ATOM_PORT_C_W
 #define US_TRIG_PIN ATOM_PORT_C_Y
 
@@ -32,9 +34,7 @@
 
 PowerFunctionsIrBroadcast client;
 Ultrasonic ultrasonic;
-
-float distance;
-bool switchDirection = false;
+IrReflective irReflective;
 
 void recvCallback(PowerFunctionsIrMessage message)
 {
@@ -55,27 +55,7 @@ void recvCallback(PowerFunctionsIrMessage message)
   }
 }
 
-void switchTrack()
-{
-  switchDirection = !switchDirection;
-
-  if (switchDirection)
-  {
-    client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::REVERSE7, 0);
-    delay(50);
-    client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::FORWARD7, 0);
-    delay(500);
-    client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::BRAKE, 0);
-  }
-  else
-  {
-    client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::FORWARD7, 0);
-    delay(50);
-    client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::REVERSE7, 0);
-    delay(500);
-    client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::BRAKE, 0);
-  }
-}
+TrackSwitch trackSwitch;
 
 void setup()
 {
@@ -84,27 +64,34 @@ void setup()
   client.enableBroadcast();
   client.registerRecvCallback(recvCallback);
 
+  irReflective.begin(IR_DOUT_PIN);
   ultrasonic.begin(US_TRIG_PIN, US_ECHO_PIN);
+  trackSwitch.init(ultrasonic, irReflective, (byte)(PowerFunctionsPort::RED));
 }
 
-// Ultrasonic:
-// near track: < 30 mm
-// far track: < 165 mm
+unsigned long lastTrainExited = 0;
+TrainTrack lastTrackExited = TrainTrack::Undetected;
 
 void loop()
 {
-  distance = ultrasonic.getDistance();
+  trackSwitch.update();
 
-  if (distance < 4000 && distance > 10) {
-    if (distance < 35.0f)
-      Serial.printf("US: near (%f cm)\n", distance);
-    else if (distance < 165.0f)
-      Serial.printf("US: far (%f cm)\n", distance);
-  }
+  // when another train enters forward before X time has passed since the last train exited, switch the track
 
-  if (digitalRead(IR_DOUT_PIN) == 0)
-    Serial.println("IR: detect");
+  // trackSwitch.onEnter = [&lastTrainExited, &lastTrackExited](TrainTrack track) {
+  //   if (lastTrackExited == TrainTrack::Main && track == TrainTrack::Fork && millis() - lastTrainExited < 5000)
+  //   {
+  //     client.single_pwm(PowerFunctionsPort::RED, 7, PowerFunctionsChannel::RED, false);
+  //     delay(1000);
+  //     client.single_pwm(PowerFunctionsPort::RED, 0, PowerFunctionsChannel::RED, false);
+  //   }
+  // };
 
-  delay(200);
+  // trackSwitch.onExit = [&lastTrainExited, &lastTrackExited](TrainTrack track) {
+  //   lastTrainExited = millis();
+  //   lastTrackExited = track;
+  // };
+
+  delay(50);
   // TODO: callbacks for various functionality on repeaters (lights, sounds, etc.)
 }
