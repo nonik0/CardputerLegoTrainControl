@@ -8,10 +8,14 @@ private:
     uint8_t _pin;
 
 public:
-    void begin(uint8_t pin = 26)
+    void begin(uint8_t pin)
     {
         _pin = pin;
         pinMode(_pin, INPUT);
     }
-    bool isDetected() { return digitalRead(_pin) == 0; }
+
+    bool isDetected()
+    {
+        return digitalRead(_pin) == 0;
+    }
 };

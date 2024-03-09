@@ -5,15 +5,12 @@ TrainTrack TrackSwitch::readForkSensor()
 {
     float distance = _usSensor.getDistance();
 
-    if (distance < 4000 && distance > 10)
-    {
-        if (distance < 35.0f)
-            return TrainTrack::Fork;
-        else if (distance < 165.0f)
-            return TrainTrack::Main;
-    }
-
-    return TrainTrack::Undetected;
+    if (distance > 10.0f && distance < 35.0f)
+        return TrainTrack::Fork;
+    else if (distance < 165.0f)
+        return TrainTrack::Main;
+    else
+        return TrainTrack::Undetected;
 }
 
 void TrackSwitch::logState()
@@ -58,10 +55,10 @@ void TrackSwitch::logState()
     if (_state == TrainState::Undetected)
         log_w("Train left switch");
     else
-        log_w("Train is %s %s on %s track", _state, _direction, _track);
+        log_w("Train is %s %s on %s track", state, direction, track);
 }
 
-void TrackSwitch::init(Ultrasonic usSensor, IrReflective irSensor, byte motorPort)
+void TrackSwitch::begin(Ultrasonic usSensor, IrReflective irSensor, byte motorPort)
 {
     _usSensor = usSensor;
     _irSensor = irSensor;

@@ -66,7 +66,7 @@ void setup()
 
   irReflective.begin(IR_DOUT_PIN);
   ultrasonic.begin(US_TRIG_PIN, US_ECHO_PIN);
-  trackSwitch.init(ultrasonic, irReflective, (byte)(PowerFunctionsPort::RED));
+  trackSwitch.begin(ultrasonic, irReflective, (byte)(PowerFunctionsPort::RED));
 }
 
 unsigned long lastTrainExited = 0;

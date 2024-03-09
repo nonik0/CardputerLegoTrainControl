@@ -42,7 +42,7 @@ private:
     TrainTrack readForkSensor();
     void logState();
 public:
-    void init(Ultrasonic usSensor, IrReflective irSensor, byte motorPort);
+    void begin(Ultrasonic usSensor, IrReflective irSensor, byte motorPort);
     void update();
     // onEnterCallback, onExitCallback
 };
