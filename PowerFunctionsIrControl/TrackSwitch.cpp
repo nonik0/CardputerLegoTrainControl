@@ -1,19 +1,5 @@
 #include "TrackSwitch.h"
 
-// currently assumes sensor is closer to the forked track
-bool TrackSwitch::readForkSensor()
-{
-    float distance = _usSensor.getDistance();
-    return distance > 10.0f && distance < 165.0f;
-
-    // if (distance > 10.0f && distance < 35.0f)
-    //     return TrainTrack::Fork;
-    // else if (distance < 165.0f)
-    //     return TrainTrack::Main;
-    // else
-    //     return TrainTrack::Undetected;
-}
-
 void TrackSwitch::logState()
 {
     String state = "Undetected";
@@ -49,10 +35,10 @@ void TrackSwitch::logState()
         log_w("Train is %s %s", state, direction);
 }
 
-void TrackSwitch::begin(Ultrasonic usSensor, IrReflective irSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, bool defaultState)
+void TrackSwitch::begin(std::function<bool()> inSensor, std::function<bool()> forkSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, bool defaultState)
 {
-    _usSensor = usSensor;
-    _irSensor = irSensor;
+    _joinSensor = inSensor;
+    _forkSensor = forkSensor;
 
     _pfIrClient = pfIrClient;
     _motorPort = motorPort;
@@ -73,8 +59,6 @@ void TrackSwitch::switchTrack()
 
 void TrackSwitch::switchTrack(bool state)
 {
-    _switchState = !_switchState;
-
     if (state)
     {
         _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 0);
@@ -95,37 +79,29 @@ void TrackSwitch::update()
 {
     TrainPosition lastState = _position;
     TrainDirection lastDirection = _direction;
+    bool cleanExit = false;
 
-    bool irDetection = _irSensor.isDetected();
-    bool usDetection = readForkSensor();
+    bool joinDetection = _joinSensor();
+    bool forkDetection = _forkSensor();
 
     // only used when train is detected and _direction is set
-    bool inSensor = (_direction == TrainDirection::Forward) ? irDetection : usDetection;
-    bool outSensor = (_direction == TrainDirection::Forward) ? usDetection : irDetection;
+    bool inSensor = (_direction == TrainDirection::Forward) ? joinDetection : forkDetection;
+    bool outSensor = (_direction == TrainDirection::Forward) ? forkDetection : joinDetection;
 
     switch (_position)
     {
     case TrainPosition::Undetected:
-        if (irDetection)
+        if (joinDetection)
         {
-            log_w("1");
             _position = TrainPosition::Entering;
             _direction = TrainDirection::Forward;
             _lastDetection = millis();
-
-            //if (_onEnterAndExit != nullptr)
-            //    _onEnterAndExit(_position, _direction);
-            log_w("2");
         }
-        else if (usDetection)
+        else if (forkDetection)
         {
-            log_w("3");
             _position = TrainPosition::Entering;
             _direction = TrainDirection::Reverse;
             _lastDetection = millis();
-            //if (_onEnterAndExit != nullptr)
-            //    _onEnterAndExit(_position, _direction);
-            log_w("4");
         }
         break;
     case TrainPosition::Entering:
@@ -152,11 +128,9 @@ void TrackSwitch::update()
         {
             if (millis() - _lastDetection > 300)
             {
-                log_w("Train detected leaving switch");
-                //if (_onEnterAndExit != nullptr)
-                //    _onEnterAndExit(_position, _direction);
                 _position = TrainPosition::Undetected;
                 lastExitMillis = millis();
+                cleanExit = true;
             }
         }
         else
@@ -166,6 +140,13 @@ void TrackSwitch::update()
 
     if (_position != lastState || _direction != lastDirection)
     {
+        if (_position == TrainPosition::Entering && _onEnterAndExit != nullptr) {
+            _onEnterAndExit(TrainPosition::Entering, _direction);
+        }
+        else if (_position == TrainPosition::Undetected && _onEnterAndExit != nullptr) {
+            _onEnterAndExit(cleanExit ? TrainPosition::Exiting : TrainPosition::Undetected, _direction);
+        }
+
         logState();
     }
 }

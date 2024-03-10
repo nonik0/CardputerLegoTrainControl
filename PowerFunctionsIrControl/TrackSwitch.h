@@ -1,10 +1,9 @@
 #pragma once
 
 #include <Arduino.h>
+#include <functional>
 
 #include "..\IrBroadcast.h"
-#include "IrReflective.hpp"
-#include "Ultrasonic.h"
 
 enum class TrainDirection
 {
@@ -27,8 +26,8 @@ typedef void (*TrainDetectionCallback)(TrainPosition position, TrainDirection di
 class TrackSwitch
 {
 private:
-    IrReflective _irSensor;
-    Ultrasonic _usSensor;
+    std::function<bool()> _joinSensor;
+    std::function<bool()> _forkSensor;
     PowerFunctionsIrBroadcast _pfIrClient;
     PowerFunctionsPort _motorPort;
     bool _switchState;
@@ -37,13 +36,11 @@ private:
     TrainPosition _position;
     unsigned long _lastDetection;
     TrainDetectionCallback _onEnterAndExit;
-
-    bool readForkSensor();
 public:
     unsigned long lastExitMillis = 0;
 
     void logState();
-    void begin(Ultrasonic usSensor, IrReflective irSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, bool defaultState = false);
+    void begin(std::function<bool()> joinSensor, std::function<bool()> forkSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, bool defaultState = false);
     void registerCallback(TrainDetectionCallback callback);
     void switchTrack();
     void switchTrack(bool state);

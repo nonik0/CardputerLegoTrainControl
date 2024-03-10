@@ -32,14 +32,41 @@
 // L101: static uint32_t ReadUInt32LE(uint8_t *data, int offset);
 // L107: static int32_t ReadInt32LE(uint8_t *data, int offset);
 
+enum class SwitchBehavior
+{
+  None,
+  Alternate,
+  Redirect,
+  NumBehaviors
+};
+
 PowerFunctionsIrBroadcast client;
 Ultrasonic ultrasonic;
 IrReflective irReflective;
 TrackSwitch trackSwitch;
+SwitchBehavior switchBehavior = SwitchBehavior::None;
 
 unsigned long lastTrainExited = 0;
 bool redirecting = false;
 unsigned long logMillis = 5000;
+
+bool readIrReflectiveSensor()
+{
+  return irReflective.isDetected();
+}
+
+bool readUltrasonicSensor()
+{
+  float distance = ultrasonic.getDistance();
+  return distance > 10.0f && distance < 165.0f;
+
+  // if (distance > 10.0f && distance < 35.0f)
+  //     return TrainTrack::Fork;
+  // else if (distance < 165.0f)
+  //     return TrainTrack::Main;
+  // else
+  //     return TrainTrack::Undetected;
+}
 
 void recvCallback(PowerFunctionsIrMessage message)
 {
@@ -60,24 +87,44 @@ void recvCallback(PowerFunctionsIrMessage message)
   }
 }
 
-void switchDetectionCallback(TrainPosition position, TrainDirection direction)
+void alternatingSwitchCallback(TrainPosition position, TrainDirection direction)
 {
-  log_w("CALLBACK: Train is %s %s", position, direction);
+  // no switching behavior possible in reverse direction
+  if (direction != TrainDirection::Forward)
+    return;
+
+  if (position == TrainPosition::Exiting)
+    trackSwitch.switchTrack();
+}
+
+void trainRedirectCallback(TrainPosition position, TrainDirection direction)
+{
+  // no switching behavior possible in reverse direction
+  if (direction != TrainDirection::Forward)
+    return;
 
   // if second train is entering switch soon after an initial train has exited, redirect it
-  if (position == TrainPosition::Entering && millis() - lastTrainExited < 10000)
+  if (!redirecting && position == TrainPosition::Entering && millis() - lastTrainExited < 10000)
   {
     log_w("Redirecting train, switching track");
     trackSwitch.switchTrack();
     redirecting = true;
   }
-
-  if (position == TrainPosition::Exiting)
+  else if (position == TrainPosition::Exiting)
   {
     lastTrainExited = millis();
     if (redirecting)
     {
       log_w("Done redirecting, switching back");
+      redirecting = false;
+      trackSwitch.switchTrack();
+    }
+  }
+  else if (position == TrainPosition::Undetected)
+  {
+    if (redirecting)
+    {
+      log_w("Tracking issue, switching back");
       redirecting = false;
       trackSwitch.switchTrack();
     }
@@ -91,10 +138,9 @@ void setup()
   client.enableBroadcast();
   client.registerRecvCallback(recvCallback);
 
-  irReflective.begin(IR_DOUT_PIN);
-  ultrasonic.begin(US_TRIG_PIN, US_ECHO_PIN);
-  trackSwitch.begin(ultrasonic, irReflective, client, PowerFunctionsPort::BLUE, true);
-  trackSwitch.registerCallback(switchDetectionCallback);
+  irReflective.begin(IR_DOUT_PIN);            // join sensor
+  ultrasonic.begin(US_TRIG_PIN, US_ECHO_PIN); // fork sensor
+  trackSwitch.begin(readIrReflectiveSensor, readUltrasonicSensor, client, PowerFunctionsPort::BLUE, true);
 
   log_w("Setup complete");
 }
@@ -102,5 +148,29 @@ void setup()
 void loop()
 {
   trackSwitch.update();
+
+  M5.update();
+  if (M5.Btn.wasPressed())
+  {
+    switchBehavior = static_cast<SwitchBehavior>((static_cast<int>(switchBehavior) + 1) % static_cast<int>(SwitchBehavior::NumBehaviors));
+    switch (switchBehavior)
+    {
+    case SwitchBehavior::None:
+      log_w("Switch behavior: None");
+      trackSwitch.registerCallback(nullptr);
+      break;
+    case SwitchBehavior::Alternate:
+      log_w("Switch behavior: Alternate");
+      trackSwitch.registerCallback(alternatingSwitchCallback);
+      break;
+    case SwitchBehavior::Redirect:
+      log_w("Switch behavior: Train Redirect");
+      trackSwitch.registerCallback(trainRedirectCallback);
+      break;
+    }
+
+    delay(100);
+  }
+
   delay(10);
 }
