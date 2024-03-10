@@ -1,26 +1,19 @@
-#include <Arduino.h>
-#include <LegoinoCommon.h>
+#pragma once
 
+#include <Arduino.h>
+
+#include "..\IrBroadcast.h"
 #include "IrReflective.hpp"
 #include "Ultrasonic.h"
 
-// forward is going towards the fork
-// reervse is merging into the fork
 enum class TrainDirection
 {
     Undetected,
-    Forward,
-    Reverse
+    Forward, // towards the fork
+    Reverse // merging into fork
 };
 
-enum class TrainTrack
-{
-    Undetected,
-    Main,
-    Fork
-};
-
-enum class TrainState
+enum class TrainPosition
 {
     Undetected,
     Entering,
@@ -28,21 +21,31 @@ enum class TrainState
     Exiting
 };
 
+// called when train is first detected and when clearing the switch
+typedef void (*TrainDetectionCallback)(TrainPosition position, TrainDirection direction);
+
 class TrackSwitch
 {
 private:
-    Ultrasonic _usSensor;
     IrReflective _irSensor;
-    byte _motorPort;
+    Ultrasonic _usSensor;
+    PowerFunctionsIrBroadcast _pfIrClient;
+    PowerFunctionsPort _motorPort;
+    bool _switchState;
 
     TrainDirection _direction;
-    TrainTrack _track;
-    TrainState _state;
+    TrainPosition _position;
+    unsigned long _lastDetection;
+    TrainDetectionCallback _onEnterAndExit;
 
-    TrainTrack readForkSensor();
-    void logState();
+    bool readForkSensor();
 public:
-    void begin(Ultrasonic usSensor, IrReflective irSensor, byte motorPort);
+    unsigned long lastExitMillis = 0;
+
+    void logState();
+    void begin(Ultrasonic usSensor, IrReflective irSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, bool defaultState = false);
+    void registerCallback(TrainDetectionCallback callback);
+    void switchTrack();
+    void switchTrack(bool state);
     void update();
-    // onEnterCallback, onExitCallback
 };

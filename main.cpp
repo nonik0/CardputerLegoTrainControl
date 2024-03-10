@@ -5,7 +5,7 @@
 
 #include "common.h"
 #include "draw_helper.h"
-#include "IrBroadcast.hpp"
+#include "IrBroadcast.h"
 #include "CircuitCubes/CircuitCubesHub.h"
 #include "SBrick/SBrickHub.h"
 

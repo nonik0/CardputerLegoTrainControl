@@ -3,10 +3,10 @@
 #include <M5Atom.h>
 #include <WiFi.h>
 
-#include "..\IrBroadcast.hpp"
+#include "..\IrBroadcast.h"
 #include "IrReflective.hpp"
-#include "TrackSwitch.h"
 #include "Ultrasonic.h"
+#include "TrackSwitch.h"
 
 // ATOMIC PortABC Extension Base
 #define ATOM_PORT_A_Y 25
@@ -35,6 +35,11 @@
 PowerFunctionsIrBroadcast client;
 Ultrasonic ultrasonic;
 IrReflective irReflective;
+TrackSwitch trackSwitch;
+
+unsigned long lastTrainExited = 0;
+bool redirecting = false;
+unsigned long logMillis = 5000;
 
 void recvCallback(PowerFunctionsIrMessage message)
 {
@@ -55,7 +60,29 @@ void recvCallback(PowerFunctionsIrMessage message)
   }
 }
 
-TrackSwitch trackSwitch;
+void switchDetectionCallback(TrainPosition position, TrainDirection direction)
+{
+  log_w("CALLBACK: Train is %s %s", position, direction);
+
+  // if second train is entering switch soon after an initial train has exited, redirect it
+  if (position == TrainPosition::Entering && millis() - lastTrainExited < 10000)
+  {
+    log_w("Redirecting train, switching track");
+    trackSwitch.switchTrack();
+    redirecting = true;
+  }
+
+  if (position == TrainPosition::Exiting)
+  {
+    lastTrainExited = millis();
+    if (redirecting)
+    {
+      log_w("Done redirecting, switching back");
+      redirecting = false;
+      trackSwitch.switchTrack();
+    }
+  }
+}
 
 void setup()
 {
@@ -66,32 +93,14 @@ void setup()
 
   irReflective.begin(IR_DOUT_PIN);
   ultrasonic.begin(US_TRIG_PIN, US_ECHO_PIN);
-  trackSwitch.begin(ultrasonic, irReflective, (byte)(PowerFunctionsPort::RED));
-}
+  trackSwitch.begin(ultrasonic, irReflective, client, PowerFunctionsPort::BLUE, true);
+  trackSwitch.registerCallback(switchDetectionCallback);
 
-unsigned long lastTrainExited = 0;
-TrainTrack lastTrackExited = TrainTrack::Undetected;
+  log_w("Setup complete");
+}
 
 void loop()
 {
   trackSwitch.update();
-
-  // when another train enters forward before X time has passed since the last train exited, switch the track
-
-  // trackSwitch.onEnter = [&lastTrainExited, &lastTrackExited](TrainTrack track) {
-  //   if (lastTrackExited == TrainTrack::Main && track == TrainTrack::Fork && millis() - lastTrainExited < 5000)
-  //   {
-  //     client.single_pwm(PowerFunctionsPort::RED, 7, PowerFunctionsChannel::RED, false);
-  //     delay(1000);
-  //     client.single_pwm(PowerFunctionsPort::RED, 0, PowerFunctionsChannel::RED, false);
-  //   }
-  // };
-
-  // trackSwitch.onExit = [&lastTrainExited, &lastTrackExited](TrainTrack track) {
-  //   lastTrainExited = millis();
-  //   lastTrackExited = track;
-  // };
-
-  delay(50);
-  // TODO: callbacks for various functionality on repeaters (lights, sounds, etc.)
+  delay(10);
 }

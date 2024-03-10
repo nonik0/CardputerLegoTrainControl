@@ -1,33 +1,34 @@
 #include "TrackSwitch.h"
 
 // currently assumes sensor is closer to the forked track
-TrainTrack TrackSwitch::readForkSensor()
+bool TrackSwitch::readForkSensor()
 {
     float distance = _usSensor.getDistance();
+    return distance > 10.0f && distance < 165.0f;
 
-    if (distance > 10.0f && distance < 35.0f)
-        return TrainTrack::Fork;
-    else if (distance < 165.0f)
-        return TrainTrack::Main;
-    else
-        return TrainTrack::Undetected;
+    // if (distance > 10.0f && distance < 35.0f)
+    //     return TrainTrack::Fork;
+    // else if (distance < 165.0f)
+    //     return TrainTrack::Main;
+    // else
+    //     return TrainTrack::Undetected;
 }
 
 void TrackSwitch::logState()
 {
     String state = "Undetected";
     String direction = "Undetected";
-    String track = "Undetected";
+    // String track = "Undetected";
 
-    switch (_state)
+    switch (_position)
     {
-    case TrainState::Entering:
+    case TrainPosition::Entering:
         state = "entering";
         break;
-    case TrainState::Passing:
+    case TrainPosition::Passing:
         state = "passing";
         break;
-    case TrainState::Exiting:
+    case TrainPosition::Exiting:
         state = "exiting";
         break;
     }
@@ -38,137 +39,133 @@ void TrackSwitch::logState()
         direction = "forward";
         break;
     case TrainDirection::Reverse:
-        direction = "backward";
+        direction = "reverse";
         break;
     }
 
-    switch (_track)
-    {
-    case TrainTrack::Main:
-        track = "main";
-        break;
-    case TrainTrack::Fork:
-        track = "fork";
-        break;
-    }
-
-    if (_state == TrainState::Undetected)
-        log_w("Train left switch");
+    if (_position == TrainPosition::Undetected)
+        log_w("Train not detected at switch");
     else
-        log_w("Train is %s %s on %s track", state, direction, track);
+        log_w("Train is %s %s", state, direction);
 }
 
-void TrackSwitch::begin(Ultrasonic usSensor, IrReflective irSensor, byte motorPort)
+void TrackSwitch::begin(Ultrasonic usSensor, IrReflective irSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, bool defaultState)
 {
     _usSensor = usSensor;
     _irSensor = irSensor;
+
+    _pfIrClient = pfIrClient;
     _motorPort = motorPort;
+    _switchState = defaultState;
+    switchTrack(_switchState);
+}
+
+void TrackSwitch::registerCallback(TrainDetectionCallback callback)
+{
+    _onEnterAndExit = callback;
+}
+
+void TrackSwitch::switchTrack()
+{
+    _switchState = !_switchState;
+    switchTrack(_switchState);
+}
+
+void TrackSwitch::switchTrack(bool state)
+{
+    _switchState = !_switchState;
+
+    if (state)
+    {
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 0);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 0);
+        delay(300);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 0);
+    }
+    else
+    {
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 0);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 0);
+        delay(300);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 0);
+    }
 }
 
 void TrackSwitch::update()
 {
-    TrainTrack forkSensorReading;
-
-    TrainState lastState = _state;
+    TrainPosition lastState = _position;
     TrainDirection lastDirection = _direction;
-    TrainTrack lastTrack = _track;
 
-    switch (_state)
+    bool irDetection = _irSensor.isDetected();
+    bool usDetection = readForkSensor();
+
+    // only used when train is detected and _direction is set
+    bool inSensor = (_direction == TrainDirection::Forward) ? irDetection : usDetection;
+    bool outSensor = (_direction == TrainDirection::Forward) ? usDetection : irDetection;
+
+    switch (_position)
     {
-    case TrainState::Undetected:
-        if (_irSensor.isDetected())
+    case TrainPosition::Undetected:
+        if (irDetection)
         {
-            _state = TrainState::Entering;
+            log_w("1");
+            _position = TrainPosition::Entering;
             _direction = TrainDirection::Forward;
-            _track = TrainTrack::Main;
+            _lastDetection = millis();
+
+            //if (_onEnterAndExit != nullptr)
+            //    _onEnterAndExit(_position, _direction);
+            log_w("2");
         }
-        else if ((forkSensorReading = readForkSensor()) != TrainTrack::Undetected)
+        else if (usDetection)
         {
-            _state = TrainState::Entering;
+            log_w("3");
+            _position = TrainPosition::Entering;
             _direction = TrainDirection::Reverse;
-            _track = forkSensorReading;
+            _lastDetection = millis();
+            //if (_onEnterAndExit != nullptr)
+            //    _onEnterAndExit(_position, _direction);
+            log_w("4");
         }
         break;
-    case TrainState::Entering:
-        // wait for the opposite sensor to be triggered
-        if (_direction == TrainDirection::Forward)
-        {
-            if ((forkSensorReading = readForkSensor()) != TrainTrack::Undetected)
-            {
-                _state = TrainState::Passing;
-                _track = forkSensorReading;
-            }
-        }
-        else if (_direction == TrainDirection::Reverse)
-        {
-            if (_irSensor.isDetected())
-            {
-                _state = TrainState::Passing;
-                _track = TrainTrack::Main;
-            }
-        }
+    case TrainPosition::Entering:
+        // wait for the outgoing sensor to trigger
+        if (outSensor)
+            _position = TrainPosition::Passing;
+        else if (inSensor)
+            _lastDetection = millis();
+        else if (millis() - _lastDetection > 5000)
+            _position = TrainPosition::Undetected;
         break;
-    case TrainState::Passing:
-        // wait for the initial sensor to trigger to clear
-        if (_direction == TrainDirection::Forward)
-        {
-            if (!_irSensor.isDetected()) // TODO debounce?
-            {
-                _state = TrainState::Exiting;
-            }
-        }
-        else if (_direction == TrainDirection::Forward)
-        {
-            if ((forkSensorReading = readForkSensor()) == TrainTrack::Undetected) // TODO: debounce
-            {
-                _state = TrainState::Exiting;
-            }
-        }
+    case TrainPosition::Passing:
+        // wait for the incoming sensor to clear
+        if (!inSensor)
+            _position = TrainPosition::Exiting;
+        else if (outSensor)
+            _lastDetection = millis();
+        else if (millis() - _lastDetection > 5000)
+            _position = TrainPosition::Undetected;
         break;
-    case TrainState::Exiting:
-        // wait for the opposite sensor to clear
-        if (_direction == TrainDirection::Forward)
+    case TrainPosition::Exiting:
+        // wait for the outgoing sensor to clear (but debounce for to account for gaps between cars)
+        if (!outSensor)
         {
-            if ((forkSensorReading = readForkSensor()) == TrainTrack::Undetected) // TODO: debounce
+            if (millis() - _lastDetection > 300)
             {
-                _state = TrainState::Undetected;
+                log_w("Train detected leaving switch");
+                //if (_onEnterAndExit != nullptr)
+                //    _onEnterAndExit(_position, _direction);
+                _position = TrainPosition::Undetected;
+                lastExitMillis = millis();
             }
         }
-        else if (_direction == TrainDirection::Forward)
-        {
-            if (!_irSensor.isDetected()) // TODO debounce?
-            {
-                _state = TrainState::Undetected;
-            }
-        }
+        else
+            _lastDetection = millis();
         break;
     }
 
-    if (_state != lastState || _direction != lastDirection || _track != lastTrack)
+    if (_position != lastState || _direction != lastDirection)
     {
-        // TODO: invoke any applicable callbacks
         logState();
     }
 }
-
-// void switchTrack()
-//  {
-//    switchDirection = !switchDirection;
-
-//   if (switchDirection)
-//   {
-//     client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::REVERSE7, 0);
-//     delay(50);
-//     client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::FORWARD7, 0);
-//     delay(500);
-//     client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::BRAKE, 0);
-//   }
-//   else
-//   {
-//     client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::FORWARD7, 0);
-//     delay(50);
-//     client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::REVERSE7, 0);
-//     delay(500);
-//     client.single_pwm(PowerFunctionsPort::RED, PowerFunctionsPwm::BRAKE, 0);
-//   }
-// }
