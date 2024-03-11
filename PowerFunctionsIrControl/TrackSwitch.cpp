@@ -61,17 +61,23 @@ void TrackSwitch::switchTrack(bool state)
 {
     if (state)
     {
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 0);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 0);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 0, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 1, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 0, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 1, false);
         delay(300);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 0);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 0, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 1, false);
     }
     else
     {
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 0);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 0);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 0, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 1, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 0, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 1, false);
         delay(300);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 0);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 0, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 1, false);
     }
 }
 

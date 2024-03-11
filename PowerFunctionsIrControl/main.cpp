@@ -50,24 +50,6 @@ unsigned long lastTrainExited = 0;
 bool redirecting = false;
 unsigned long logMillis = 5000;
 
-bool readIrReflectiveSensor()
-{
-  return irReflective.isDetected();
-}
-
-bool readUltrasonicSensor()
-{
-  float distance = ultrasonic.getDistance();
-  return distance > 10.0f && distance < 165.0f;
-
-  // if (distance > 10.0f && distance < 35.0f)
-  //     return TrainTrack::Fork;
-  // else if (distance < 165.0f)
-  //     return TrainTrack::Main;
-  // else
-  //     return TrainTrack::Undetected;
-}
-
 void recvCallback(PowerFunctionsIrMessage message)
 {
   Serial.printf("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
@@ -133,15 +115,23 @@ void trainRedirectCallback(TrainPosition position, TrainDirection direction)
 
 void setup()
 {
-  M5.begin(true, false, false);
+  M5.begin(true, false, true);
+  
 
   client.enableBroadcast();
   client.registerRecvCallback(recvCallback);
 
   irReflective.begin(IR_DOUT_PIN);            // join sensor
   ultrasonic.begin(US_TRIG_PIN, US_ECHO_PIN); // fork sensor
-  trackSwitch.begin(readIrReflectiveSensor, readUltrasonicSensor, client, PowerFunctionsPort::BLUE, true);
+  trackSwitch.begin(
+    []() { return irReflective.isDetected(); },
+    []() { float distance = ultrasonic.getDistance(); return distance > 10.0f && distance < 165.0f; },
+    client,
+    PowerFunctionsPort::BLUE,
+    true);
 
+
+  M5.dis.drawpix(0, 0x00ff00);
   log_w("Setup complete");
 }
 
@@ -158,14 +148,17 @@ void loop()
     case SwitchBehavior::None:
       log_w("Switch behavior: None");
       trackSwitch.registerCallback(nullptr);
+      M5.dis.drawpix(0, 0x00ff00);
       break;
     case SwitchBehavior::Alternate:
       log_w("Switch behavior: Alternate");
       trackSwitch.registerCallback(alternatingSwitchCallback);
+      M5.dis.drawpix(0, 0x0000ff);
       break;
     case SwitchBehavior::Redirect:
       log_w("Switch behavior: Train Redirect");
       trackSwitch.registerCallback(trainRedirectCallback);
+      M5.dis.drawpix(0, 0xff0000);
       break;
     }
 
