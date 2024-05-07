@@ -28,14 +28,22 @@ jobs:
       - name: Build PlatformIO Project
         run: pio run
 
-      - name: Rename Bin File 
-        run: mv .pio/build/m5cardputer/firmware.bin LegoTrainRemote.bin    
+      - name: Install esptool
+        run: |
+          pip install -U esptool
+
+      - name: Create Cardputer Firmware Binary
+        run: |
+          esptool.py --chip esp32s3 merge_bin --output LegoTrainControl.bin \
+            0x00000 .pio/build/m5cardputer/bootloader.bin \
+            0x08000 .pio/build/m5cardputer/partitions.bin \
+            0x10000 .pio/build/m5cardputer/firmware.bin
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4.3.1
         with:
-          name: CardputerLegoTrainRemote
-          path: LegoTrainRemote.bin
+          name: CardputerLegoTrainControl
+          path: LegoTrainControl.bin
           if-no-files-found: error
 
   release:
@@ -54,4 +62,4 @@ jobs:
         name: ${{ github.ref_name }}
         tag_name: ${{ github.ref_name }}
         generate_release_notes: true
-        files: LegoTrainRemote.bin
+        files: LegoTrainControl.bin
