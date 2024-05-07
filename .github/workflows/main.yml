@@ -55,6 +55,8 @@ jobs:
     steps:
     - name: Download Build Artifact
       uses: actions/download-artifact@v4
+      with:
+        name: CardputerLegoTrainControl
 
     - name: Release ${{ github.ref_name }}
       uses: softprops/action-gh-release@v1
