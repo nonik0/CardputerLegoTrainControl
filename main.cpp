@@ -6,6 +6,8 @@
 #include "common.h"
 #include "draw_helper.h"
 #include "IrBroadcast.h"
+#include "settings.h"
+
 #include "CircuitCubes/CircuitCubesHub.h"
 #include "SBrick/SBrickHub.h"
 
@@ -491,7 +493,8 @@ void lpf2HandlePortAction(Button *button)
   else
   {
     // if stopped and waiting and manual action, clear wait state
-    if (lpf2SensorStopDelay > 0 && lpf2AutoAction == NoAction) {
+    if (lpf2SensorStopDelay > 0 && lpf2AutoAction == NoAction)
+    {
       lpf2SensorStopDelay = 0;
       lpf2PortSpeed[button->port] = 0;
     }
@@ -1141,6 +1144,11 @@ void circuitCubesUpdate()
 
 bool sdCardInit()
 {
+  if (sdInit)
+  {
+    return true;
+  }
+
   uint8_t retries = 3;
   SPI2.begin(M5.getPin(m5::pin_name_t::sd_spi_sclk),
              M5.getPin(m5::pin_name_t::sd_spi_miso),
@@ -1151,14 +1159,18 @@ bool sdCardInit()
     delay(100);
   }
 
+  if (!sdInit)
+  {
+    log_w("SD card init failed");
+  }
+
   return sdInit;
 }
 
 void saveScreenshot()
 {
-  if (!sdInit && !sdCardInit())
+  if (!sdCardInit())
   {
-    log_w("cannot initialize SD card");
     return;
   }
 
@@ -1674,6 +1686,12 @@ void handleKeyboardInput(bool &actionTaken)
       log_i("brightness: %d", brightness);
       M5Cardputer.Display.setBrightness(brightness);
     }
+
+    // save settings
+    if (M5Cardputer.Keyboard.isKeyPressed('v'))
+    {
+      saveSettings();
+    }
   }
 
   // take screenshot
@@ -1940,6 +1958,8 @@ void setup()
   // workaround for Legoino PowerFunctions ctor (don't want to put on heap)
   pinMode(IR_TX_PIN, OUTPUT);
   digitalWrite(IR_TX_PIN, LOW);
+
+  loadSettings();
 
   draw();
 }
