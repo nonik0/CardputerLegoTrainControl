@@ -1948,6 +1948,7 @@ void draw()
 void setup()
 {
   USBSerial.begin(115200);
+  while(!USBSerial); delay(10);
   auto cfg = M5.config();
   M5Cardputer.begin(cfg, true);
 

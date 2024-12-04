@@ -22,6 +22,10 @@ const char *SettingsNames[] = {
     "activeRemoteLeft",
     "activeRemoteRight",
 };
+const char *SettingNamesLower[] = {
+    "activeremoteleft",
+    "activeremoteright",
+};
 
 extern bool sdCardInit();
 
@@ -52,11 +56,11 @@ void loadSettings()
         value.trim();
         value.toLowerCase();
 
-        if (name == SettingsNames[ActiveRemoteLeft])
+        if (name == SettingNamesLower[ActiveRemoteLeft])
         {
             activeRemoteLeft = (RemoteDevice)value.toInt();
         }
-        else if (name == SettingsNames[ActiveRemoteRight])
+        else if (name == SettingNamesLower[ActiveRemoteRight])
         {
             activeRemoteRight = (RemoteDevice)value.toInt();
         }
