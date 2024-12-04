@@ -47,7 +47,9 @@ byte lpf2MotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if dete
 short lpf2SensorDistanceMovingAverage = 0;
 volatile Color lpf2SensorColor = Color::NONE; // detected color by sensor
 unsigned long lpf2SensorDebounce = 0;         // debounce sensor color changes
+short lpf2SensorStopSavedSpd = 0; // saved speed before stopping
 Color lpf2SensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
+// saved settings
 Color lpf2SensorSpdUpColor = Color::GREEN;
 Color lpf2SensorStopColor = Color::RED;
 Color lpf2SensorSpdDnColor = Color::YELLOW;
@@ -55,20 +57,20 @@ int8_t lpf2SensorSpdUpFunction = 0; // <0=disabled, >0 speed up
 int8_t lpf2SensorStopFunction = 0;  // <0=disabled, 0=brake, >0=wait time in seconds, // TODO? 0xFF=pause and reverse
 int8_t lpf2SensorSpdDnFunction = 0; // <0=disabled, >0 speed down
 unsigned long lpf2SensorStopDelay = 0;
-short lpf2SensorStopSavedSpd = 0; // saved speed before stopping
 
 // IR train control state
 const int IrMaxSpeed = 105;
 const short IrSpdInc = 15; // hacky but to match 7 levels
 PowerFunctionsIrBroadcast irTrainCtl;
-uint8_t irMode = 0; // 0=off, 1=track, 2=track, broadcast, 3=broadcast
-byte irChannel = 0;
 short irPortSpeed[4][2] = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
-bool irPortFunction[4][2] = {{false, false}, {false, false}, {false, false}, {false, false}}; // false=motor, true=switch
 unsigned long irSwitchDelay[2] = {0, 0};
 volatile RemoteAction irAutoAction = NoAction;
 volatile byte irAutoActionPort = 0xFF;
 volatile bool irActionBroadcastRecv = false; // reflect action on display, but don't do
+// saved settings
+uint8_t irMode = 0; // 0=off, 1=track, 2=track, broadcast, 3=broadcast
+byte irChannel = 0;
+bool irPortFunction[4][2] = {{false, false}, {false, false}, {false, false}, {false, false}}; // false=motor, true=switch
 
 // SBrick state
 const short SBrickSpdInc = 35; // ~ 255 / 10
@@ -78,12 +80,13 @@ float sbrickBatteryV = 0;
 float sbrickTempF = 0;
 volatile int sbrickRssi = -1000;
 short sbrickPortSpeed[4] = {0, 0, 0, 0};
-byte sbrickLeftPort = (byte)SBrickHubPort::A;
-byte sbrickRightPort = (byte)SBrickHubPort::B;
 unsigned long sbrickDisconnectDelay; // debounce disconnects
 unsigned long sbrickLastAction = 0;  // track for auto-disconnect
 // volatile Action sbrickAutoAction = NoAction;
 volatile RemoteAction sbrickAutoAction = NoAction;
+// saved settings
+byte sbrickLeftPort = (byte)SBrickHubPort::A;
+byte sbrickRightPort = (byte)SBrickHubPort::B;
 
 // SBrick sensor state
 bool sbrickMotionSensorInit = false;
@@ -103,12 +106,13 @@ CircuitCubesHub circuitCubesHub;
 float circuitCubesBatteryV = 0;
 bool circuitCubesInit = false;
 short circuitCubesPortSpeed[3] = {0, 0, 0};
-byte circuitCubesLeftPort = (byte)CircuitCubesHubPort::A;
-byte circuitCubesRightPort = (byte)CircuitCubesHubPort::B;
 volatile int circuitCubesRssi = -1000;
 unsigned long circuitCubesDisconnectDelay; // debounce disconnects
 unsigned long circuitCubesLastAction = 0;  // track for auto-disconnect
 // volatile Action circuitCubesAutoAction = NoAction;
+// saved settings 
+byte circuitCubesLeftPort = (byte)CircuitCubesHubPort::A;
+byte circuitCubesRightPort = (byte)CircuitCubesHubPort::B;
 
 // system bar state
 int batteryPct = M5Cardputer.Power.getBatteryLevel();
@@ -409,10 +413,6 @@ void lpf2ConnectionToggle()
     lpf2SensorPort = NO_SENSOR_FOUND;
     lpf2LedColor = Color::NONE;
     lpf2SensorColor = Color::NONE;
-    lpf2SensorSpdUpColor = Color::GREEN;
-    lpf2SensorStopColor = Color::RED;
-    lpf2SensorSpdDnColor = Color::YELLOW;
-    lpf2SensorStopFunction = 0;
     lpf2SensorStopDelay = 0;
   }
 }
