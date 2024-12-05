@@ -83,6 +83,8 @@ const char *SettingNamesLower[] = {
 };
 
 extern bool sdCardInit();
+extern PowerFunctionsIrBroadcast irTrainCtl;
+extern void powerFunctionsRecvCallback(PowerFunctionsIrMessage receivedMessage);
 
 File loadConfigFile(const char *mode)
 {
@@ -146,6 +148,11 @@ void loadSettings()
         else if (name == SettingNamesLower[IrModeSetting])
         {
             irMode = value.toInt();
+            if (irMode == 2 || irMode == 3)
+            {
+                irTrainCtl.enableBroadcast();
+                irTrainCtl.registerRecvCallback(powerFunctionsRecvCallback);
+            }
         }
         else if (name == SettingNamesLower[IrChannelSetting])
         {

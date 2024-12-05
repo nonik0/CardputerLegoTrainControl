@@ -1281,7 +1281,7 @@ void handleRemoteButtonPress(Button *button)
       irTrainCtl.enableBroadcast();
       irTrainCtl.registerRecvCallback(powerFunctionsRecvCallback);
     }
-    else if (irMode == 4)
+    else if (irMode == 0)
     {
       irTrainCtl.unregisterRecvCallback();
       irTrainCtl.disableBroadcast();
