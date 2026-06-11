@@ -21,5 +21,6 @@ float Ultrasonic::getDuration()
 float Ultrasonic::getDistance()
 {
     float distance = getDuration() * 0.34 / 2;
+    log_d("Distance: %.2f cm", distance);
     return distance > 4500.00 ? 4500.00 : distance;
 }

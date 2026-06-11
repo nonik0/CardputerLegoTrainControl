@@ -16,6 +16,10 @@ public:
 
     bool isDetected()
     {
-        return digitalRead(_pin) == 0;
+        bool detected = digitalRead(_pin) == 0;
+        if (detected) {
+            log_d("Detected");
+        }
+        return detected;
     }
 };

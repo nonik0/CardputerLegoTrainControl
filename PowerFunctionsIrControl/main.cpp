@@ -4,9 +4,9 @@
 #include <WiFi.h>
 
 #include "..\IrBroadcast.h"
-#include "IrReflective.hpp"
-#include "Ultrasonic.h"
+#include "IrReflective.h"
 #include "TrackSwitch.h"
+#include "Ultrasonic.h"
 
 // ATOMIC PortABC Extension Base
 #define ATOM_PORT_A_Y 25
@@ -15,6 +15,13 @@
 #define ATOM_PORT_B_W 33
 #define ATOM_PORT_C_Y 22
 #define ATOM_PORT_C_W 19
+
+#define REDC 0xFF0000
+#define YELLOWC 0xFFFF00
+#define GREENC 0x00FF00
+#define BLUEC 0x0000FF
+
+#define REDIRECT_THRESHOLD_MS 5000
 
 // Port A: IR TX/RX
 // #define IR_TX_PIN ATOM_PORT_A_Y # defined in platformio.ini
@@ -34,9 +41,14 @@
 
 enum class SwitchBehavior
 {
-  None,
+  // only manual control from remote
+  Manual,
+  // track is switched after each train passes
   Alternate,
+  // redirect incoming train to longer route if too close behind another train
   Redirect,
+  // redirect incoming train to to a loop if too close behind another train
+  RedirectLoop,
   NumBehaviors
 };
 
@@ -44,15 +56,15 @@ PowerFunctionsIrBroadcast client;
 Ultrasonic ultrasonic;
 IrReflective irReflective;
 TrackSwitch trackSwitch;
-SwitchBehavior switchBehavior = SwitchBehavior::None;
+SwitchBehavior switchBehavior;
 
-unsigned long lastTrainExited = 0;
+unsigned long lastTrainExitMs = 0;
 bool redirecting = false;
-unsigned long logMillis = 5000;
+bool redirected = false;
 
 void recvCallback(PowerFunctionsIrMessage message)
 {
-  Serial.printf("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
+  log_i("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
 
   // don't rebroadcast on actions taken from messages received
   switch (message.call)
@@ -72,34 +84,39 @@ void recvCallback(PowerFunctionsIrMessage message)
 void alternatingSwitchCallback(TrainPosition position, TrainDirection direction)
 {
   // no switching behavior possible in reverse direction
-  if (direction != TrainDirection::Forward)
+  if (direction != TrainDirection::Forking)
     return;
 
   if (position == TrainPosition::Exiting)
     trackSwitch.switchTrack();
 }
 
-void trainRedirectCallback(TrainPosition position, TrainDirection direction)
+void trainRedirectCallbackImpl(TrainPosition position, TrainDirection direction, bool loop)
 {
   // no switching behavior possible in reverse direction
-  if (direction != TrainDirection::Forward)
+  if (direction != TrainDirection::Forking)
     return;
 
-  // if second train is entering switch soon after an initial train has exited, redirect it
-  if (!redirecting && position == TrainPosition::Entering && millis() - lastTrainExited < 10000)
+  // if second train is entering switch soon after an initial train has exited, redirect it unless already redirected
+  if (!redirecting && !redirected && position == TrainPosition::Entering && millis() - lastTrainExitMs < REDIRECT_THRESHOLD_MS)
   {
-    log_w("Redirecting train, switching track");
+    log_w("Last train exited %d ms ago (<%d), redirecting", millis() - lastTrainExitMs, REDIRECT_THRESHOLD_MS);
     trackSwitch.switchTrack();
     redirecting = true;
   }
   else if (position == TrainPosition::Exiting)
   {
-    lastTrainExited = millis();
+    lastTrainExitMs = millis();
     if (redirecting)
     {
       log_w("Done redirecting, switching back");
       redirecting = false;
+      redirected = loop; // if loop allows redirected train to exit redirect loop
       trackSwitch.switchTrack();
+    }
+    else if (redirected)
+    {
+      redirected = false;
     }
   }
   else if (position == TrainPosition::Undetected)
@@ -113,10 +130,19 @@ void trainRedirectCallback(TrainPosition position, TrainDirection direction)
   }
 }
 
+void trainRedirectCallback(TrainPosition position, TrainDirection direction)
+{
+  trainRedirectCallbackImpl(position, direction, false);
+}
+
+void trainRedirectLoopCallback(TrainPosition position, TrainDirection direction)
+{
+  trainRedirectCallbackImpl(position, direction, true);
+}
+
 void setup()
 {
   M5.begin(true, false, true);
-  
 
   client.enableBroadcast();
   client.registerRecvCallback(recvCallback);
@@ -124,14 +150,16 @@ void setup()
   irReflective.begin(IR_DOUT_PIN);            // join sensor
   ultrasonic.begin(US_TRIG_PIN, US_ECHO_PIN); // fork sensor
   trackSwitch.begin(
-    []() { return irReflective.isDetected(); },
-    []() { float distance = ultrasonic.getDistance(); return distance > 10.0f && distance < 165.0f; },
-    client,
-    PowerFunctionsPort::BLUE,
-    true);
+      []()  
+      { return irReflective.isDetected(); },
+      []()
+      { float distance = ultrasonic.getDistance(); return distance > 10.0f && distance < 165.0f; },
+      client,
+      PowerFunctionsPort::BLUE,
+      true);
 
-
-  M5.dis.drawpix(0, 0x00ff00);
+  M5.dis.drawpix(0, REDC);
+  switchBehavior = SwitchBehavior::Manual;
   log_w("Setup complete");
 }
 
@@ -145,20 +173,25 @@ void loop()
     switchBehavior = static_cast<SwitchBehavior>((static_cast<int>(switchBehavior) + 1) % static_cast<int>(SwitchBehavior::NumBehaviors));
     switch (switchBehavior)
     {
-    case SwitchBehavior::None:
+    case SwitchBehavior::Manual:
       log_w("Switch behavior: None");
       trackSwitch.registerCallback(nullptr);
-      M5.dis.drawpix(0, 0x00ff00);
+      M5.dis.drawpix(0, REDC);
       break;
     case SwitchBehavior::Alternate:
       log_w("Switch behavior: Alternate");
       trackSwitch.registerCallback(alternatingSwitchCallback);
-      M5.dis.drawpix(0, 0x0000ff);
+      M5.dis.drawpix(0, YELLOWC);
       break;
     case SwitchBehavior::Redirect:
       log_w("Switch behavior: Train Redirect");
       trackSwitch.registerCallback(trainRedirectCallback);
-      M5.dis.drawpix(0, 0xff0000);
+      M5.dis.drawpix(0, GREENC);
+      break;
+    case SwitchBehavior::RedirectLoop:
+      log_w("Switch behavior: Train Redirect Loop");
+      trackSwitch.registerCallback(trainRedirectLoopCallback);
+      M5.dis.drawpix(0, BLUEC);
       break;
     }
 

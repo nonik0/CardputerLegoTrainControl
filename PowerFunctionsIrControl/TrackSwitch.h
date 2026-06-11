@@ -7,8 +7,8 @@
 enum class TrainDirection
 {
     Undetected,
-    Forward, // towards the fork
-    Reverse // merging into fork
+    Forking, // towards the fork
+    Merging // merging into fork
 };
 
 enum class TrainPosition
