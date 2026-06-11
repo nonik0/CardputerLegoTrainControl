@@ -53,9 +53,9 @@ Color lpf2SensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
 Color lpf2SensorSpdUpColor = Color::GREEN;
 Color lpf2SensorStopColor = Color::RED;
 Color lpf2SensorSpdDnColor = Color::YELLOW;
-int8_t lpf2SensorSpdUpFunction = 0; // <0=disabled, >0 speed up
+int8_t lpf2SensorSpdUpFunction = 0; // <0=disabled, 0=speed up, 1-10=10-100% speed
 int8_t lpf2SensorStopFunction = 0;  // <0=disabled, 0=brake, >0=wait time in seconds, // TODO? 0xFF=pause and reverse
-int8_t lpf2SensorSpdDnFunction = 0; // <0=disabled, >0 speed down
+int8_t lpf2SensorSpdDnFunction = 0; // <0=disabled, 0=speed dn, 1-10=10-100% speed
 unsigned long lpf2SensorStopDelay = 0;
 
 // IR train control state
@@ -461,7 +461,7 @@ void lpf2HandlePortAction(Button *button)
       switch (button->action)
       {
       case SpdUp:
-        lpf2SensorSpdUpFunction = (lpf2SensorSpdUpFunction == 0) ? -1 : 0;
+        lpf2SensorSpdUpFunction = (lpf2SensorSpdUpFunction == 10) ? -1 : lpf2SensorSpdUpFunction + 1;
         break;
       case Brake:
         if (button->action == Brake)
@@ -485,31 +485,58 @@ void lpf2HandlePortAction(Button *button)
         }
         break;
       case SpdDn:
-        lpf2SensorSpdDnFunction = (lpf2SensorSpdDnFunction == 0) ? -1 : 0;
+        lpf2SensorSpdDnFunction = (lpf2SensorSpdDnFunction == 10) ? -1 : lpf2SensorSpdDnFunction + 1;
         break;
       }
     }
   }
   else
   {
-    // if stopped and waiting and manual action, clear wait state
+    // clear stop delay if any manual action
     if (lpf2SensorStopDelay > 0 && lpf2AutoAction == NoAction)
     {
       lpf2SensorStopDelay = 0;
       lpf2PortSpeed[button->port] = 0;
     }
 
-    switch (button->action)
-    {
-    case SpdUp:
-      lpf2PortSpeed[button->port] = min(BtMaxSpeed, lpf2PortSpeed[button->port] + BtSpdInc);
-      break;
-    case Brake:
-      lpf2PortSpeed[button->port] = 0;
-      break;
-    case SpdDn:
-      lpf2PortSpeed[button->port] = max(-BtMaxSpeed, lpf2PortSpeed[button->port] - BtSpdInc);
-      break;
+    // if this is auto action handle differently
+    if (lpf2AutoAction != NoAction) {
+      switch (button->action)
+      {
+      case SpdUp:
+        if (lpf2SensorSpdUpFunction >= 0) {
+          int speed = (lpf2SensorSpdUpFunction > 0 && lpf2SensorSpdUpFunction < 11)
+            ? lpf2SensorSpdUpFunction * 10
+            : lpf2PortSpeed[button->port] + BtSpdInc;
+          lpf2PortSpeed[button->port] = min(BtMaxSpeed, speed);
+        }
+        break;
+      case Brake:
+        lpf2PortSpeed[button->port] = 0;
+        break;
+      case SpdDn:
+        if (lpf2SensorSpdDnFunction >= 0) {
+          int speed = (lpf2SensorSpdDnFunction > 0 && lpf2SensorSpdDnFunction < 11)
+            ? lpf2SensorSpdDnFunction * 10
+            : lpf2PortSpeed[button->port] - BtSpdInc;
+          lpf2PortSpeed[button->port] = min(BtMaxSpeed, speed);
+        }
+        break;
+      }
+    }
+    else {
+      switch (button->action)
+      {
+      case SpdUp:
+        lpf2PortSpeed[button->port] = min(BtMaxSpeed, lpf2PortSpeed[button->port] + BtSpdInc);
+        break;
+      case Brake:
+        lpf2PortSpeed[button->port] = 0;
+        break;
+      case SpdDn:
+        lpf2PortSpeed[button->port] = max(-BtMaxSpeed, lpf2PortSpeed[button->port] - BtSpdInc);
+        break;
+      }
     }
 
     lpf2Hub.setBasicMotorSpeed(button->port, lpf2PortSpeed[button->port]);

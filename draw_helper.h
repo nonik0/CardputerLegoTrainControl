@@ -208,36 +208,60 @@ inline void drawMotorSymbol(M5Canvas *canvas, int x, int y, RemoteAction action)
 
 inline void drawSensorSymbol(M5Canvas *canvas, int x, int y, Color color, RemoteAction action, int spdupFunction, int8_t stopFunction, int8_t spddnFunction)
 {
+  int gap = canvas->fontWidth();
+  int hgap = canvas->fontHeight() / 2;
+
+  int8_t functionValue;
+  bool isStop;
+  int symbolDX, symbolDY, textDX, textDY;
+  datum_t textDatum;
+
   switch (action)
   {
   case RemoteAction::SpdUp:
-    if (spdupFunction >= 0)
-      drawMotorSymbol(canvas, x, y, action);
+    functionValue = spdupFunction;
+    isStop = false;
+    symbolDX = 0;
+    symbolDY = -hgap;
+    textDX = 1;
+    textDY = hgap - 1;
+    textDatum = top_center;
     break;
   case RemoteAction::Brake:
-    if (stopFunction == 0)
-    {
-      drawMotorSymbol(canvas, x, y, action);
-    }
-    else if (stopFunction > 0)
-    {
-      int gap = canvas->fontWidth();
-
-      drawPauseSymbol(canvas, x - gap + 1 , y);
-
-      // match muted background color of button
-      int adjustedColor = interpolateColors(COLOR_LIGHTGRAY, BtColors[color], 50);
-
-      canvas->setTextColor(TFT_SILVER);
-      canvas->setTextDatum(middle_center);
-      canvas->setTextSize(1);
-      canvas->drawString(String(stopFunction), x + gap, y + 1);
-    }
+    functionValue = stopFunction;
+    isStop = true;
+    symbolDX = -gap + 2;
+    symbolDY = 0;
+    textDX = gap + 1;
+    textDY = 1;
+    textDatum = middle_center;
     break;
   case RemoteAction::SpdDn:
-    if (spddnFunction >= 0)
-      drawMotorSymbol(canvas, x, y, action);
+    functionValue = spddnFunction;
+    isStop = false;
+    symbolDX = 0;
+    symbolDY = hgap + 1;
+    textDX = 1;
+    textDY = -hgap + 3;
+    textDatum = bottom_center;
     break;
+  default:
+    return;
+  }
+
+  if (functionValue == 0)
+  {
+    drawMotorSymbol(canvas, x, y, action);
+  }
+  else if (functionValue > 0)
+  {
+    isStop ? drawPauseSymbol(canvas, x + symbolDX, y + symbolDY)
+           : drawMotorSymbol(canvas, x + symbolDX, y + symbolDY, action);
+
+    canvas->setTextColor(TFT_SILVER);
+    canvas->setTextDatum(textDatum);
+    canvas->setTextSize(1);
+    canvas->drawString(String(functionValue), x + textDX, y + textDY);
   }
 }
 

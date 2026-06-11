@@ -45,9 +45,9 @@ Function|Description
 ---|---
 Aux1 | Toggle BT connection
 Aux2 | shows last color detected by sensor, resume after stop
-Port Control Up | toggle "speed up" action: increment speed, off
+Port Control Up | toggle "speed up" action: increment speed, set speed 10%, 20%, ..., 100%, off
 Port Control Stop | toggle "stop" action: stop until interrupt (button on train or aux2 key), wait 2s/5s/9s and continue, off
-Port Control Down | toggle "speed down" action: decrement speed, off
+Port Control Down | toggle "speed down" action: decrement speed, set speed 10%, 20%, ..., 100%, off
 Function Shift + Port Key | change trigger color (defaults green, red, yellow)
 
 When a [color & distance sensor](https://www.lego.com/en-us/product/color-distance-sensor-88007) is plugged in, it will be auto-detected and the port function will change. The sensor should attached to the train facing down onto the track. The sensor can trigger three different auto-actions when the corresponding color on the port button is seen by the sensor. These trigger colors can be changed, see the table. The sensor distance is also measured and the train motor will turn off if the distance measured is too great, such as when the train tips over on the track.
