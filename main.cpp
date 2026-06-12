@@ -350,67 +350,37 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
 
   // trigger actions for specific colors
   RemoteAction action;
-  if (color == lpf2SensorSpdUpColor && lpf2SensorSpdUpFunction >= 0)
+  if (color == lpf2SensorSpdUpColor)
   {
     log_w("lpf2 auto action: spdup");
     lpf2AutoAction = SpdUp;
     lpf2AltAutoAction = false;
   }
-  else if (color == lpf2SensorSpdUpAltColor && lpf2SensorSpdUpAltFunction >= 0)
+  else if (color == lpf2SensorSpdUpAltColor)
   {
     log_w("lpf2 auto action: spdup (alt)");
     lpf2AutoAction = SpdUp;
     lpf2AltAutoAction = true;
   }
-  else if (color == lpf2SensorStopColor && lpf2SensorStopFunction != -1)
+  else if (color == lpf2SensorStopColor)
   {
-    // safety
-    if (lpf2PortSpeed[lpf2MotorPort] == 0) // already stopped, ignore
-      return;
-
-    // resumed by calling resumeTrainMotion() after delay
     log_w("lpf2 auto action: brake");
     lpf2AutoAction = Brake;
     lpf2AltAutoAction = false;
-    lpf2SensorStopDelay = millis() + abs(lpf2SensorStopFunction) * 1000;
-    lpf2SensorStopSavedSpd = lpf2PortSpeed[lpf2MotorPort];
-
-    // reverse direction and extend sensor debounce time after stop delay
-    // to allow train to move back over reverse color
-    if (lpf2SensorStopFunction < -1)
-    {
-      lpf2SensorStopSavedSpd *= -1;
-      lpf2SensorDebounce = lpf2SensorStopDelay + 3280 - (28 * abs(lpf2SensorStopSavedSpd));
-    }
   }
-  else if (color == lpf2SensorStopAltColor && lpf2SensorStopAltFunction != -1)
+  else if (color == lpf2SensorStopAltColor)
   {
-    // safety
-    if (lpf2PortSpeed[lpf2MotorPort] == 0) // already stopped, ignore
-      return;
-
-    // resumed by calling resumeTrainMotion() after delay
     log_w("lpf2 auto action: brake (alt)");
     lpf2AutoAction = Brake;
     lpf2AltAutoAction = true;
-    lpf2SensorStopDelay = millis() + abs(lpf2SensorStopAltFunction) * 1000;
-    lpf2SensorStopSavedSpd = lpf2PortSpeed[lpf2MotorPort];
-
-    // reverse direction and extend sensor debounce time after stop delay
-    // to allow train to move back over reverse color
-    if (lpf2SensorStopAltFunction < -1)
-    {
-      lpf2SensorStopSavedSpd *= -1;
-      lpf2SensorDebounce = lpf2SensorStopDelay + 3280 - (28 * abs(lpf2SensorStopSavedSpd));
-    }
   }
-  else if (color == lpf2SensorSpdDnColor && lpf2SensorSpdDnFunction >= 0)
+  else if (color == lpf2SensorSpdDnColor)
   {
     log_w("lpf2 auto action: spddn");
     lpf2AutoAction = SpdDn;
     lpf2AltAutoAction = false;
   }
-  else if (color == lpf2SensorSpdDnAltColor && lpf2SensorSpdDnAltFunction >= 0)
+  else if (color == lpf2SensorSpdDnAltColor)
   {
     log_w("lpf2 auto action: spddn (alt)");
     lpf2AutoAction = SpdDn;
@@ -421,7 +391,12 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
     return;
   }
 
-  // also show press for sensor button
+  // also show press for sensor button (but only if visible)
+  if (lpf2AltAutoAction != lpf2SensorPortFunction)
+  {
+    return;
+  }
+
   Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
   for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
   {
@@ -503,6 +478,7 @@ void lpf2HandlePortAction(Button *button)
   if (!lpf2Hub.isConnected())
     return;
 
+  // if button is on a port with color sensor
   if (button->port == lpf2SensorPort)
   {
     if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
@@ -565,55 +541,92 @@ void lpf2HandlePortAction(Button *button)
       }
     }
   }
+  // button is on a port with motor
   else
   {
     // noop for port function that is not on sensor port
     if (button->action == PortFunction)
     {
+      log_w("PortFunction is no-op for motor port");
       return;
     }
 
-    // clear stop delay if any manual action
+    // clear stop delay if any motor action
     if (lpf2SensorStopDelay > 0 && lpf2AutoAction == NoAction)
     {
+      log_w("clearing stop delay due to port action");
       lpf2SensorStopDelay = 0;
       lpf2PortSpeed[button->port] = 0;
     }
 
-    // if this is auto action handle differently
+    // if an auto action triggered this press, look at the corresponding sensor function to determine action
+    // resume action just relies on a "normal" motor action and falls to that case
     if (lpf2AutoAction != NoAction && !lpf2ResumeAction)
     {
-      int8_t &spdUpFunction = lpf2AltAutoAction ? lpf2SensorSpdUpAltFunction : lpf2SensorSpdUpFunction;
-      int8_t &spdDnFunction = lpf2AltAutoAction ? lpf2SensorSpdDnAltFunction : lpf2SensorSpdDnFunction;
       int direction = lpf2PortSpeed[button->port] >= 0 ? 1 : -1;
 
-      switch (button->action)
+      if (button->action == SpdUp)
       {
-      case SpdUp:
-        if (spdUpFunction >= 0)
+        int8_t &spdUpFunction = lpf2AltAutoAction ? lpf2SensorSpdUpAltFunction : lpf2SensorSpdUpFunction;
+        if (spdUpFunction == -1)
         {
-          int speed = (spdUpFunction > 0 && spdUpFunction < 11)
-                          ? direction * spdUpFunction * 10
-                          : lpf2PortSpeed[button->port] + BtSpdInc;
-          lpf2PortSpeed[button->port] = min(BtMaxSpeed, max(-BtMaxSpeed, speed));
+          button->pressed = false;
+          return;
         }
-        break;
-      case Brake:
-        lpf2PortSpeed[button->port] = 0;
-        break;
-      case SpdDn:
-        if (spdDnFunction >= 0)
+        int speed = (spdUpFunction > 0 && spdUpFunction < 11)
+                        ? direction * spdUpFunction * 10
+                        : lpf2PortSpeed[button->port] + BtSpdInc;
+        lpf2PortSpeed[button->port] = min(BtMaxSpeed, max(-BtMaxSpeed, speed));
+      }
+      else if (button->action == Brake)
+      {
+        int8_t &stopFunction = lpf2AltAutoAction ? lpf2SensorStopAltFunction : lpf2SensorStopFunction;
+        if (stopFunction == -1)
         {
-          int speed = (spdDnFunction > 0 && spdDnFunction < 11)
-                          ? direction * spdDnFunction * 10
-                          : lpf2PortSpeed[button->port] - BtSpdInc;
-          lpf2PortSpeed[button->port] = min(BtMaxSpeed, max(-BtMaxSpeed, speed));
+          button->pressed = false;
+          return;
         }
-        break;
+        if (lpf2PortSpeed[lpf2MotorPort] != 0)
+        {
+          lpf2SensorStopDelay = millis() + abs(stopFunction) * 1000;
+          lpf2SensorStopSavedSpd = lpf2PortSpeed[lpf2MotorPort];
+          if (stopFunction < -1)
+          {
+            lpf2SensorStopSavedSpd *= -1;
+            lpf2SensorDebounce = lpf2SensorStopDelay + 3280 - (28 * abs(lpf2SensorStopSavedSpd));
+          }
+          lpf2PortSpeed[button->port] = 0;
+        }
+      }
+      else if (button->action == SpdDn)
+      {
+        int8_t &spdDnFunction = lpf2AltAutoAction ? lpf2SensorSpdDnAltFunction : lpf2SensorSpdDnFunction;
+        if (spdDnFunction == -1)
+        {
+          button->pressed = false;
+          return;
+        }
+        int speed = (spdDnFunction > 0 && spdDnFunction < 11)
+                        ? direction * spdDnFunction * 10
+                        : lpf2PortSpeed[button->port] - BtSpdInc;
+        lpf2PortSpeed[button->port] = min(BtMaxSpeed, max(-BtMaxSpeed, speed));
       }
     }
+    // normal key press for motor controls
     else
     {
+      // clear tracking bool for resume if that was trigger
+      if (lpf2ResumeAction)
+      {
+        lpf2ResumeAction = false;
+
+        // if the previous auto action that originally scheduled the resume action is not visible, clear button press
+        if (lpf2SensorPortFunction != lpf2AltAutoAction)
+        {
+          button->pressed = false;
+        }
+      }
+
       switch (button->action)
       {
       case SpdUp:
@@ -1827,6 +1840,7 @@ void handleRemoteInput(bool &actionTaken)
   {
     log_w("lpf2 auto action: %d", lpf2AutoAction);
 
+    // color-triggered auto action trigger matching action on motor port
     Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
     for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
     {
