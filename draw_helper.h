@@ -182,6 +182,16 @@ inline void drawPauseSymbol(M5Canvas *canvas, int x, int y)
   canvas->fillRect(x - w / 2 + 2 * (w / 3), y - w / 2, w / 3, w, TFT_SILVER);
 }
 
+inline void drawDirectionSymbol(M5Canvas *canvas, int x, int y, bool forward)
+{
+  int w = 9;
+  int h = 6;
+  if (forward)
+    canvas->fillTriangle(x + w / 2, y, x - w / 2, y - h, x - w / 2, y + h, TFT_SILVER);
+  else
+    canvas->fillTriangle(x - w / 2, y, x + w / 2, y - h, x + w / 2, y + h, TFT_SILVER);
+}
+
 inline void drawMotorSymbol(M5Canvas *canvas, int x, int y, RemoteAction action)
 {
   int w, h;
@@ -206,63 +216,33 @@ inline void drawMotorSymbol(M5Canvas *canvas, int x, int y, RemoteAction action)
   }
 }
 
-inline void drawSensorSymbol(M5Canvas *canvas, int x, int y, RemoteAction action, int spdupFunction, int8_t stopFunction, int8_t spddnFunction)
+inline void drawSensorSymbol(M5Canvas *canvas, int x, int y, RemoteAction action, int8_t spdupFunction, int8_t stopFunction, int8_t spddnFunction)
 {
   int gap = canvas->fontWidth();
-  int hgap = canvas->fontHeight() / 2;
-
-  int8_t functionValue;
-  bool isStop;
-  int symbolDX, symbolDY, textDX, textDY;
-  datum_t textDatum;
-
-  switch (action)
-  {
-  case RemoteAction::SpdUp:
-    functionValue = spdupFunction;
-    isStop = false;
-    symbolDX = 0;
-    symbolDY = -hgap;
-    textDX = 1;
-    textDY = hgap - 1;
-    textDatum = top_center;
-    break;
-  case RemoteAction::Brake:
-    functionValue = stopFunction;
-    isStop = true;
-    symbolDX = -gap + 2;
-    symbolDY = 0;
-    textDX = gap + 1;
-    textDY = 1;
-    textDatum = middle_center;
-    break;
-  case RemoteAction::SpdDn:
-    functionValue = spddnFunction;
-    isStop = false;
-    symbolDX = 0;
-    symbolDY = hgap + 1;
-    textDX = 1;
-    textDY = -hgap + 3;
-    textDatum = bottom_center;
-    break;
-  default:
-    return;
-  }
+  int8_t functionValue = action == RemoteAction::SpdUp   ? spdupFunction
+                         : action == RemoteAction::SpdDn ? spddnFunction
+                                                         : stopFunction;
 
   if (functionValue == 0)
   {
     drawMotorSymbol(canvas, x, y, action);
+    return;
   }
-  else if (functionValue > 0)
-  {
-    isStop ? drawPauseSymbol(canvas, x + symbolDX, y + symbolDY)
-           : drawMotorSymbol(canvas, x + symbolDX, y + symbolDY, action);
 
-    canvas->setTextColor(TFT_SILVER);
-    canvas->setTextDatum(textDatum);
-    canvas->setTextSize(1);
-    canvas->drawString(String(functionValue), x + textDX, y + textDY);
-  }
+  if (functionValue == -1)
+    return; // disabled, draw nothing
+
+  // symbol left, value right
+  if (action == RemoteAction::Brake)
+    stopFunction > 0 ? drawPauseSymbol(canvas, x - gap + 2, y)
+                     : drawDirectionSymbol(canvas, x - gap + 2, y, false);
+  else
+    drawDirectionSymbol(canvas, x - gap + 2, y, true);
+
+  canvas->setTextColor(TFT_SILVER);
+  canvas->setTextDatum(middle_center);
+  canvas->setTextSize(1);
+  canvas->drawString(String(abs(functionValue)), x + gap + 1, y + 1);
 }
 
 inline void drawPulseSymbol(M5Canvas *canvas, int x, int y, bool highPulse)

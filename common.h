@@ -65,15 +65,15 @@ enum RemoteDevice
 
 enum RemoteAction
 {
-  NoAction,
-  SpdDn,
-  Brake,
-  SpdUp,
-  PortFunction,
-  BtConnection,
-  Lpf2Color,
-  IrChannel,
-  IrMode
+  NoAction = 0,
+  SpdDn = 1,
+  Brake = 2,
+  SpdUp = 3,
+  PortFunction = 4,
+  BtConnection = 5,
+  Lpf2Color = 6,
+  IrChannel = 7,
+  IrMode = 8
 };
 
 struct Button

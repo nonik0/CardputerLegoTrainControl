@@ -47,7 +47,7 @@ Aux1 | Toggle BT connection
 Aux2 | shows last color detected by sensor, resume after stop
 Port Function Toggle | toggle between visible actions (actions not visible will still trigger,)
 Port Control Up | toggle "speed up" action: increment speed, set speed 10%, 20%, ..., 100%, off
-Port Control Stop | toggle "stop" action: stop until interrupt (button on train or aux2 key), wait 2s/5s/9s and continue, off
+Port Control Stop | toggle "stop" action: stop until interrupt (button on train or aux2 key), wait 2s/5s/9s and continue, wait 2s/5s/9s and reverse direction, off
 Port Control Down | toggle "speed down" action: decrement speed, set speed 10%, 20%, ..., 100%, off
 Function Shift + Port Key | change trigger color (defaults green, red, yellow, and alts light blue, orange, purple)
 
