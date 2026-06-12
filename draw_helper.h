@@ -206,7 +206,7 @@ inline void drawMotorSymbol(M5Canvas *canvas, int x, int y, RemoteAction action)
   }
 }
 
-inline void drawSensorSymbol(M5Canvas *canvas, int x, int y, Color color, RemoteAction action, int spdupFunction, int8_t stopFunction, int8_t spddnFunction)
+inline void drawSensorSymbol(M5Canvas *canvas, int x, int y, RemoteAction action, int spdupFunction, int8_t stopFunction, int8_t spddnFunction)
 {
   int gap = canvas->fontWidth();
   int hgap = canvas->fontHeight() / 2;
@@ -407,7 +407,7 @@ inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, Sta
   case RemoteAction::Brake:
   case RemoteAction::SpdDn:
     if (button.device == RemoteDevice::PoweredUp && button.port == state.lpf2SensorPort)
-      drawSensorSymbol(canvas, x, y, state.lpf2SensorSpdUpColor, button.action, state.lpf2SensorSpdUpFunction, state.lpf2SensorStopFunction, state.lpf2SensorSpdDnFunction);
+      drawSensorSymbol(canvas, x, y, button.action, state.lpf2SensorSpdUpFunction, state.lpf2SensorStopFunction, state.lpf2SensorSpdDnFunction);
     else if (button.device == RemoteDevice::PowerFunctionsIR && state.irPortFunction[button.port])
       drawSwitchSymbol(canvas, x, y, button.action, state.irPortFunction);
     else if (button.device == RemoteDevice::SBrick && button.port == state.sbrickMotionSensorPort)

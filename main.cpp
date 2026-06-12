@@ -37,8 +37,9 @@ unsigned long lpf2DisconnectDelay;    // debounce disconnects
 unsigned long lpf2ButtonDebounce = 0; // debounce button presses
 volatile Color lpf2LedColor = Color::NONE;
 unsigned short lpf2LedColorDelay = 0;
-unsigned long lpf2LastAction = 0; // track for auto-disconnect
-volatile RemoteAction lpf2AutoAction = NoAction;
+unsigned long lpf2LastAction = 0;                // track for auto-disconnect
+volatile RemoteAction lpf2AutoAction = NoAction; // action triggered by color sensor
+volatile bool lpf2AltAutoAction = false;         // true if alt auto action
 
 // lpf2 color/distance sensor
 bool lpf2SensorInit = false;
@@ -47,16 +48,23 @@ byte lpf2MotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if dete
 short lpf2SensorDistanceMovingAverage = 0;
 volatile Color lpf2SensorColor = Color::NONE; // detected color by sensor
 unsigned long lpf2SensorDebounce = 0;         // debounce sensor color changes
-short lpf2SensorStopSavedSpd = 0; // saved speed before stopping
+short lpf2SensorStopSavedSpd = 0;             // saved speed before stopping
 Color lpf2SensorIgnoreColors[] = {Color::BLACK, Color::BLUE};
 // saved settings
 Color lpf2SensorSpdUpColor = Color::GREEN;
+Color lpf2SensorSpdUpAltColor = Color::LIGHTBLUE;
 Color lpf2SensorStopColor = Color::RED;
+Color lpf2SensorStopAltColor = Color::ORANGE;
 Color lpf2SensorSpdDnColor = Color::YELLOW;
-int8_t lpf2SensorSpdUpFunction = 0; // <0=disabled, 0=speed up, 1-10=10-100% speed
-int8_t lpf2SensorStopFunction = 0;  // <0=disabled, 0=brake, >0=wait time in seconds, // TODO? 0xFF=pause and reverse
-int8_t lpf2SensorSpdDnFunction = 0; // <0=disabled, 0=speed dn, 1-10=10-100% speed
+Color lpf2SensorSpdDnAltColor = Color::PURPLE;
+int8_t lpf2SensorSpdUpFunction = 0;     // <0=disabled, 0=speed up, 1-10=10-100% speed
+int8_t lpf2SensorSpdUpAltFunction = -1; // <0=disabled, 0=speed up, 1-10=10-100% speed
+int8_t lpf2SensorStopFunction = 0;      // <0=disabled, 0=brake, >0=wait time in seconds, // TODO? 0xFF=pause and reverse
+int8_t lpf2SensorStopAltFunction = -1;  // <0=disabled, 0=brake, >0=wait time in seconds, // TODO? 0xFF=pause and reverse
+int8_t lpf2SensorSpdDnFunction = 0;     // <0=disabled, 0=speed dn, 1-10=10-100% speed
+int8_t lpf2SensorSpdDnAltFunction = -1; // <0=disabled, 0=speed dn, 1-10=10-100% speed
 unsigned long lpf2SensorStopDelay = 0;
+bool lpf2SensorPortFunction = false; // controls which functions are visible and modifiable: false = normal, true = alt
 
 // IR train control state
 const int IrMaxSpeed = 105;
@@ -82,7 +90,6 @@ volatile int sbrickRssi = -1000;
 short sbrickPortSpeed[4] = {0, 0, 0, 0};
 unsigned long sbrickDisconnectDelay; // debounce disconnects
 unsigned long sbrickLastAction = 0;  // track for auto-disconnect
-// volatile Action sbrickAutoAction = NoAction;
 volatile RemoteAction sbrickAutoAction = NoAction;
 // saved settings
 byte sbrickLeftPort = (byte)SBrickHubPort::A;
@@ -110,7 +117,7 @@ volatile int circuitCubesRssi = -1000;
 unsigned long circuitCubesDisconnectDelay; // debounce disconnects
 unsigned long circuitCubesLastAction = 0;  // track for auto-disconnect
 // volatile Action circuitCubesAutoAction = NoAction;
-// saved settings 
+// saved settings
 byte circuitCubesLeftPort = (byte)CircuitCubesHubPort::A;
 byte circuitCubesRightPort = (byte)CircuitCubesHubPort::B;
 
@@ -168,12 +175,15 @@ int rrh = lrh;
 int rrtx = (rx + rw + rrx + rrw) / 2;
 int rrty = rry + (rrh / 2);
 
+// TODO: refactor -- whole lotta duped stuff we can share
 Button lpf2HubButtons[] = {
     {AuxOne, AuxCol, Row1_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, BtConnection, COLOR_LIGHTGRAY, false},
     {AuxTwo, AuxCol, Row2_5, bw, bw, RemoteDevice::PoweredUp, 0xFF, Lpf2Color, COLOR_LIGHTGRAY, false},
+    {LeftPortFunction, HiddenCol, HiddenRow, 0, 0, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, PortFunction, COLOR_LIGHTGRAY, false},
     {LeftPortSpdUp, LeftPortCol, Row1, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, SpdUp, COLOR_LIGHTGRAY, false},
     {LeftPortBrake, LeftPortCol, Row2, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, Brake, COLOR_LIGHTGRAY, false},
     {LeftPortSpdDn, LeftPortCol, Row3, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::A, SpdDn, COLOR_LIGHTGRAY, false},
+    {RightPortFunction, HiddenCol, HiddenRow, 0, 0, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::B, PortFunction, COLOR_LIGHTGRAY, false},
     {RightPortSpdUp, RightPortCol, Row1, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::B, SpdUp, COLOR_LIGHTGRAY, false},
     {RightPortBrake, RightPortCol, Row2, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::B, Brake, COLOR_LIGHTGRAY, false},
     {RightPortSpdDn, RightPortCol, Row3, bw, bw, RemoteDevice::PoweredUp, (byte)PoweredUpHubPort::B, SpdDn, COLOR_LIGHTGRAY, false}};
@@ -324,8 +334,11 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   }
 
   lpf2SensorColor = color;
-  lpf2SensorDebounce = millis() + 200;
+  lpf2SensorDebounce = millis() + 500;
   redraw = true;
+
+  lpf2LedColor = color;
+  trainCtl->setLedColor(color);
 
   // ignore "ground" or noisy colors
   if (isIgnoredColor(color))
@@ -333,28 +346,49 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
     return;
   }
 
-  lpf2LedColor = color;
-  trainCtl->setLedColor(color);
-
   // trigger actions for specific colors
   RemoteAction action;
   if (color == lpf2SensorSpdUpColor && lpf2SensorSpdUpFunction >= 0)
   {
-    log_w("lpf2 action: spdup");
+    log_w("lpf2 auto action: spdup");
     lpf2AutoAction = SpdUp;
+    lpf2AltAutoAction = false;
+  }
+  else if (color == lpf2SensorSpdUpAltColor && lpf2SensorSpdUpAltFunction >= 0)
+  {
+    log_w("lpf2 auto action: spdup (alt)");
+    lpf2AutoAction = SpdUp;
+    lpf2AltAutoAction = true;
   }
   else if (color == lpf2SensorStopColor && lpf2SensorStopFunction >= 0)
   {
     // resumed by calling resumeTrainMotion() after delay
-    log_w("lpf2 action: brake");
+    log_w("lpf2 auto action: brake");
     lpf2AutoAction = Brake;
+    lpf2AltAutoAction = false;
+    lpf2SensorStopDelay = millis() + lpf2SensorStopFunction * 1000;
+    lpf2SensorStopSavedSpd = lpf2PortSpeed[lpf2MotorPort];
+  }
+  else if (color == lpf2SensorStopAltColor && lpf2SensorStopAltFunction >= 0)
+  {
+    // resumed by calling resumeTrainMotion() after delay
+    log_w("lpf2 auto action: brake (alt)");
+    lpf2AutoAction = Brake;
+    lpf2AltAutoAction = true;
     lpf2SensorStopDelay = millis() + lpf2SensorStopFunction * 1000;
     lpf2SensorStopSavedSpd = lpf2PortSpeed[lpf2MotorPort];
   }
   else if (color == lpf2SensorSpdDnColor && lpf2SensorSpdDnFunction >= 0)
   {
-    log_w("lpf2 action: spddn");
+    log_w("lpf2 auto action: spddn");
     lpf2AutoAction = SpdDn;
+    lpf2AltAutoAction = false;
+  }
+  else if (color == lpf2SensorSpdDnAltColor && lpf2SensorSpdDnAltFunction >= 0)
+  {
+    log_w("lpf2 auto action: spddn (alt)");
+    lpf2AutoAction = SpdDn;
+    lpf2AltAutoAction = true;
   }
   else
   {
@@ -417,6 +451,24 @@ void lpf2ConnectionToggle()
   }
 }
 
+void lpf2CycleSensorColor(Color &target)
+{
+  const Color allSensorColors[] = {
+      lpf2SensorSpdUpColor, lpf2SensorSpdUpAltColor,
+      lpf2SensorStopColor, lpf2SensorStopAltColor,
+      lpf2SensorSpdDnColor, lpf2SensorSpdDnAltColor};
+
+  do
+  {
+    target = (target == Color::BLACK)
+        ? Color(Color::NUM_COLORS - 1)
+        : Color(target - 1);
+
+  } while (isIgnoredColor(target) ||
+           std::any_of(std::begin(allSensorColors), std::end(allSensorColors),
+                       [&](Color c){ return target == c; }));
+}
+
 void lpf2HandlePortAction(Button *button)
 {
   log_w("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
@@ -431,67 +483,63 @@ void lpf2HandlePortAction(Button *button)
       switch (button->action)
       {
       case SpdUp:
-        do
-        {
-          lpf2SensorSpdUpColor = (lpf2SensorSpdUpColor == Color::BLACK)
-                                     ? Color(Color::NUM_COLORS - 1)
-                                     : (Color)(lpf2SensorSpdUpColor - 1);
-        } while (isIgnoredColor(lpf2SensorSpdUpColor) || lpf2SensorSpdUpColor == lpf2SensorSpdDnColor || lpf2SensorSpdUpColor == lpf2SensorStopColor);
+        lpf2CycleSensorColor(lpf2SensorPortFunction ? lpf2SensorSpdUpAltColor : lpf2SensorSpdUpColor);
         break;
       case Brake:
-        do
-        {
-          lpf2SensorStopColor = (lpf2SensorStopColor == Color::BLACK)
-                                    ? Color(Color::NUM_COLORS - 1)
-                                    : (Color)(lpf2SensorStopColor - 1);
-        } while (isIgnoredColor(lpf2SensorStopColor) || lpf2SensorStopColor == lpf2SensorSpdUpColor || lpf2SensorStopColor == lpf2SensorSpdDnColor);
+        lpf2CycleSensorColor(lpf2SensorPortFunction ? lpf2SensorStopAltColor : lpf2SensorStopColor);
         break;
       case SpdDn:
-        do
-        {
-          lpf2SensorSpdDnColor = (lpf2SensorSpdDnColor == Color::BLACK)
-                                     ? Color(Color::NUM_COLORS - 1)
-                                     : (Color)(lpf2SensorSpdDnColor - 1);
-        } while (isIgnoredColor(lpf2SensorSpdDnColor) || lpf2SensorSpdDnColor == lpf2SensorSpdUpColor || lpf2SensorSpdDnColor == lpf2SensorStopColor);
+        lpf2CycleSensorColor(lpf2SensorPortFunction ? lpf2SensorSpdDnAltColor : lpf2SensorSpdDnColor);
         break;
       }
     }
     else
     {
+      int8_t &spdUpFunction = lpf2SensorPortFunction ? lpf2SensorSpdUpAltFunction : lpf2SensorSpdUpFunction;
+      int8_t &spdDnFunction = lpf2SensorPortFunction ? lpf2SensorSpdDnAltFunction : lpf2SensorSpdDnFunction;
+      int8_t &stopFunction = lpf2SensorPortFunction ? lpf2SensorStopAltFunction : lpf2SensorStopFunction;
+
       switch (button->action)
       {
       case SpdUp:
-        lpf2SensorSpdUpFunction = (lpf2SensorSpdUpFunction == 10) ? -1 : lpf2SensorSpdUpFunction + 1;
+        spdUpFunction = (spdUpFunction == 10) ? -1 : spdUpFunction + 1;
         break;
       case Brake:
-        if (button->action == Brake)
-        {
-          if (lpf2SensorStopFunction == 0)
-            lpf2SensorStopFunction = 2;
-          else if (lpf2SensorStopFunction == 2)
-            lpf2SensorStopFunction = 5;
-          else if (lpf2SensorStopFunction == 5)
-            lpf2SensorStopFunction = 9;
-          else if (lpf2SensorStopFunction == 9)
-            lpf2SensorStopFunction = -1;
-          else
-            lpf2SensorStopFunction = 0;
+        if (stopFunction == 0)
+          stopFunction = 2;
+        else if (stopFunction == 2)
+          stopFunction = 5;
+        else if (stopFunction == 5)
+          stopFunction = 9;
+        else if (stopFunction == 9)
+          stopFunction = -1;
+        else
+          stopFunction = 0;
 
-          // if currently waiting, reset delay to new setting or clear pause state
-          if (lpf2SensorStopDelay > 0)
-          {
-            lpf2SensorStopDelay = lpf2SensorStopFunction > 0 ? millis() + (lpf2SensorStopFunction * 1000) : 0;
-          }
+        // if currently waiting, reset delay to new setting or clear pause state
+        // only relevant for normal stop function, not alt
+        if (lpf2SensorStopDelay > 0)
+        {
+          lpf2SensorStopDelay = stopFunction > 0 ? millis() + (stopFunction * 1000) : 0;
         }
         break;
       case SpdDn:
-        lpf2SensorSpdDnFunction = (lpf2SensorSpdDnFunction == 10) ? -1 : lpf2SensorSpdDnFunction + 1;
+        spdDnFunction = (spdDnFunction == 10) ? -1 : spdDnFunction + 1;
+        break;
+      case PortFunction:
+        lpf2SensorPortFunction = !lpf2SensorPortFunction;
         break;
       }
     }
   }
   else
   {
+    // noop for port function that is not on sensor port
+    if (button->action == PortFunction)
+    {
+      return;
+    }
+
     // clear stop delay if any manual action
     if (lpf2SensorStopDelay > 0 && lpf2AutoAction == NoAction)
     {
@@ -500,14 +548,19 @@ void lpf2HandlePortAction(Button *button)
     }
 
     // if this is auto action handle differently
-    if (lpf2AutoAction != NoAction) {
+    if (lpf2AutoAction != NoAction)
+    {
+      int8_t &spdUpFunction = lpf2AltAutoAction ? lpf2SensorSpdUpAltFunction : lpf2SensorSpdUpFunction;
+      int8_t &spdDnFunction = lpf2AltAutoAction ? lpf2SensorSpdDnAltFunction : lpf2SensorSpdDnFunction;
+
       switch (button->action)
       {
       case SpdUp:
-        if (lpf2SensorSpdUpFunction >= 0) {
-          int speed = (lpf2SensorSpdUpFunction > 0 && lpf2SensorSpdUpFunction < 11)
-            ? lpf2SensorSpdUpFunction * 10
-            : lpf2PortSpeed[button->port] + BtSpdInc;
+        if (spdUpFunction >= 0)
+        {
+          int speed = (spdUpFunction > 0 && spdUpFunction < 11)
+                          ? spdUpFunction * 10
+                          : lpf2PortSpeed[button->port] + BtSpdInc;
           lpf2PortSpeed[button->port] = min(BtMaxSpeed, speed);
         }
         break;
@@ -515,16 +568,18 @@ void lpf2HandlePortAction(Button *button)
         lpf2PortSpeed[button->port] = 0;
         break;
       case SpdDn:
-        if (lpf2SensorSpdDnFunction >= 0) {
-          int speed = (lpf2SensorSpdDnFunction > 0 && lpf2SensorSpdDnFunction < 11)
-            ? lpf2SensorSpdDnFunction * 10
-            : lpf2PortSpeed[button->port] - BtSpdInc;
+        if (spdDnFunction >= 0)
+        {
+          int speed = (spdDnFunction > 0 && spdDnFunction < 11)
+                          ? spdDnFunction * 10
+                          : lpf2PortSpeed[button->port] - BtSpdInc;
           lpf2PortSpeed[button->port] = min(BtMaxSpeed, speed);
         }
         break;
       }
     }
-    else {
+    else
+    {
       switch (button->action)
       {
       case SpdUp:
@@ -553,8 +608,11 @@ void lpf2Update()
     lpf2MotorPort = NO_SENSOR_FOUND;
     lpf2SensorPort = NO_SENSOR_FOUND;
     lpf2SensorSpdUpColor = Color::GREEN;
+    lpf2SensorSpdUpAltColor = Color::NONE;
     lpf2SensorStopColor = Color::RED;
+    lpf2SensorStopAltColor = Color::NONE;
     lpf2SensorSpdDnColor = Color::YELLOW;
+    lpf2SensorSpdDnAltColor = Color::NONE;
     lpf2SensorStopFunction = 0;
     lpf2SensorStopDelay = 0;
     redraw = true;
@@ -1351,11 +1409,11 @@ unsigned short getButtonColor(Button *button)
       switch (button->action)
       {
       case SpdUp:
-        return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpf2SensorSpdUpColor], 50);
+        return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpf2SensorPortFunction ? lpf2SensorSpdUpAltColor : lpf2SensorSpdUpColor], 50);
       case Brake:
-        return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpf2SensorStopColor], 50);
+        return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpf2SensorPortFunction ? lpf2SensorStopAltColor : lpf2SensorStopColor], 50);
       case SpdDn:
-        return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpf2SensorSpdDnColor], 50);
+        return interpolateColors(COLOR_LIGHTGRAY, BtColors[lpf2SensorPortFunction ? lpf2SensorSpdDnAltColor : lpf2SensorSpdDnColor], 50);
       default:
         return button->color;
       }
@@ -1939,8 +1997,9 @@ void draw()
   // draw layout for both active remotes
   State state = {lpf2Init, lpf2Rssi,
                  lpf2SensorColor, lpf2SensorPort,
-                 lpf2SensorSpdUpColor, lpf2SensorStopColor, lpf2SensorSpdDnColor,
-                 lpf2SensorSpdUpFunction, lpf2SensorStopFunction, lpf2SensorSpdDnFunction,
+                 lpf2SensorPortFunction ? lpf2SensorSpdUpAltFunction : lpf2SensorSpdUpFunction,
+                 lpf2SensorPortFunction ? lpf2SensorStopAltFunction : lpf2SensorStopFunction,
+                 lpf2SensorPortFunction ? lpf2SensorSpdDnAltFunction : lpf2SensorSpdDnFunction,
                  sbrickInit, sbrickRssi,
                  sbrickMotionSensorPort, sbrickMotionSensorV, sbrickMotionSensorNeutralV,
                  sbrickTiltSensorPort, sbrickTiltSensorV, sbrickTiltSensorNeutralV,

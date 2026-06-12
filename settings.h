@@ -12,11 +12,17 @@ extern RemoteDevice activeRemoteLeft;
 extern RemoteDevice activeRemoteRight;
 
 extern Color lpf2SensorSpdUpColor;
+extern Color lpf2SensorSpdUpAltColor;
 extern Color lpf2SensorStopColor;
+extern Color lpf2SensorStopAltColor;
 extern Color lpf2SensorSpdDnColor;
+extern Color lpf2SensorSpdDnAltColor;
 extern int8_t lpf2SensorSpdUpFunction;
+extern int8_t lpf2SensorSpdUpAltFunction;
 extern int8_t lpf2SensorStopFunction;
+extern int8_t lpf2SensorStopAltFunction;
 extern int8_t lpf2SensorSpdDnFunction;
+extern int8_t lpf2SensorSpdDnAltFunction;
 
 extern uint8_t irMode;
 extern byte irChannel;
@@ -32,30 +38,42 @@ enum Settings
     ActiveRemoteLeft = 0,
     ActiveRemoteRight = 1,
     Lpf2SensorSpdUpColor = 2,
-    Lpf2SensorStopColor = 3,
-    Lpf2SensorSpdDnColor = 4,
-    Lpf2SensorSpdUpFunction = 5,
-    Lpf2SensorStopFunction = 6,
-    Lpf2SensorSpdDnFunction = 7,
-    IrModeSetting = 8,
-    IrChannelSetting = 9,
-    IrPortFunction = 10,
-    SbrickLeftPort = 11,
-    SbrickRightPort = 12,
-    CircuitCubesLeftPort = 13,
-    CircuitCubesRightPort = 14,
-    SettingsCount = 15
+    Lpf2SensorSpdUpAltColor = 3,
+    Lpf2SensorStopColor = 4,
+    Lpf2SensorStopAltColor = 5,
+    Lpf2SensorSpdDnColor = 6,
+    Lpf2SensorSpdDnAltColor = 7,
+    Lpf2SensorSpdUpFunction = 8,
+    Lpf2SensorSpdUpAltFunction = 9,
+    Lpf2SensorStopFunction = 10,
+    Lpf2SensorStopAltFunction = 11,
+    Lpf2SensorSpdDnFunction = 12,
+    Lpf2SensorSpdDnAltFunction = 13,
+    IrModeSetting =14,
+    IrChannelSetting = 15,
+    IrPortFunction = 16,
+    SbrickLeftPort = 17,
+    SbrickRightPort = 18,
+    CircuitCubesLeftPort = 19,
+    CircuitCubesRightPort = 20,
+    SettingsCount = 21
 };
 
 const char *SettingsNames[] = {
     "activeRemoteLeft",
     "activeRemoteRight",
     "lpf2SensorSpdUpColor",
+    "lpf2SensorSpdUpAltColor",
     "lpf2SensorStopColor",
+    "lpf2SensorStopAltColor",
     "lpf2SensorSpdDnColor",
+    "lpf2SensorSpdDnAltColor",
     "lpf2SensorSpdUpFunction",
+    "lpf2SensorSpdUpAltFunction",
     "lpf2SensorStopFunction",
+    "lpf2SensorStopAltFunction",
     "lpf2SensorSpdDnFunction",
+    "lpf2SensorSpdDnAltFunction",
     "irMode",
     "irChannel",
     "irPortFunction",
@@ -68,11 +86,17 @@ const char *SettingNamesLower[] = {
     "activeremoteleft",
     "activeremoteright",
     "lpf2sensorspdupcolor",
+    "lpf2sensorspdupaltcolor",
     "lpf2sensorstopcolor",
+    "lpf2sensorstopaltcolor",
     "lpf2sensorspddncolor",
+    "lpf2sensorspddnaltcolor",
     "lpf2sensorspdupfunction",
+    "lpf2sensorspdupaltfunction",
     "lpf2sensorstopfunction",
+    "lpf2sensorstopaltfunction",
     "lpf2sensorspddnfunction",
+    "lpf2sensorspddnaltfunction",
     "irmode",
     "irchannel",
     "irportfunction",
@@ -125,25 +149,49 @@ void loadSettings()
         {
             lpf2SensorSpdUpColor = (Color)value.toInt();
         }
+        else if (name == SettingNamesLower[Lpf2SensorSpdUpAltColor])
+        {
+            lpf2SensorSpdUpAltColor = (Color)value.toInt();
+        }
         else if (name == SettingNamesLower[Lpf2SensorStopColor])
         {
             lpf2SensorStopColor = (Color)value.toInt();
+        }
+        else if (name == SettingNamesLower[Lpf2SensorStopAltColor])
+        {
+            lpf2SensorStopAltColor = (Color)value.toInt();
         }
         else if (name == SettingNamesLower[Lpf2SensorSpdDnColor])
         {
             lpf2SensorSpdDnColor = (Color)value.toInt();
         }
+        else if (name == SettingNamesLower[Lpf2SensorSpdDnAltColor])
+        {
+            lpf2SensorSpdDnAltColor = (Color)value.toInt();
+        }
         else if (name == SettingNamesLower[Lpf2SensorSpdUpFunction])
         {
             lpf2SensorSpdUpFunction = value.toInt();
+        }
+        else if (name == SettingNamesLower[Lpf2SensorSpdUpAltFunction])
+        {
+            lpf2SensorSpdUpAltFunction = value.toInt();
         }
         else if (name == SettingNamesLower[Lpf2SensorStopFunction])
         {
             lpf2SensorStopFunction = value.toInt();
         }
+        else if (name == SettingNamesLower[Lpf2SensorStopAltFunction])
+        {
+            lpf2SensorStopAltFunction = value.toInt();
+        }
         else if (name == SettingNamesLower[Lpf2SensorSpdDnFunction])
         {
             lpf2SensorSpdDnFunction = value.toInt();
+        }
+        else if (name == SettingNamesLower[Lpf2SensorSpdDnAltFunction])
+        {
+            lpf2SensorSpdDnAltFunction = value.toInt();
         }
         else if (name == SettingNamesLower[IrModeSetting])
         {
@@ -215,20 +263,38 @@ void saveSettings()
         case Lpf2SensorSpdUpColor:
             configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorSpdUpColor], lpf2SensorSpdUpColor);
             break;
+        case Lpf2SensorSpdUpAltColor:
+            configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorSpdUpAltColor], lpf2SensorSpdUpAltColor);
+            break;
         case Lpf2SensorStopColor:
             configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorStopColor], lpf2SensorStopColor);
+            break;
+        case Lpf2SensorStopAltColor:
+            configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorStopAltColor], lpf2SensorStopAltColor);
             break;
         case Lpf2SensorSpdDnColor:
             configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorSpdDnColor], lpf2SensorSpdDnColor);
             break;
+        case Lpf2SensorSpdDnAltColor:
+            configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorSpdDnAltColor], lpf2SensorSpdDnAltColor);
+            break;
         case Lpf2SensorSpdUpFunction:
             configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorSpdUpFunction], lpf2SensorSpdUpFunction);
+            break;
+        case Lpf2SensorSpdUpAltFunction:
+            configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorSpdUpAltFunction], lpf2SensorSpdUpAltFunction);
             break;
         case Lpf2SensorStopFunction:
             configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorStopFunction], lpf2SensorStopFunction);
             break;
+        case Lpf2SensorStopAltFunction:
+            configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorStopAltFunction], lpf2SensorStopAltFunction);
+            break;
         case Lpf2SensorSpdDnFunction:
             configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorSpdDnFunction], lpf2SensorSpdDnFunction);
+            break;
+        case Lpf2SensorSpdDnAltFunction:
+            configFile.printf("%s=%d\n", SettingsNames[Lpf2SensorSpdDnAltFunction], lpf2SensorSpdDnAltFunction);
             break;
         case IrModeSetting:
             configFile.printf("%s=%d\n", SettingsNames[IrModeSetting], irMode);

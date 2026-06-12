@@ -91,16 +91,13 @@ struct Button
 };
 
 // used for conveying current state when drawing
-// TODO: better way to do this...eventually pass pointers to object instances?
+// TODO: eventually refactor devices into remotes and draw off their state
 struct State
 {
   bool lpf2Connected;
   int lpf2Rssi;
   Color lpf2SensorColor;
   byte lpf2SensorPort;
-  Color lpf2SensorSpdUpColor;
-  Color lpf2SensorStopColor;
-  Color lpf2SensorSpdDnColor;
   int8_t lpf2SensorSpdUpFunction;
   int8_t lpf2SensorStopFunction;
   int8_t lpf2SensorSpdDnFunction;
