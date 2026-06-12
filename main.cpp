@@ -40,6 +40,7 @@ unsigned short lpf2LedColorDelay = 0;
 unsigned long lpf2LastAction = 0;                // track for auto-disconnect
 volatile RemoteAction lpf2AutoAction = NoAction; // action triggered by color sensor
 volatile bool lpf2AltAutoAction = false;         // true if alt auto action
+volatile bool lpf2ResumeAction = false;          // true when train resumes motion, ignores spndup/spddn function
 
 // lpf2 color/distance sensor
 bool lpf2SensorInit = false;
@@ -248,10 +249,11 @@ bool isIgnoredColor(Color color)
 void lpf2ResumeTrainMotion()
 {
   lpf2SensorStopDelay = 0;
-  lpf2PortSpeed[lpf2MotorPort] = lpf2SensorStopSavedSpd;
-  lpf2Hub.setBasicMotorSpeed(lpf2MotorPort, lpf2SensorStopSavedSpd);
-  redraw = true;
-  log_w("resuming train motion: %d", lpf2SensorStopSavedSpd);
+  lpf2AutoAction = lpf2SensorStopSavedSpd > 0 ? SpdUp : SpdDn;
+  lpf2ResumeAction = true;
+  short btSpdAdjust = lpf2SensorStopSavedSpd > 0 ? -BtSpdInc : BtSpdInc;
+  lpf2PortSpeed[lpf2MotorPort] = lpf2SensorStopSavedSpd + btSpdAdjust;
+  log_w("resuming train motion: %d", lpf2PortSpeed[lpf2MotorPort]);
 }
 
 void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
@@ -579,7 +581,7 @@ void lpf2HandlePortAction(Button *button)
     }
 
     // if this is auto action handle differently
-    if (lpf2AutoAction != NoAction)
+    if (lpf2AutoAction != NoAction && !lpf2ResumeAction)
     {
       int8_t &spdUpFunction = lpf2AltAutoAction ? lpf2SensorSpdUpAltFunction : lpf2SensorSpdUpFunction;
       int8_t &spdDnFunction = lpf2AltAutoAction ? lpf2SensorSpdDnAltFunction : lpf2SensorSpdDnFunction;
