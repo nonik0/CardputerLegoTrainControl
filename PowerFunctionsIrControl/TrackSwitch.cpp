@@ -35,16 +35,17 @@ void TrackSwitch::logState()
     if (_position == TrainPosition::Undetected)
         log_w("Train not detected at switch");
     else
-        log_w("Train is %s %s", state, direction);
+        log_i("Train is %s %s", state, direction);
 }
 
-void TrackSwitch::begin(std::function<bool()> mergeSensor, std::function<bool()> forkSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, bool defaultState)
+void TrackSwitch::begin(std::function<bool()> mergeSensor, std::function<bool()> forkSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, uint8_t motorChannel, bool defaultState)
 {
     _joinSensor = mergeSensor;
     _forkSensor = forkSensor;
 
     _pfIrClient = pfIrClient;
     _motorPort = motorPort;
+    _motorChannel = motorChannel;
     _switchState = defaultState;
     switchTrack(_switchState);
 }
@@ -64,23 +65,17 @@ void TrackSwitch::switchTrack(bool state)
 {
     if (state)
     {
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 0, false);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 1, false);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 0, false);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 1, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, _motorChannel, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, _motorChannel, true);
         delay(300);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 0, false);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 1, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, _motorChannel, true);
     }
     else
     {
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 0, false);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, 1, false);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 0, false);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, 1, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, _motorChannel, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, _motorChannel, true);
         delay(300);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 0, false);
-        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, 1, false);
+        _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, _motorChannel, true);
     }
 }
 

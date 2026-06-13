@@ -13,7 +13,7 @@ void PowerFunctionsIrBroadcast::_broadcastMessage(PowerFunctionsCall call, Power
     }
     else
     {
-        log_d("Broadcast message sent");
+        log_i("SEND=>[CALL:%d|PORT:%d|PWM:%d|CHAN:%d]", call, port, pwm, channel);
     }
 }
 
@@ -22,7 +22,7 @@ void PowerFunctionsIrBroadcast::_onDataRecv(const uint8_t *mac, const uint8_t *i
     PowerFunctionsIrMessage message = _recvMessage;
 
     memcpy(&message, incomingData, sizeof(message));
-    log_d("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
+    log_i("RECV<=[CALL:%d|PORT:%d|PWM:%d|CHAN:%d]", message.call, message.port, message.pwm, message.channel);
 
     if (powerFunctionsIrRecvCallBackInstance != nullptr)
     {
@@ -60,6 +60,17 @@ void PowerFunctionsIrBroadcast::single_decrement(PowerFunctionsPort port, uint8_
     }
 }
 
+void PowerFunctionsIrBroadcast::switch_mode_toggle(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
+{
+    if (!_broadcastEnabled)
+    {
+        log_w("Broadcast not enabled, cannot send switch mode toggle");
+        return;
+    }
+
+    _broadcastMessage(PowerFunctionsCall::SwitchModeToggle, port, pwm, channel);
+}
+
 PowerFunctionsPwm PowerFunctionsIrBroadcast::speedToPwm(byte speed)
 {
     return powerFunctionsCtl.speedToPwm(speed);
@@ -92,9 +103,10 @@ void PowerFunctionsIrBroadcast::disableBroadcast()
         return;
     }
 
-    log_w("Disabling broadcast");
+    log_i("Disabling broadcast");
     esp_now_deinit();
     WiFi.mode(WIFI_OFF);
+    _broadcastEnabled = false;
 }
 
 void PowerFunctionsIrBroadcast::enableBroadcast()
@@ -105,7 +117,7 @@ void PowerFunctionsIrBroadcast::enableBroadcast()
         return;
     }
 
-    log_w("Enabling broadcast");
+    log_i("Enabling broadcast");
 
     WiFi.mode(WIFI_STA);
 

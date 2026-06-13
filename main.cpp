@@ -243,7 +243,7 @@ void lpf2ResumeTrainMotion()
   lpf2ResumeAction = true;
   short btSpdAdjust = lpf2SensorStopSavedSpd > 0 ? -BtSpdInc : BtSpdInc;
   lpf2PortSpeed[lpf2MotorPort] = lpf2SensorStopSavedSpd + btSpdAdjust;
-  log_w("resuming train motion: %d", lpf2PortSpeed[lpf2MotorPort]);
+  log_i("resuming train motion: %d", lpf2PortSpeed[lpf2MotorPort]);
 }
 
 void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
@@ -332,13 +332,13 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   // return if previous auto action not handled yet (ignoring disabled actions)
   if (lpf2AutoAction != NoAction && !lpf2DisabledAction)
   {
-    log_w("previous auto action not handled");
+    log_i("previous auto action not handled");
     return;
   }
 
   if (millis() < lpf2SensorDebounce)
   {
-    log_w("auto action debounce");
+    log_i("auto action debounce");
     return;
   }
 
@@ -346,42 +346,42 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   RemoteAction action;
   if (color == lpf2SensorSpdUpColor)
   {
-    log_w("lpf2 auto action: spdup");
+    log_i("lpf2 auto action: spdup");
     lpf2AutoAction = SpdUp;
     lpf2AltAutoAction = false;
     lpf2DisabledAction = lpf2SensorSpdUpFunction < 0;
   }
   else if (color == lpf2SensorSpdUpAltColor)
   {
-    log_w("lpf2 auto action: spdup (alt)");
+    log_i("lpf2 auto action: spdup (alt)");
     lpf2AutoAction = SpdUp;
     lpf2AltAutoAction = true;
     lpf2DisabledAction = lpf2SensorSpdUpAltFunction < 0;
   }
   else if (color == lpf2SensorStopColor)
   {
-    log_w("lpf2 auto action: brake");
+    log_i("lpf2 auto action: brake");
     lpf2AutoAction = Brake;
     lpf2AltAutoAction = false;
     lpf2DisabledAction = lpf2SensorStopFunction == -1;
   }
   else if (color == lpf2SensorStopAltColor)
   {
-    log_w("lpf2 auto action: brake (alt)");
+    log_i("lpf2 auto action: brake (alt)");
     lpf2AutoAction = Brake;
     lpf2AltAutoAction = true;
     lpf2DisabledAction = lpf2SensorStopAltFunction == -1;
   }
   else if (color == lpf2SensorSpdDnColor)
   {
-    log_w("lpf2 auto action: spddn");
+    log_i("lpf2 auto action: spddn");
     lpf2AutoAction = SpdDn;
     lpf2AltAutoAction = false;
     lpf2DisabledAction = lpf2SensorSpdDnFunction < 0;
   }
   else if (color == lpf2SensorSpdDnAltColor)
   {
-    log_w("lpf2 auto action: spddn (alt)");
+    log_i("lpf2 auto action: spddn (alt)");
     lpf2AutoAction = SpdDn;
     lpf2AltAutoAction = true;
     lpf2DisabledAction = lpf2SensorSpdDnAltFunction < 0;
@@ -472,7 +472,7 @@ void lpf2CycleSensorColor(Color &target)
 
 void lpf2HandlePortAction(Button *button)
 {
-  log_w("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
+  log_i("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
 
   if (!lpf2Hub.isConnected())
     return;
@@ -546,14 +546,14 @@ void lpf2HandlePortAction(Button *button)
     // noop for port function that is not on sensor port
     if (button->action == PortFunction)
     {
-      log_w("PortFunction is no-op for motor port");
+      log_i("PortFunction is no-op for motor port");
       return;
     }
 
     // clear stop delay if any motor action
     if (lpf2SensorStopDelay > 0 && lpf2AutoAction == NoAction)
     {
-      log_w("clearing stop delay due to port action");
+      log_i("clearing stop delay due to port action");
       lpf2SensorStopDelay = 0;
       lpf2PortSpeed[button->port] = 0;
     }
@@ -713,9 +713,19 @@ void lpf2Update()
   }
 }
 
+void powerFunctionsInit()
+{
+  if (irMode == 2 || irMode == 3)
+  {
+    log_i("enabling IR broadcast and receive");
+    irTrainCtl.enableBroadcast();
+    irTrainCtl.registerRecvCallback(powerFunctionsRecvCallback);
+  }
+}
+
 void powerFunctionsHandlePortAction(Button *button)
 {
-  if (button->action == PortFunction || M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  if (button->action == PortFunction)
   {
     irPortFunction[irChannel][button->port] = !irPortFunction[irChannel][button->port];
   }
@@ -739,8 +749,13 @@ void powerFunctionsHandlePortAction(Button *button)
         irPortSpeed[irChannel][button->port] = IrMaxSpeed;
         break;
       case Brake:
+        // special case: send control toggle broadcast request alt key + brake in broadcast mode
+        if ((irMode == 2 || irMode == 3) && (M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER)))
+        {
+          irTrainCtl.switch_mode_toggle((PowerFunctionsPort)button->port, PowerFunctionsPwm::FLOAT, irChannel);
+          return;
+        }
         irPortSpeed[irChannel][button->port] = irPortSpeed[irChannel][button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
-        ;
         break;
       case SpdDn:
         irPortSpeed[irChannel][button->port] = -IrMaxSpeed;
@@ -990,7 +1005,7 @@ void sbrickConnectionToggle()
   {
     if (!sbrickHub.isConnecting())
     {
-      log_w("init sbrick");
+      log_i("init sbrick");
       sbrickHub.init();
     }
 
@@ -1006,7 +1021,7 @@ void sbrickConnectionToggle()
 
     if (sbrickHub.isConnecting() && sbrickHub.connectHub())
     {
-      log_w("connected to sbrick");
+      log_i("connected to sbrick");
       sbrickInit = true;
 
       // detect sensors and subscribe to them
@@ -1016,7 +1031,7 @@ void sbrickConnectionToggle()
 
         if (detectedSensor == (byte)SBrickDevice::MotionSensor && !sbrickMotionSensorInit)
         {
-          log_w("sbrick port %d detected as motion sensor %d", port, detectedSensor);
+          log_i("sbrick port %d detected as motion sensor %d", port, detectedSensor);
           sbrickHub.subscribeSensor(port, sbrickMotionSensorCallback);
           sbrickMotionSensorInit = true;
           sbrickMotionSensorPort = port;
@@ -1024,7 +1039,7 @@ void sbrickConnectionToggle()
         }
         else if (detectedSensor == (byte)SBrickDevice::TiltSensor && !sbrickTiltSensorInit)
         {
-          log_w("sbrick port %d detected as tilt sensor %d", port, detectedSensor);
+          log_i("sbrick port %d detected as tilt sensor %d", port, detectedSensor);
           sbrickHub.subscribeSensor(port, sbrickTiltSensorCallback);
           sbrickTiltSensorInit = true;
           sbrickTiltSensorPort = port;
@@ -1034,7 +1049,7 @@ void sbrickConnectionToggle()
 
       if (sbrickHub.getWatchdogTimeout() != 11)
       {
-        log_w("setting sbrick watchdog to 1.1s");
+        log_i("setting sbrick watchdog to 1.1s");
         sbrickHub.setWatchdogTimeout(11); // we read at least 1/s so 1.1s should be safe
       }
 
@@ -1336,7 +1351,7 @@ void saveScreenshot()
     file.write(pngBytes, pngLen);
     file.flush();
     file.close();
-    log_w("saved screenshot to %s, %d bytes", filename.c_str(), pngLen);
+    log_i("saved screenshot to %s, %d bytes", filename.c_str(), pngLen);
   }
   else
   {
@@ -1348,7 +1363,7 @@ void saveScreenshot()
 
 void handleRemoteButtonPress(Button *button)
 {
-  log_w("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
+  log_i("[DEVICE:%d][PORT:%d][ACTION:%d]", button->device, button->port, button->action);
 
   button->pressed = true;
 
@@ -1380,7 +1395,7 @@ void handleRemoteButtonPress(Button *button)
       lpf2LedColor = (lpf2LedColor == Color(1))
                          ? Color(Color::NUM_COLORS - 1)
                          : (Color)(lpf2LedColor - 1);
-      log_w("bt color: %d", lpf2LedColor);
+      log_i("bt color: %d", lpf2LedColor);
       if (lpf2Hub.isConnected())
         lpf2Hub.setLedColor(lpf2LedColor);
     }
@@ -1409,11 +1424,13 @@ void handleRemoteButtonPress(Button *button)
 
     if (irMode == 2)
     {
+      log_i("enabling IR broadcast and receive");
       irTrainCtl.enableBroadcast();
       irTrainCtl.registerRecvCallback(powerFunctionsRecvCallback);
     }
     else if (irMode == 0)
     {
+      log_i("disabling IR broadcast and receive");
       irTrainCtl.unregisterRecvCallback();
       irTrainCtl.disableBroadcast();
     }
@@ -1837,7 +1854,7 @@ void handleRemoteInput(bool &actionTaken)
   // sensor or button triggered action
   if (lpf2AutoAction != NoAction)
   {
-    log_w("lpf2 auto action: %d", lpf2AutoAction);
+    log_i("lpf2 auto action: %d", lpf2AutoAction);
 
     // color-triggered auto action trigger matching action on motor port
     Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
@@ -2092,6 +2109,8 @@ void setup()
   digitalWrite(IR_TX_PIN, LOW);
 
   loadSettings();
+
+  powerFunctionsInit();
 
   draw();
 }

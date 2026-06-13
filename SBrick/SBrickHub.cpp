@@ -408,7 +408,7 @@ byte SBrickHub::detectPortSensor(byte port)
     //float batV = getBatteryLevel();
     float idVoltage = readAdcChannel(sensorIdChannel);
     float valueVoltage = readAdcChannel(sensorValueChannel);
-    log_w("[port: %d] [c1: %f] [c2: %f]", port, idVoltage, valueVoltage);
+    log_i("[port: %d] [c1: %f] [c2: %f]", port, idVoltage, valueVoltage);
 
     // TODO: subject to change over battery life, maybe should be relative to battery voltage?
     if (idVoltage >= 3.0 && valueVoltage >= 3.0)

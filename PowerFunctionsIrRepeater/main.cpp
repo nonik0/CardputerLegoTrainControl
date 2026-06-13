@@ -1,6 +1,11 @@
 #include <Arduino.h>
+#include <esp_now.h>
+#include <M5Atom.h>
+#include <WiFi.h>
 
-#include "..\IrBroadcast.hpp"
+#include "..\IrBroadcast.h"
+
+PowerFunctionsIrBroadcast client;
 
 void recvCallback(PowerFunctionsIrMessage message)
 {

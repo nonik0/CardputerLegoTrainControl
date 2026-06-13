@@ -8,7 +8,7 @@ enum class TrainDirection
 {
     Undetected,
     Forking, // towards the fork
-    Merging // merging into fork
+    Merging  // merging into fork
 };
 
 enum class TrainPosition
@@ -29,17 +29,19 @@ private:
     std::function<bool()> _forkSensor;
     PowerFunctionsIrBroadcast _pfIrClient;
     PowerFunctionsPort _motorPort;
+    uint8_t _motorChannel;
     bool _switchState;
 
     TrainDirection _direction;
     TrainPosition _position;
     unsigned long _lastDetection;
     TrainDetectionCallback _onEnterAndExit;
+
 public:
     unsigned long lastExitMillis = 0;
 
     void logState();
-    void begin(std::function<bool()> joinSensor, std::function<bool()> forkSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, bool defaultState = false);
+    void begin(std::function<bool()> joinSensor, std::function<bool()> forkSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, uint8_t motorChannel, bool defaultState = false);
     void registerCallback(TrainDetectionCallback callback);
     void switchTrack();
     void switchTrack(bool state);

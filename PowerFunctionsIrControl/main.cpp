@@ -58,28 +58,11 @@ IrReflective irReflective;
 TrackSwitch trackSwitch;
 SwitchBehavior switchBehavior;
 
+uint8_t controlSwitchChannel = 0;
+PowerFunctionsPort controlSwitchPort = PowerFunctionsPort::BLUE;
 unsigned long lastTrainExitMs = 0;
 bool redirecting = false;
 bool redirected = false;
-
-void recvCallback(PowerFunctionsIrMessage message)
-{
-  log_i("\n[P:%d|S:%d|C:%d]\n", message.port, message.pwm, message.channel);
-
-  // don't rebroadcast on actions taken from messages received
-  switch (message.call)
-  {
-  case PowerFunctionsCall::SinglePwm:
-    client.single_pwm(message.port, message.pwm, message.channel, false);
-    break;
-  case PowerFunctionsCall::SingleIncrement:
-    client.single_increment(message.port, message.channel, false);
-    break;
-  case PowerFunctionsCall::SingleDecrement:
-    client.single_decrement(message.port, message.channel, false);
-    break;
-  }
-}
 
 void alternatingSwitchCallback(TrainPosition position, TrainDirection direction)
 {
@@ -100,7 +83,7 @@ void trainRedirectCallbackImpl(TrainPosition position, TrainDirection direction,
   // if second train is entering switch soon after an initial train has exited, redirect it unless already redirected
   if (!redirecting && !redirected && position == TrainPosition::Entering && millis() - lastTrainExitMs < REDIRECT_THRESHOLD_MS)
   {
-    log_w("Last train exited %d ms ago (<%d), redirecting", millis() - lastTrainExitMs, REDIRECT_THRESHOLD_MS);
+    log_i("Last train exited %d ms ago (<%d), redirecting", millis() - lastTrainExitMs, REDIRECT_THRESHOLD_MS);
     trackSwitch.switchTrack();
     redirecting = true;
   }
@@ -109,7 +92,7 @@ void trainRedirectCallbackImpl(TrainPosition position, TrainDirection direction,
     lastTrainExitMs = millis();
     if (redirecting)
     {
-      log_w("Done redirecting, switching back");
+      log_i("Done redirecting, switching back");
       redirecting = false;
       redirected = loop; // if loop allows redirected train to exit redirect loop
       trackSwitch.switchTrack();
@@ -123,7 +106,7 @@ void trainRedirectCallbackImpl(TrainPosition position, TrainDirection direction,
   {
     if (redirecting)
     {
-      log_w("Tracking issue, switching back");
+      log_i("Tracking issue, switching back");
       redirecting = false;
       trackSwitch.switchTrack();
     }
@@ -140,6 +123,82 @@ void trainRedirectLoopCallback(TrainPosition position, TrainDirection direction)
   trainRedirectCallbackImpl(position, direction, true);
 }
 
+void toggle_mode(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
+{
+  if (port != controlSwitchPort || channel != controlSwitchChannel)
+  {
+    log_i("Port and channel do not match control track switch, not toggling mode");
+    return;
+  }
+
+  if (pwm != PowerFunctionsPwm::FLOAT) {
+    log_i("Not toggle PWM value, not toggling mode");
+  }
+
+  switchBehavior = static_cast<SwitchBehavior>((static_cast<int>(switchBehavior) + 1) % static_cast<int>(SwitchBehavior::NumBehaviors));
+  switch (switchBehavior)
+  {
+  case SwitchBehavior::Manual:
+    log_i("Switch behavior: None");
+    trackSwitch.registerCallback(nullptr);
+    M5.dis.drawpix(0, REDC);
+    break;
+  case SwitchBehavior::Alternate:
+    log_i("Switch behavior: Alternate");
+    trackSwitch.registerCallback(alternatingSwitchCallback);
+    M5.dis.drawpix(0, YELLOWC);
+    break;
+  case SwitchBehavior::Redirect:
+    log_i("Switch behavior: Train Redirect");
+    trackSwitch.registerCallback(trainRedirectCallback);
+    M5.dis.drawpix(0, GREENC);
+    break;
+  case SwitchBehavior::RedirectLoop:
+    log_i("Switch behavior: Train Redirect Loop");
+    trackSwitch.registerCallback(trainRedirectLoopCallback);
+    M5.dis.drawpix(0, BLUEC);
+    break;
+  }
+
+  // broadcast state using PWM value
+  client.switch_mode_toggle(controlSwitchPort, (PowerFunctionsPwm)((uint8_t)switchBehavior + 1), controlSwitchChannel);
+}
+
+void toggle_mode(){
+  toggle_mode(controlSwitchPort, PowerFunctionsPwm::FLOAT, controlSwitchChannel);
+}
+
+void recvCallback(PowerFunctionsIrMessage message)
+{
+  // don't rebroadcast on actions taken from messages received
+  switch (message.call)
+  {
+  case PowerFunctionsCall::SinglePwm:
+    client.single_pwm(message.port, message.pwm, message.channel, false);
+    break;
+  case PowerFunctionsCall::SingleIncrement:
+    client.single_increment(message.port, message.channel, false);
+    break;
+  case PowerFunctionsCall::SingleDecrement:
+    client.single_decrement(message.port, message.channel, false);
+    break;
+  case PowerFunctionsCall::SwitchModeToggle:
+      toggle_mode(message.port, message.pwm, message.channel);
+    break;
+  }
+}
+
+bool join_detection()
+{
+  return irReflective.isDetected();
+}
+
+bool fork_detection()
+{
+  float distance = ultrasonic.getDistance();
+  return distance > 10.0f && distance < 165.0f;
+}
+
 void setup()
 {
   M5.begin(true, false, true);
@@ -149,18 +208,11 @@ void setup()
 
   irReflective.begin(IR_DOUT_PIN);            // join sensor
   ultrasonic.begin(US_TRIG_PIN, US_ECHO_PIN); // fork sensor
-  trackSwitch.begin(
-      []()  
-      { return irReflective.isDetected(); },
-      []()
-      { float distance = ultrasonic.getDistance(); return distance > 10.0f && distance < 165.0f; },
-      client,
-      PowerFunctionsPort::BLUE,
-      true);
+  trackSwitch.begin(join_detection, fork_detection, client, controlSwitchPort, controlSwitchChannel, true);
 
   M5.dis.drawpix(0, REDC);
   switchBehavior = SwitchBehavior::Manual;
-  log_w("Setup complete");
+  log_i("Setup complete");
 }
 
 void loop()
@@ -170,31 +222,7 @@ void loop()
   M5.update();
   if (M5.Btn.wasPressed())
   {
-    switchBehavior = static_cast<SwitchBehavior>((static_cast<int>(switchBehavior) + 1) % static_cast<int>(SwitchBehavior::NumBehaviors));
-    switch (switchBehavior)
-    {
-    case SwitchBehavior::Manual:
-      log_w("Switch behavior: None");
-      trackSwitch.registerCallback(nullptr);
-      M5.dis.drawpix(0, REDC);
-      break;
-    case SwitchBehavior::Alternate:
-      log_w("Switch behavior: Alternate");
-      trackSwitch.registerCallback(alternatingSwitchCallback);
-      M5.dis.drawpix(0, YELLOWC);
-      break;
-    case SwitchBehavior::Redirect:
-      log_w("Switch behavior: Train Redirect");
-      trackSwitch.registerCallback(trainRedirectCallback);
-      M5.dis.drawpix(0, GREENC);
-      break;
-    case SwitchBehavior::RedirectLoop:
-      log_w("Switch behavior: Train Redirect Loop");
-      trackSwitch.registerCallback(trainRedirectLoopCallback);
-      M5.dis.drawpix(0, BLUEC);
-      break;
-    }
-
+    toggle_mode();
     delay(100);
   }
 
