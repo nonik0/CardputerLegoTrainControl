@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Lpf2Hub.h>
+#include <PowerFunctions.h>
 #include <M5Cardputer.h>
 
 // RBG565 colors
@@ -92,6 +93,7 @@ struct Button
 
 // used for conveying current state when drawing
 // TODO: eventually refactor devices into remotes and draw off their state
+// TODO: fix uint8_t and byte type usage inconsistency
 struct State
 {
   bool lpf2Connected;
@@ -114,4 +116,7 @@ struct State
   byte irChannel;
   uint8_t irMode;
   bool *irPortFunction;
+  PowerFunctionsPort irSwitchPort;
+  uint8_t irSwitchMode;
+  uint8_t irSwitchDetection;
 };

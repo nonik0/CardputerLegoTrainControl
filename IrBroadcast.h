@@ -12,7 +12,8 @@ enum struct PowerFunctionsCall
     SinglePwm,
     SingleIncrement,
     SingleDecrement,
-    SwitchModeToggle,
+    SwitchMode,
+    SwitchDetection,
 };
 
 struct PowerFunctionsIrMessage
@@ -41,10 +42,14 @@ public:
     static void _onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
 
     PowerFunctionsIrBroadcast() {}
+    // IR and broadcast functions
     void single_pwm(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel, bool rebroadcast = true);
     void single_increment(PowerFunctionsPort port, uint8_t channel, bool rebroadcast = true);
     void single_decrement(PowerFunctionsPort port, uint8_t channel, bool rebroadcast = true);
-    void switch_mode_toggle(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel); // overloading pwm for now for mode info
+    // broadcast only functions
+    void switch_mode(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel); // overloading pwm for mode state
+    void switch_detection(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel); // overloading pwm for detection state
+
     PowerFunctionsPwm speedToPwm(byte speed);
     void registerRecvCallback(PowerFunctionsIrRecvCallback callback = nullptr);
     void unregisterRecvCallback();

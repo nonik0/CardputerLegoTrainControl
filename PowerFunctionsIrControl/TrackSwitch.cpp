@@ -1,6 +1,6 @@
 #include "TrackSwitch.h"
 
-#define DETECTION_TIMEOUT_MS 5000
+#define DETECTION_TIMEOUT_MS 3000
 #define DETECTION_DEBOUNCE_MS 300
 
 void TrackSwitch::logState()
@@ -50,9 +50,9 @@ void TrackSwitch::begin(std::function<bool()> mergeSensor, std::function<bool()>
     switchTrack(_switchState);
 }
 
-void TrackSwitch::registerCallback(TrainDetectionCallback callback)
+void TrackSwitch::registerCallback(DetectionCallback callback)
 {
-    _onEnterAndExit = callback;
+    _onDetectionCallback = callback;
 }
 
 void TrackSwitch::switchTrack()
@@ -158,13 +158,9 @@ void TrackSwitch::update()
 
     if (_position != lastState || _direction != lastDirection)
     {
-        if (_position == TrainPosition::Entering && _onEnterAndExit != nullptr)
+        if (_onDetectionCallback != nullptr)
         {
-            _onEnterAndExit(TrainPosition::Entering, _direction);
-        }
-        else if (_position == TrainPosition::Undetected && _onEnterAndExit != nullptr)
-        {
-            _onEnterAndExit(cleanExit ? TrainPosition::Exiting : TrainPosition::Undetected, _direction);
+            _onDetectionCallback(_position, _direction);
         }
 
         logState();

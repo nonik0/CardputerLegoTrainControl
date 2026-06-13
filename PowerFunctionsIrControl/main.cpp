@@ -64,8 +64,71 @@ unsigned long lastTrainExitMs = 0;
 bool redirecting = false;
 bool redirected = false;
 
+// TODO: improve readability with enum or value defines
+void broadcastDetectionCallback(TrainPosition position, TrainDirection direction)
+{
+  static uint8_t lastTrainDetection = 0xFF;
+
+  // Undetected is always 0 regardless of direction
+  if (position == TrainPosition::Undetected || direction == TrainDirection::Undetected)
+  {
+    if (lastTrainDetection == 0)
+    {
+      log_w("Skipping duplicate broadcast of last detection: 0");
+      return;
+    }
+    client.switch_detection(controlSwitchPort, (PowerFunctionsPwm)0, controlSwitchChannel);
+    lastTrainDetection = 0;
+    return;
+  }
+
+  // Forking: 1=entering, 2=passing, 3=exiting
+  // Merging: 4=entering, 5=passing, 6=exiting
+  uint8_t positionOffset;
+  switch (position)
+  {
+  case TrainPosition::Entering:
+    positionOffset = 1;
+    break;
+  case TrainPosition::Passing:
+    positionOffset = 2;
+    break;
+  case TrainPosition::Exiting:
+    positionOffset = 3;
+    break;
+  default:
+    return; // shouldn't happen
+  }
+
+  uint8_t directionOffset;
+  switch (direction)
+  {
+  case TrainDirection::Forking:
+    directionOffset = 0;
+    break;
+  case TrainDirection::Merging:
+    directionOffset = 3;
+    break;
+  default:
+    return; // shouldn't happen with a valid detected position
+  }
+
+  uint8_t trainDetection = positionOffset + directionOffset;
+
+  if (trainDetection == lastTrainDetection)
+  {
+    log_w("Skipping duplicate broadcast of last detection: %d", trainDetection);
+    return;
+  }
+
+  client.switch_detection(controlSwitchPort, (PowerFunctionsPwm)trainDetection, controlSwitchChannel);
+  lastTrainDetection = trainDetection;
+}
+
 void alternatingSwitchCallback(TrainPosition position, TrainDirection direction)
 {
+  broadcastDetectionCallback(position, direction);
+
   // no switching behavior possible in reverse direction
   if (direction != TrainDirection::Forking)
     return;
@@ -76,6 +139,8 @@ void alternatingSwitchCallback(TrainPosition position, TrainDirection direction)
 
 void trainRedirectCallbackImpl(TrainPosition position, TrainDirection direction, bool loop)
 {
+  broadcastDetectionCallback(position, direction);
+
   // no switching behavior possible in reverse direction
   if (direction != TrainDirection::Forking)
     return;
@@ -131,7 +196,8 @@ void toggle_mode(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel
     return;
   }
 
-  if (pwm != PowerFunctionsPwm::FLOAT) {
+  if (pwm != PowerFunctionsPwm::FLOAT)
+  {
     log_i("Not toggle PWM value, not toggling mode");
   }
 
@@ -140,7 +206,7 @@ void toggle_mode(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel
   {
   case SwitchBehavior::Manual:
     log_i("Switch behavior: None");
-    trackSwitch.registerCallback(nullptr);
+    trackSwitch.registerCallback(broadcastDetectionCallback);
     M5.dis.drawpix(0, REDC);
     break;
   case SwitchBehavior::Alternate:
@@ -161,10 +227,11 @@ void toggle_mode(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel
   }
 
   // broadcast state using PWM value
-  client.switch_mode_toggle(controlSwitchPort, (PowerFunctionsPwm)((uint8_t)switchBehavior + 1), controlSwitchChannel);
+  client.switch_mode(controlSwitchPort, (PowerFunctionsPwm)((uint8_t)switchBehavior + 1), controlSwitchChannel);
 }
 
-void toggle_mode(){
+void toggle_mode()
+{
   toggle_mode(controlSwitchPort, PowerFunctionsPwm::FLOAT, controlSwitchChannel);
 }
 
@@ -182,8 +249,8 @@ void recvCallback(PowerFunctionsIrMessage message)
   case PowerFunctionsCall::SingleDecrement:
     client.single_decrement(message.port, message.channel, false);
     break;
-  case PowerFunctionsCall::SwitchModeToggle:
-      toggle_mode(message.port, message.pwm, message.channel);
+  case PowerFunctionsCall::SwitchMode:
+    toggle_mode(message.port, message.pwm, message.channel);
     break;
   }
 }
@@ -210,8 +277,9 @@ void setup()
   ultrasonic.begin(US_TRIG_PIN, US_ECHO_PIN); // fork sensor
   trackSwitch.begin(join_detection, fork_detection, client, controlSwitchPort, controlSwitchChannel, true);
 
-  M5.dis.drawpix(0, REDC);
   switchBehavior = SwitchBehavior::Manual;
+  trackSwitch.registerCallback(broadcastDetectionCallback);
+  M5.dis.drawpix(0, REDC);
   log_i("Setup complete");
 }
 

@@ -2,27 +2,26 @@
 #include "common.h"
 #include "resources.h"
 
-inline unsigned short interpolateColors(unsigned short color1, unsigned short color2, int percentage)
+inline uint16_t interpolateColors(uint16_t color1, uint16_t color2, uint8_t percentage)
 {
-  if (percentage <= 0)
-  {
+  if (percentage == 0)
     return color1;
-  }
-  else if (percentage >= 100)
-  {
+  if (percentage >= 100)
     return color2;
-  }
 
-  int red1 = (color1 >> 11) & 0x1F;
-  int green1 = (color1 >> 5) & 0x3F;
-  int blue1 = color1 & 0x1F;
-  int red2 = (color2 >> 11) & 0x1F;
-  int green2 = (color2 >> 5) & 0x3F;
-  int blue2 = color2 & 0x1F;
-  int interpolatedRed = (red1 * (100 - percentage) + red2 * percentage) / 100;
-  int interpolatedGreen = (green1 * (100 - percentage) + green2 * percentage) / 100;
-  int interpolatedBlue = (blue1 * (100 - percentage) + blue2 * percentage) / 100;
-  return (unsigned short)((interpolatedRed << 11) | (interpolatedGreen << 5) | interpolatedBlue);
+  uint8_t red1 = (color1 >> 11) & 0x1F;  // 5 bits, max 31
+  uint8_t green1 = (color1 >> 5) & 0x3F; // 6 bits, max 63
+  uint8_t blue1 = color1 & 0x1F;         // 5 bits, max 31
+  uint8_t red2 = (color2 >> 11) & 0x1F;
+  uint8_t green2 = (color2 >> 5) & 0x3F;
+  uint8_t blue2 = color2 & 0x1F;
+
+  // max intermediate: 63 * 100 = 6300, fits in uint16_t (max 65535)
+  uint8_t r = (red1 * (100 - percentage) + red2 * percentage) / 100;
+  uint8_t g = (green1 * (100 - percentage) + green2 * percentage) / 100;
+  uint8_t b = (blue1 * (100 - percentage) + blue2 * percentage) / 100;
+
+  return (uint16_t)((r << 11) | (g << 5) | b);
 }
 
 inline void drawRemoteTitle(M5Canvas *canvas, bool isLeftRemote, RemoteDevice activeRemote, int x, int y)
@@ -245,7 +244,7 @@ inline void drawSensorSymbol(M5Canvas *canvas, int x, int y, RemoteAction action
   canvas->drawString(String(abs(functionValue)), x + gap + 1, y + 1);
 }
 
-inline void drawPulseSymbol(M5Canvas *canvas, int x, int y, bool highPulse)
+inline void drawPulseSymbol(M5Canvas *canvas, int x, int y, bool highPulse, uint16_t color = TFT_SILVER)
 {
   int pulseW = 10;
   int pulseH = 10;
@@ -257,39 +256,68 @@ inline void drawPulseSymbol(M5Canvas *canvas, int x, int y, bool highPulse)
   y2 = y + pulseH / 2;
   if (highPulse)
   {
-    canvas->drawFastHLine(x1 - pulseW / 2 + 1, y2, pulseW / 2, TFT_SILVER);
-    canvas->drawFastVLine(x1, y1, pulseH, TFT_SILVER);
-    canvas->drawFastHLine(x1, y1, pulseW, TFT_SILVER);
-    canvas->drawFastVLine(x2, y1, pulseH, TFT_SILVER);
-    canvas->drawFastHLine(x2, y2, pulseW / 2, TFT_SILVER);
+    canvas->drawFastHLine(x1 - pulseW / 2 + 1, y2, pulseW / 2, color);
+    canvas->drawFastVLine(x1, y1, pulseH, color);
+    canvas->drawFastHLine(x1, y1, pulseW, color);
+    canvas->drawFastVLine(x2, y1, pulseH, color);
+    canvas->drawFastHLine(x2, y2, pulseW / 2, color);
   }
   else
   {
-    canvas->drawFastHLine(x1 - pulseW / 2 + 1, y1, pulseW / 2, TFT_SILVER);
-    canvas->drawFastVLine(x1, y1, pulseH, TFT_SILVER);
-    canvas->drawFastHLine(x1, y2, pulseW, TFT_SILVER);
-    canvas->drawFastVLine(x2, y1, pulseH, TFT_SILVER);
-    canvas->drawFastHLine(x2, y1, pulseW / 2, TFT_SILVER);
+    canvas->drawFastHLine(x1 - pulseW / 2 + 1, y1, pulseW / 2, color);
+    canvas->drawFastVLine(x1, y1, pulseH, color);
+    canvas->drawFastHLine(x1, y2, pulseW, color);
+    canvas->drawFastVLine(x2, y1, pulseH, color);
+    canvas->drawFastHLine(x2, y1, pulseW / 2, color);
   }
 }
 
-inline void drawSwitchToggleSymbol(M5Canvas *canvas, int x, int y)
+inline void drawSwitchToggleSymbol(M5Canvas *canvas, int x, int y, uint16_t color = TFT_SILVER)
 {
-  canvas->pushImage(x - switchsymbolWidth / 2, y - switchSymbolHeight / 2, switchsymbolWidth, switchSymbolHeight, (uint16_t *)switchSymbol, transparencyColor);
+  // TODO: remove once bitmap confirmed to be identical
+  if (color == TFT_SILVER)
+  {
+    canvas->pushImage(
+        x - switchSymbolWidth / 2,
+        y - switchSymbolHeight / 2,
+        switchSymbolWidth,
+        switchSymbolHeight,
+        (uint16_t *)switchSymbol,
+        transparencyColor);
+  }
+  else
+  {
+    canvas->drawBitmap(
+        x - switchSymbolWidth / 2,
+        y - switchSymbolHeight / 2,
+        switchSymbolBitmap,
+        switchSymbolWidth,
+        switchSymbolHeight,
+        color);
+  }
 }
 
-inline void drawSwitchSymbol(M5Canvas *canvas, int x, int y, RemoteAction action, bool *portFunction)
+inline void drawSwitchSymbol(M5Canvas *canvas, int x, int y, RemoteAction action, uint8_t switchMode, uint8_t switchDetection)
 {
+  auto color = [&](uint8_t maskIdx) -> uint16_t
+  {
+    static constexpr uint8_t detectionMask[] = {
+        0b00111100,  // spdup: fork direction: passing and exiting, merge direction: entering and passing => 2,3,4,5
+        0b01101100,  // brake: fork direction: passing and exiting, merge direction: passing and exiting => 2,3,5,6
+        0b01100110}; // spddn: fork direction: entering and passing, merge direction: passing and exiting => 1,2,5,6
+    return (detectionMask[maskIdx] >> switchDetection) & 1 ? TFT_YELLOW : TFT_SILVER;
+  };
+
   switch (action)
   {
   case RemoteAction::SpdUp:
-    drawPulseSymbol(canvas, x, y, true);
+    drawPulseSymbol(canvas, x, y, true, color(0));
     break;
   case RemoteAction::Brake:
-    drawSwitchToggleSymbol(canvas, x, y);
+    drawSwitchToggleSymbol(canvas, x, y, color(1));
     break;
   case RemoteAction::SpdDn:
-    drawPulseSymbol(canvas, x, y, false);
+    drawPulseSymbol(canvas, x, y, false, color(2));
     break;
   }
 }
@@ -389,7 +417,9 @@ inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, Sta
     if (button.device == RemoteDevice::PoweredUp && button.port == state.lpf2SensorPort)
       drawSensorSymbol(canvas, x, y, button.action, state.lpf2SensorSpdUpFunction, state.lpf2SensorStopFunction, state.lpf2SensorSpdDnFunction);
     else if (button.device == RemoteDevice::PowerFunctionsIR && state.irPortFunction[button.port])
-      drawSwitchSymbol(canvas, x, y, button.action, state.irPortFunction);
+      drawSwitchSymbol(canvas, x, y, button.action,
+                       (button.port == (uint8_t)state.irSwitchPort) ? state.irSwitchMode : 0,
+                       (button.port == (uint8_t)state.irSwitchPort) ? state.irSwitchDetection : 0);
     else if (button.device == RemoteDevice::SBrick && button.port == state.sbrickMotionSensorPort)
       drawSBrickSensorReading(canvas, x, y, button.action, true, state.sbrickMotionSensorV, state.sbrickMotionSensorNeutralV);
     else if (button.device == RemoteDevice::SBrick && button.port == state.sbrickTiltSensorPort)

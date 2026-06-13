@@ -60,7 +60,7 @@ void PowerFunctionsIrBroadcast::single_decrement(PowerFunctionsPort port, uint8_
     }
 }
 
-void PowerFunctionsIrBroadcast::switch_mode_toggle(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
+void PowerFunctionsIrBroadcast::switch_mode(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
 {
     if (!_broadcastEnabled)
     {
@@ -68,7 +68,18 @@ void PowerFunctionsIrBroadcast::switch_mode_toggle(PowerFunctionsPort port, Powe
         return;
     }
 
-    _broadcastMessage(PowerFunctionsCall::SwitchModeToggle, port, pwm, channel);
+    _broadcastMessage(PowerFunctionsCall::SwitchMode, port, pwm, channel);
+}
+
+void PowerFunctionsIrBroadcast::switch_detection(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel) 
+{
+    if (!_broadcastEnabled)
+    {
+        log_w("Broadcast not enabled, cannot send switch detection");
+        return;
+    }
+
+    _broadcastMessage(PowerFunctionsCall::SwitchDetection, port, pwm, channel);
 }
 
 PowerFunctionsPwm PowerFunctionsIrBroadcast::speedToPwm(byte speed)

@@ -76,6 +76,13 @@ unsigned long irSwitchDelay[2] = {0, 0};
 volatile RemoteAction irAutoAction = NoAction;
 volatile byte irAutoActionPort = 0xFF;
 volatile bool irActionBroadcastRecv = false; // reflect action on display, but don't do
+
+// IR remote switch state tracking
+volatile PowerFunctionsPort irSwitchPort[4];
+volatile uint8_t irSwitchMode[4] = {0, 0, 0, 0};
+volatile uint8_t irSwitchDetection[4] = {0, 0, 0, 0};
+// volatile PowerFunctionsPort irTrainDetectionPort[4];
+
 // saved settings
 uint8_t irMode = 0; // 0=off, 1=track, 2=track, broadcast, 3=broadcast
 byte irChannel = 0;
@@ -752,7 +759,7 @@ void powerFunctionsHandlePortAction(Button *button)
         // special case: send control toggle broadcast request alt key + brake in broadcast mode
         if ((irMode == 2 || irMode == 3) && (M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER)))
         {
-          irTrainCtl.switch_mode_toggle((PowerFunctionsPort)button->port, PowerFunctionsPwm::FLOAT, irChannel);
+          irTrainCtl.switch_mode((PowerFunctionsPort)button->port, PowerFunctionsPwm::FLOAT, irChannel);
           return;
         }
         irPortSpeed[irChannel][button->port] = irPortSpeed[irChannel][button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
@@ -883,6 +890,17 @@ void powerFunctionsRecvCallback(PowerFunctionsIrMessage receivedMessage)
       break;
     }
     break;
+  case PowerFunctionsCall::SwitchMode:
+    log_i("Updating tracking state for switch mode");
+    irSwitchPort[receivedMessage.channel] = receivedMessage.port;
+    irSwitchMode[receivedMessage.channel] = (uint8_t)receivedMessage.pwm;
+    return;
+
+  case PowerFunctionsCall::SwitchDetection:
+    log_i("Updating tracking state for switch detection");
+    irSwitchPort[receivedMessage.channel] = receivedMessage.port;
+    irSwitchDetection[receivedMessage.channel] = (uint8_t)receivedMessage.pwm;
+    return;
   }
 
   // if receiving on channel different than active, update state in the background otherwise send as action to show on screen
@@ -2056,7 +2074,8 @@ void draw()
     }
   }
 
-  // draw layout for both active remotes
+  // TODO: refactor into remote classes once that refactor happens
+  // draw visible layout for both active remotes
   State state = {lpf2Init, lpf2Rssi,
                  lpf2SensorColor, lpf2SensorPort,
                  lpf2SensorPortFunction ? lpf2SensorSpdUpAltFunction : lpf2SensorSpdUpFunction,
@@ -2066,7 +2085,12 @@ void draw()
                  sbrickMotionSensorPort, sbrickMotionSensorV, sbrickMotionSensorNeutralV,
                  sbrickTiltSensorPort, sbrickTiltSensorV, sbrickTiltSensorNeutralV,
                  circuitCubesInit, circuitCubesRssi,
-                 irChannel, irMode, irPortFunction[irChannel]};
+                 irChannel,
+                 irMode,
+                 irPortFunction[irChannel],
+                 irSwitchPort[irChannel],
+                 irSwitchMode[irChannel],
+                 irSwitchDetection[irChannel]};
 
   Button *leftRemoteButton = remoteButton[activeRemoteLeft];
   for (int i = 0; i < remoteButtonCount[activeRemoteLeft]; i++)
