@@ -272,15 +272,46 @@ inline void drawPulseSymbol(M5Canvas *canvas, int x, int y, bool highPulse, uint
   }
 }
 
-inline void drawSwitchToggleSymbol(M5Canvas *canvas, int x, int y, uint16_t color = TFT_SILVER)
+inline void drawSwitchToggleSymbol(M5Canvas *canvas, int x, int y, uint8_t switchMode, uint16_t color = TFT_SILVER)
 {
-  canvas->drawBitmap(
-      x - switchSymbolWidth / 2,
-      y - switchSymbolHeight / 2,
-      switchSymbolBitmap,
-      switchSymbolWidth,
-      switchSymbolHeight,
-      color);
+  switch (switchMode)
+  {
+  case 2:
+    canvas->drawBitmap(
+        x - switchSymbolWidth / 2,
+        y - switchSymbolHeight / 2,
+        switchAlternateSymbolBitmap,
+        switchAlternateSymbolWidth,
+        switchAlternateSymbolHeight,
+        color);
+    break;
+  case 3:
+    canvas->drawBitmap(
+        x - switchSymbolWidth / 2,
+        y - switchSymbolHeight / 2,
+        switchRedirectSymbolBitmap,
+        switchRedirectSymbolWidth,
+        switchRedirectSymbolHeight,
+        color);
+    break;
+  case 4:
+    canvas->drawBitmap(
+        x - switchSymbolWidth / 2,
+        y - switchSymbolHeight / 2,
+        switchRedirectLoopSymbolBitmap,
+        switchRedirectLoopSymbolWidth,
+        switchRedirectLoopSymbolHeight,
+        color);
+    break;
+  default:
+    canvas->drawBitmap(
+        x - switchSymbolWidth / 2,
+        y - switchSymbolHeight / 2,
+        switchSymbolBitmap,
+        switchSymbolWidth,
+        switchSymbolHeight,
+        color);
+  }
 }
 
 inline void drawSwitchSymbol(M5Canvas *canvas, int x, int y, RemoteAction action, uint8_t switchMode, uint8_t switchDetection)
@@ -301,7 +332,7 @@ inline void drawSwitchSymbol(M5Canvas *canvas, int x, int y, RemoteAction action
     drawPulseSymbol(canvas, x, y, true, color(0));
     break;
   case RemoteAction::Brake:
-    drawSwitchToggleSymbol(canvas, x, y, color(1));
+    drawSwitchToggleSymbol(canvas, x, y, switchMode, color(1));
     break;
   case RemoteAction::SpdDn:
     drawPulseSymbol(canvas, x, y, false, color(2));

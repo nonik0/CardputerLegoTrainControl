@@ -58,7 +58,7 @@ IrReflective irReflective;
 TrackSwitch trackSwitch;
 SwitchBehavior switchBehavior;
 
-uint8_t controlSwitchChannel = 0;
+uint8_t controlSwitchChannel = 1;
 PowerFunctionsPort controlSwitchPort = PowerFunctionsPort::BLUE;
 unsigned long lastTrainExitMs = 0;
 bool redirecting = false;
