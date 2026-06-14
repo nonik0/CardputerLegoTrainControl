@@ -274,38 +274,25 @@ inline void drawPulseSymbol(M5Canvas *canvas, int x, int y, bool highPulse, uint
 
 inline void drawSwitchToggleSymbol(M5Canvas *canvas, int x, int y, uint16_t color = TFT_SILVER)
 {
-  // TODO: remove once bitmap confirmed to be identical
-  if (color == TFT_SILVER)
-  {
-    canvas->pushImage(
-        x - switchSymbolWidth / 2,
-        y - switchSymbolHeight / 2,
-        switchSymbolWidth,
-        switchSymbolHeight,
-        (uint16_t *)switchSymbol,
-        transparencyColor);
-  }
-  else
-  {
-    canvas->drawBitmap(
-        x - switchSymbolWidth / 2,
-        y - switchSymbolHeight / 2,
-        switchSymbolBitmap,
-        switchSymbolWidth,
-        switchSymbolHeight,
-        color);
-  }
+  canvas->drawBitmap(
+      x - switchSymbolWidth / 2,
+      y - switchSymbolHeight / 2,
+      switchSymbolBitmap,
+      switchSymbolWidth,
+      switchSymbolHeight,
+      color);
 }
 
 inline void drawSwitchSymbol(M5Canvas *canvas, int x, int y, RemoteAction action, uint8_t switchMode, uint8_t switchDetection)
 {
+  const uint16_t detectionColor = interpolateColors(TFT_SILVER, TFT_YELLOW, 50);
   auto color = [&](uint8_t maskIdx) -> uint16_t
   {
     static constexpr uint8_t detectionMask[] = {
         0b00111100,  // spdup: fork direction: passing and exiting, merge direction: entering and passing => 2,3,4,5
         0b01101100,  // brake: fork direction: passing and exiting, merge direction: passing and exiting => 2,3,5,6
         0b01100110}; // spddn: fork direction: entering and passing, merge direction: passing and exiting => 1,2,5,6
-    return (detectionMask[maskIdx] >> switchDetection) & 1 ? TFT_YELLOW : TFT_SILVER;
+    return (detectionMask[maskIdx] >> switchDetection) & 1 ? detectionColor : TFT_SILVER;
   };
 
   switch (action)

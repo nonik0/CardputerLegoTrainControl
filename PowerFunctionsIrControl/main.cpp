@@ -133,7 +133,8 @@ void alternatingSwitchCallback(TrainPosition position, TrainDirection direction)
   if (direction != TrainDirection::Forking)
     return;
 
-  if (position == TrainPosition::Exiting)
+  // clean exit is when position transitions to undetected but direction is not
+  if (position == TrainPosition::Undetected && direction != TrainDirection::Undetected)
     trackSwitch.switchTrack();
 }
 
@@ -152,28 +153,32 @@ void trainRedirectCallbackImpl(TrainPosition position, TrainDirection direction,
     trackSwitch.switchTrack();
     redirecting = true;
   }
-  else if (position == TrainPosition::Exiting)
-  {
-    lastTrainExitMs = millis();
-    if (redirecting)
-    {
-      log_i("Done redirecting, switching back");
-      redirecting = false;
-      redirected = loop; // if loop allows redirected train to exit redirect loop
-      trackSwitch.switchTrack();
-    }
-    else if (redirected)
-    {
-      redirected = false;
-    }
-  }
   else if (position == TrainPosition::Undetected)
   {
-    if (redirecting)
+    // clean exit
+    if (direction != TrainDirection::Undetected)
     {
-      log_i("Tracking issue, switching back");
-      redirecting = false;
-      trackSwitch.switchTrack();
+      lastTrainExitMs = millis();
+      if (redirecting)
+      {
+        log_i("Done redirecting, switching back");
+        redirecting = false;
+        redirected = loop; // if loop allows redirected train to exit redirect loop
+        trackSwitch.switchTrack();
+      }
+      else if (redirected)
+      {
+        redirected = false;
+      }
+    }
+    else
+    {
+      if (redirecting)
+      {
+        log_i("Tracking issue, switching back");
+        redirecting = false;
+        trackSwitch.switchTrack();
+      }
     }
   }
 }

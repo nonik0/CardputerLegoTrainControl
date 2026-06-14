@@ -5,20 +5,31 @@
 
 void TrackSwitch::logState()
 {
-    String state = "Undetected";
-    String direction = "Undetected";
-    // String track = "Undetected";
+    String position, direction;
+
+    if (_position == TrainPosition::Undetected)
+    {
+        if (_direction != TrainDirection::Undetected)
+        {
+            log_i("Train has exited");
+        }
+        else
+        {
+            log_w("Train detection error");
+        }
+        return;
+    }
 
     switch (_position)
     {
     case TrainPosition::Entering:
-        state = "entering";
+        position = "entering";
         break;
     case TrainPosition::Passing:
-        state = "passing";
+        position = "passing";
         break;
     case TrainPosition::Exiting:
-        state = "exiting";
+        position = "exiting";
         break;
     }
 
@@ -32,10 +43,7 @@ void TrackSwitch::logState()
         break;
     }
 
-    if (_position == TrainPosition::Undetected)
-        log_w("Train not detected at switch");
-    else
-        log_i("Train is %s %s", state, direction);
+    log_i("Train is %s %s", position, direction);
 }
 
 void TrackSwitch::begin(std::function<bool()> mergeSensor, std::function<bool()> forkSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, uint8_t motorChannel, bool defaultState)
@@ -67,21 +75,21 @@ void TrackSwitch::switchTrack(bool state)
     {
         _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, _motorChannel, false);
         _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, _motorChannel, true);
-        delay(300);
+        delay(200);
         _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, _motorChannel, true);
     }
     else
     {
         _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::FORWARD7, _motorChannel, false);
         _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::REVERSE7, _motorChannel, true);
-        delay(300);
+        delay(200);
         _pfIrClient.single_pwm(_motorPort, PowerFunctionsPwm::BRAKE, _motorChannel, true);
     }
 }
 
 void TrackSwitch::update()
 {
-    TrainPosition lastState = _position;
+    TrainPosition lastPosition = _position;
     TrainDirection lastDirection = _direction;
     bool cleanExit = false;
 
@@ -92,7 +100,7 @@ void TrackSwitch::update()
     bool inSensor = (_direction == TrainDirection::Forking) ? mergeDetection : forkDetection;
     bool outSensor = (_direction == TrainDirection::Forking) ? forkDetection : mergeDetection;
 
-    switch (_position)
+    switch (lastPosition)
     {
     case TrainPosition::Undetected:
         if (mergeDetection)
@@ -106,6 +114,11 @@ void TrackSwitch::update()
             _position = TrainPosition::Entering;
             _direction = TrainDirection::Merging;
             _lastDetection = millis();
+        }
+        // reset direction after clean exit
+        else if (_direction != TrainDirection::Undetected)
+        {
+            _direction = TrainDirection::Undetected;
         }
         break;
     case TrainPosition::Entering:
@@ -121,13 +134,17 @@ void TrackSwitch::update()
         else if (millis() - _lastDetection > DETECTION_TIMEOUT_MS)
         {
             _position = TrainPosition::Undetected;
+            _direction = TrainDirection::Undetected;
         }
         break;
     case TrainPosition::Passing:
-        // wait for the incoming sensor to clear
+        // wait for the outgoing sensor to clear (but debounce for to account for gaps between cars)
         if (!inSensor)
         {
-            _position = TrainPosition::Exiting;
+            if (millis() - _lastDetection > DETECTION_DEBOUNCE_MS)
+            {
+                _position = TrainPosition::Exiting;
+            }
         }
         else if (outSensor)
         {
@@ -136,6 +153,7 @@ void TrackSwitch::update()
         else if (millis() - _lastDetection > DETECTION_TIMEOUT_MS)
         {
             _position = TrainPosition::Undetected;
+            _direction = TrainDirection::Undetected;
         }
         break;
     case TrainPosition::Exiting:
@@ -145,8 +163,7 @@ void TrackSwitch::update()
             if (millis() - _lastDetection > DETECTION_DEBOUNCE_MS)
             {
                 _position = TrainPosition::Undetected;
-                lastExitMillis = millis();
-                cleanExit = true;
+                // direction not cleared yet to show clean exit
             }
         }
         else
@@ -156,7 +173,7 @@ void TrackSwitch::update()
         break;
     }
 
-    if (_position != lastState || _direction != lastDirection)
+    if (_position != lastPosition)
     {
         if (_onDetectionCallback != nullptr)
         {

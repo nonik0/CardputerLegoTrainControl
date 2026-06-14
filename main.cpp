@@ -759,7 +759,7 @@ void powerFunctionsHandlePortAction(Button *button)
         // special case: send control toggle broadcast request alt key + brake in broadcast mode
         if ((irMode == 2 || irMode == 3) && (M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER)))
         {
-          irTrainCtl.switch_mode((PowerFunctionsPort)button->port, PowerFunctionsPwm::FLOAT, irChannel);
+          irTrainCtl.switch_mode((PowerFunctionsPort)button->port, (PowerFunctionsPwm)0, irChannel);
           return;
         }
         irPortSpeed[irChannel][button->port] = irPortSpeed[irChannel][button->port] > 0 ? -IrMaxSpeed : IrMaxSpeed;
@@ -772,7 +772,7 @@ void powerFunctionsHandlePortAction(Button *button)
       PowerFunctionsPwm pwm = irTrainCtl.speedToPwm(irPortSpeed[irChannel][button->port]);
       irTrainCtl.single_pwm((PowerFunctionsPort)button->port, pwm, irChannel);
 
-      irSwitchDelay[button->port] = millis() + 1000;
+      irSwitchDelay[button->port] = millis() + 200;
     }
     else if (irMode == 1 || irMode == 2)
     {
@@ -894,12 +894,14 @@ void powerFunctionsRecvCallback(PowerFunctionsIrMessage receivedMessage)
     log_i("Updating tracking state for switch mode");
     irSwitchPort[receivedMessage.channel] = receivedMessage.port;
     irSwitchMode[receivedMessage.channel] = (uint8_t)receivedMessage.pwm;
+    redraw = true;
     return;
 
   case PowerFunctionsCall::SwitchDetection:
     log_i("Updating tracking state for switch detection");
     irSwitchPort[receivedMessage.channel] = receivedMessage.port;
     irSwitchDetection[receivedMessage.channel] = (uint8_t)receivedMessage.pwm;
+    redraw = true;
     return;
   }
 
