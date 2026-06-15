@@ -332,9 +332,16 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   }
 
   lpf2SensorColor = color;
+  redraw = true;
+
+  // ignore BLACK for LED color updates
+  if (color != Color::BLACK)
+  {
+    return;
+  }
+
   lpf2LedColor = color;
   trainCtl->setLedColor(color);
-  redraw = true;
 
   // return if previous auto action not handled yet (ignoring disabled actions)
   if (lpf2AutoAction != NoAction && !lpf2DisabledAction)
@@ -1144,7 +1151,8 @@ void sbrickHandlePortAction(Button *button)
     }
     else if (button->port == sbrickTiltSensorPort)
     {
-      if (button->action == SpdDn) {
+      if (button->action == SpdDn)
+      {
         log_i("Recalibrating tilt sensor to %.2fV", sbrickMotionSensorV);
         sbrickTiltSensorNeutralV = sbrickTiltSensorV;
       }

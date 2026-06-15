@@ -1,8 +1,7 @@
 #include "TrackSwitch.h"
 
-#define CAR_DETECTION_DEBOUNCE_MS 300 // max length of detection blips from gaps between cars
-#define DETECTION_TIMEOUT_MS 1000     // time before tracking state is cleared due to invalid transition
-#define NOISE_DEBOUNCE_MS 50          // max length to ignore for false positive detection blips
+#define DETECTION_TIMEOUT_MS 1500 // time before tracking state is cleared due to invalid transition
+#define NOISE_DEBOUNCE_MS 50      // max length to ignore for false positive detection blips
 
 void TrackSwitch::logState()
 {
@@ -104,7 +103,7 @@ void TrackSwitch::update()
     switch (lastPosition)
     {
     case TrainPosition::Undetected:
-        // wait for train to trigger sensoor from either direction
+        // wait for train to trigger sensor from either direction
         if (mergeDetection)
         {
             // wait for stable out sensor detection before updating position
@@ -112,7 +111,8 @@ void TrackSwitch::update()
             {
                 _position = TrainPosition::Entering;
                 _direction = TrainDirection::Forking;
-                _lastDetection = millis();
+                _firstDetection = millis();
+                _lastDetection = _firstDetection;
             }
         }
         else if (forkDetection)
@@ -122,7 +122,8 @@ void TrackSwitch::update()
             {
                 _position = TrainPosition::Entering;
                 _direction = TrainDirection::Merging;
-                _lastDetection = millis();
+                _firstDetection = millis();
+                _lastDetection = _firstDetection;
             }
         }
         else
@@ -144,6 +145,13 @@ void TrackSwitch::update()
             if (millis() - _lastClear > NOISE_DEBOUNCE_MS)
             {
                 _position = TrainPosition::Passing;
+                _lastDetection = millis();
+
+                // use train speed (interval) to determine detection debounce/timeout
+                auto trainInterval = _lastClear - _firstDetection;
+                _stableInterval = trainInterval;
+                _timeoutInterval = trainInterval;
+                log_i("Train interval=%dms", trainInterval);
             }
         }
         else
@@ -165,23 +173,31 @@ void TrackSwitch::update()
         // wait for train to clear in sensor
         if (!inSensor)
         {
-            // debounce small gaps from between cars before updating position
-            if (millis() - _lastDetection > CAR_DETECTION_DEBOUNCE_MS)
+            // debounce sensor gaps due to reflections, track curvature, gaps between cars
+            // use train interval for stable threshold, sensor blips should never be longer than this
+            if (millis() - _lastDetection > _stableInterval)
             {
                 _position = TrainPosition::Exiting;
+                _lastDetection = millis();
             }
         }
         else
         {
+            // log sizable gaps to help calibrate timeouts when debugging
+            auto gap = millis() - _lastDetection;
+            if (gap > _stableInterval / 2) {
+                log_i("detection gap: %d", gap);
+            }
+            
             _lastDetection = millis();
         }
-        // out sensor shouldn't clear while train is passing
+        // out sensor shouldn't clear while train is passing (timeout with threshold relative to train interval)
         if (outSensor)
         {
             // overloading name here, "_lastDetection2"
             _lastClear = millis();
         }
-        else if (millis() - _lastClear > DETECTION_TIMEOUT_MS)
+        else if (millis() - _lastClear > _timeoutInterval * 2)
         {
             _position = TrainPosition::Undetected;
             _direction = TrainDirection::Undetected;
@@ -192,7 +208,8 @@ void TrackSwitch::update()
         if (!outSensor)
         {
             // debounce small gaps from between cars before updating position
-            if (millis() - _lastDetection > CAR_DETECTION_DEBOUNCE_MS)
+            // use train interval for stable threshold, sensor blips should never be longer than this
+            if (millis() - _lastDetection > _stableInterval)
             {
                 _position = TrainPosition::Undetected;
                 // direction not cleared yet to show clean exit
@@ -207,10 +224,11 @@ void TrackSwitch::update()
         {
             _lastClear = millis();
         }
-        else if (millis() - _lastClear > DETECTION_TIMEOUT_MS)
+        else if (millis() - _lastClear > _timeoutInterval * 2)
         {
-            _position = TrainPosition::Undetected;
-            _direction = TrainDirection::Undetected;
+            _position = TrainPosition::Passing;
+            //_position = TrainPosition::Undetected;
+            //_direction = TrainDirection::Undetected;
         }
         break;
     }

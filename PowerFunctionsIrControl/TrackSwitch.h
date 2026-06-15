@@ -32,15 +32,19 @@ private:
     uint8_t _motorChannel;
     bool _switchState;
 
+    // state for tracking with callback for updates
     TrainDirection _direction;
     TrainPosition _position;
-    unsigned long _lastDetection;
-    unsigned long _lastClear;
     DetectionCallback _onDetectionCallback;
 
-public:
-    unsigned long lastExitMillis = 0;
+    // tracking for detection timing
+    unsigned long _firstDetection;
+    unsigned long _lastDetection;
+    unsigned long _lastClear;
+    unsigned long _stableInterval;
+    unsigned long _timeoutInterval;
 
+public:
     void logState();
     void begin(std::function<bool()> joinSensor, std::function<bool()> forkSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, uint8_t motorChannel, bool defaultState = false);
     void registerCallback(DetectionCallback callback);

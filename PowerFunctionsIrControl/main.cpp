@@ -22,6 +22,7 @@
 #define BLUEC 0x0000FF
 
 #define REDIRECT_THRESHOLD_MS 5000
+#define MIN_IR_DETECTION_MS 50
 
 // Port A: IR TX/RX
 // #define IR_TX_PIN ATOM_PORT_A_Y # defined in platformio.ini
@@ -61,6 +62,7 @@ SwitchBehavior switchBehavior;
 uint8_t controlSwitchChannel = 0;
 PowerFunctionsPort controlSwitchPort = PowerFunctionsPort::BLUE;
 unsigned long lastTrainExitMs = 0;
+unsigned long lastIrDetection = 0;
 bool redirecting = false;
 bool redirected = false;
 
@@ -195,7 +197,8 @@ void trainRedirectLoopCallback(TrainPosition position, TrainDirection direction)
 
 void toggle_mode(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
 {
-  if (pwm == PowerFunctionsPwm::BRAKE) {
+  if (pwm == PowerFunctionsPwm::BRAKE)
+  {
     log_i("Broadcasting requested state");
     client.switch_mode(controlSwitchPort, (PowerFunctionsPwm)switchBehavior, controlSwitchChannel);
     return;
@@ -269,7 +272,14 @@ void recvCallback(PowerFunctionsIrMessage message)
 
 bool join_detection()
 {
-  return irReflective.isDetected();
+  if (irReflective.isDetected())
+  {
+    lastIrDetection = millis();
+    return true;
+  }
+
+  // all positive detections last at least MIN_IR_DETECTION_MS long
+  return millis() - lastIrDetection < MIN_IR_DETECTION_MS;
 }
 
 bool fork_detection()
@@ -291,6 +301,7 @@ void setup()
 
   switchBehavior = SwitchBehavior::Manual;
   trackSwitch.registerCallback(broadcastDetectionCallback);
+  toggle_mode((PowerFunctionsPort)0, PowerFunctionsPwm::BRAKE, 0); // broadcast state at startup
   M5.dis.drawpix(0, REDC);
   log_i("Setup complete");
 }
