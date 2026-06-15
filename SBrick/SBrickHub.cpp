@@ -405,32 +405,31 @@ byte SBrickHub::detectPortSensor(byte port)
 
     delay(200); // values read ~5x/sec, so this should be enough
 
-    //float batV = getBatteryLevel();
     float idVoltage = readAdcChannel(sensorIdChannel);
     float valueVoltage = readAdcChannel(sensorValueChannel);
-    log_i("[port: %d] [c1: %f] [c2: %f]", port, idVoltage, valueVoltage);
+    log_i("[port: %d] [c1: %.2fV] [c2: %.2fV]", port, idVoltage, valueVoltage);
 
-    // TODO: subject to change over battery life, maybe should be relative to battery voltage?
-    if (idVoltage >= 3.0 && valueVoltage >= 3.0)
-    {
-        deactivateAdcChannel(sensorIdChannel);
-        deactivateAdcChannel(sensorValueChannel);
-        return (byte)SBrickDevice::Motor;
-    }
-    else if (idVoltage < 3.5 && idVoltage > 3.0 && valueVoltage < 3.0 && valueVoltage > 2.3)    
-    {
-        return (byte)SBrickDevice::MotionSensor;
-    }
-    else if (idVoltage < 1.65 && idVoltage > 1.35 && valueVoltage < 3.25 && valueVoltage > 2.7)
-    {
-        return (byte)SBrickDevice::TiltSensor;
-    }
-    else
+    if (idVoltage < 1.0 || valueVoltage < 1.0)
     {
         deactivateAdcChannel(sensorIdChannel);
         deactivateAdcChannel(sensorValueChannel);
         return (byte)SBrickDevice::NotFound;
     }
+
+    float ratio = idVoltage / valueVoltage;
+
+    // id << value
+    if (ratio < 0.70f)
+        return (byte)SBrickDevice::TiltSensor;
+
+    // id > value
+    if (ratio > 1.10f)
+        return (byte)SBrickDevice::MotionSensor;
+
+    // id ~= value
+    deactivateAdcChannel(sensorIdChannel);
+    deactivateAdcChannel(sensorValueChannel);
+    return (byte)SBrickDevice::Motor;
 }
 
 void SBrickHub::subscribeSensor(byte port, ChannelValueChangeCallback channelValueChangeCallback)
@@ -442,33 +441,40 @@ void SBrickHub::subscribeSensor(byte port, ChannelValueChangeCallback channelVal
 
 byte SBrickHub::interpretSensorMotion(float voltage, float neutralV)
 {
-    // did chatgpt write this?! works I guess.
-    return ((neutralV - voltage) && (voltage < 2.00)) > 0.30 ? 0x01 : 0x00;
+    float delta = voltage - neutralV;
+    float deltaPct = (delta / neutralV) * 100;
+
+    if (deltaPct > 15)
+    {
+        log_i("motion: %d%% (%.2fV-%.2fV=%.2fV)", (int)deltaPct, voltage, neutralV, delta);
+    }
+
+    return (deltaPct < -25) ? 0x01 : 0x00;
 }
 
 byte SBrickHub::interpretSensorTilt(float voltage, float neutralV)
 {
     float delta = voltage - neutralV;
-    float deltaPerc = (delta / neutralV) * 100;
+    float deltaPct = (delta / neutralV) * 100;
 
-    if (deltaPerc > 15)
+    if (deltaPct > 15)
     {
-        log_d("voltage: %f, neutral: %f, delta: %f, perc: %f", voltage, neutralV, delta, deltaPerc);
+        log_i("tilt: %d%%s (%.2fV-%.2fV=%.2fV)", (int)deltaPct, voltage, neutralV, delta);
     }
 
-    if (deltaPerc > 60)
+    if (deltaPct > 60)
     {
         return (byte)WedoTilt::Left;
     }
-    else if (deltaPerc < -60)
+    else if (deltaPct < -60)
     {
         return (byte)WedoTilt::Backward;
     }
-    else if (deltaPerc < -30)
+    else if (deltaPct < -30)
     {
         return (byte)WedoTilt::Right;
     }
-    else if (deltaPerc > 30)
+    else if (deltaPct > 30)
     {
         return (byte)WedoTilt::Forward;
     }

@@ -392,8 +392,8 @@ inline void drawSBrickSensorReading(M5Canvas *canvas, int x, int y, RemoteAction
     break;
   case RemoteAction::SpdDn:
     canvas->drawTriangle(x - 6, y - gap + 1, x + 1, y - gap + 1, x - 2, y - gap - 5, TFT_SILVER);
-    sprintf(deltaV, "%+5.2f", voltage - neutralV);
-    canvas->drawString(String(deltaV) + "V", x, y + gap, &fonts::TomThumb);
+    sprintf(deltaV, "%d%%", (int)(((voltage - neutralV) / neutralV) * 100));
+    canvas->drawString(String(deltaV), x, y + gap, &fonts::TomThumb);
     break;
   }
 }

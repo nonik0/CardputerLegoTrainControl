@@ -951,6 +951,7 @@ void sbrickMotionSensorCallback(void *hub, byte channel, float voltage)
 
   if (sbrickMotionSensorNeutralV < 0.0)
   {
+    log_i("Calibrating motion sensor neutral voltage to %.2fV", voltage);
     sbrickMotionSensorNeutralV = voltage;
     return;
   }
@@ -994,6 +995,7 @@ void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
 
   if (sbrickTiltSensorNeutralV < 0.0)
   {
+    log_i("Calibrating tilt sensor neutral voltage to %.2fV", voltage);
     sbrickTiltSensorNeutralV = voltage;
     return;
   }
@@ -1043,6 +1045,8 @@ void sbrickConnectionToggle()
     {
       log_i("connected to sbrick");
       sbrickInit = true;
+
+      log_i("battery voltage: %.2fV", sbrickHub.getBatteryLevel());
 
       // detect sensors and subscribe to them
       for (byte port = 0; port < 4; port++)
@@ -1130,13 +1134,18 @@ void sbrickHandlePortAction(Button *button)
     if (button->port == sbrickMotionSensorPort)
     {
       if (button->action == SpdDn)
+      {
+        log_i("Recalibrating motion sensor to %.2fV", sbrickMotionSensorV);
         sbrickMotionSensorNeutralV = sbrickMotionSensorV;
+      }
       return;
     }
     else if (button->port == sbrickTiltSensorPort)
     {
-      if (button->action == SpdDn)
+      if (button->action == SpdDn) {
+        log_i("Recalibrating tilt sensor to %.2fV", sbrickMotionSensorV);
         sbrickTiltSensorNeutralV = sbrickTiltSensorV;
+      }
       return;
     }
 
@@ -2007,16 +2016,6 @@ void draw()
     {
       canvas.drawString(String(sbrickBatteryV, 1) + "V", sbrickDataCol + bw / 2, r1_5 - 13);
       canvas.drawString(String(sbrickTempF, 0) + "C", sbrickDataCol + bw / 2, r1_5 - 2);
-
-      // if (sbrickMotionSensorInit)
-      // {
-      //   canvas.drawString(String(motionV, 2), sbrickDataCol + bw, r3_5 - 2);
-      // }
-
-      // if (sbrickTiltSensorInit)
-      // {
-      //   canvas.drawString(String(tiltV, 2), sbrickDataCol + bw, r3_5 + 9);
-      // }
 
       if (sbrickMotionSensorInit || sbrickTiltSensorInit)
       {
