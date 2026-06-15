@@ -1,7 +1,8 @@
 #include "TrackSwitch.h"
 
-#define DETECTION_TIMEOUT_MS 3000
-#define DETECTION_DEBOUNCE_MS 300
+#define CAR_DETECTION_DEBOUNCE_MS 300 // max length of detection blips from gaps between cars
+#define DETECTION_TIMEOUT_MS 1000     // time before tracking state is cleared due to invalid transition
+#define NOISE_DEBOUNCE_MS 50          // max length to ignore for false positive detection blips
 
 void TrackSwitch::logState()
 {
@@ -103,31 +104,54 @@ void TrackSwitch::update()
     switch (lastPosition)
     {
     case TrainPosition::Undetected:
+        // wait for train to trigger sensoor from either direction
         if (mergeDetection)
         {
-            _position = TrainPosition::Entering;
-            _direction = TrainDirection::Forking;
-            _lastDetection = millis();
+            // wait for stable out sensor detection before updating position
+            if (millis() - _lastClear > NOISE_DEBOUNCE_MS)
+            {
+                _position = TrainPosition::Entering;
+                _direction = TrainDirection::Forking;
+                _lastDetection = millis();
+            }
         }
         else if (forkDetection)
         {
-            _position = TrainPosition::Entering;
-            _direction = TrainDirection::Merging;
-            _lastDetection = millis();
+            // wait for stable out sensor detection before updating position
+            if (millis() - _lastClear > NOISE_DEBOUNCE_MS)
+            {
+                _position = TrainPosition::Entering;
+                _direction = TrainDirection::Merging;
+                _lastDetection = millis();
+            }
         }
-        // reset direction after clean exit
-        else if (_direction != TrainDirection::Undetected)
+        else
         {
-            _direction = TrainDirection::Undetected;
+            // reset direction after clean exit
+            if (_direction != TrainDirection::Undetected)
+            {
+                _direction = TrainDirection::Undetected;
+            }
+
+            _lastClear = millis();
         }
         break;
     case TrainPosition::Entering:
-        // wait for the outgoing sensor to trigger
+        // wait for train to trigger out sensor
         if (outSensor)
         {
-            _position = TrainPosition::Passing;
+            // wait for stable out sensor detection before updating position
+            if (millis() - _lastClear > NOISE_DEBOUNCE_MS)
+            {
+                _position = TrainPosition::Passing;
+            }
         }
-        else if (inSensor)
+        else
+        {
+            _lastClear = millis();
+        }
+        // in sensor shouldn't clear while train is entering
+        if (inSensor)
         {
             _lastDetection = millis();
         }
@@ -138,29 +162,37 @@ void TrackSwitch::update()
         }
         break;
     case TrainPosition::Passing:
-        // wait for the outgoing sensor to clear (but debounce for to account for gaps between cars)
+        // wait for train to clear in sensor
         if (!inSensor)
         {
-            if (millis() - _lastDetection > DETECTION_DEBOUNCE_MS)
+            // debounce small gaps from between cars before updating position
+            if (millis() - _lastDetection > CAR_DETECTION_DEBOUNCE_MS)
             {
                 _position = TrainPosition::Exiting;
             }
         }
-        else if (outSensor)
+        else
         {
             _lastDetection = millis();
         }
-        else if (millis() - _lastDetection > DETECTION_TIMEOUT_MS)
+        // out sensor shouldn't clear while train is passing
+        if (outSensor)
+        {
+            // overloading name here, "_lastDetection2"
+            _lastClear = millis();
+        }
+        else if (millis() - _lastClear > DETECTION_TIMEOUT_MS)
         {
             _position = TrainPosition::Undetected;
             _direction = TrainDirection::Undetected;
         }
         break;
     case TrainPosition::Exiting:
-        // wait for the outgoing sensor to clear (but debounce for to account for gaps between cars)
+        // wait for the train to clear out sensor
         if (!outSensor)
         {
-            if (millis() - _lastDetection > DETECTION_DEBOUNCE_MS)
+            // debounce small gaps from between cars before updating position
+            if (millis() - _lastDetection > CAR_DETECTION_DEBOUNCE_MS)
             {
                 _position = TrainPosition::Undetected;
                 // direction not cleared yet to show clean exit
@@ -169,6 +201,16 @@ void TrackSwitch::update()
         else
         {
             _lastDetection = millis();
+        }
+        // in sensor shouldn't detect while train is exiting
+        if (!inSensor)
+        {
+            _lastClear = millis();
+        }
+        else if (millis() - _lastClear > DETECTION_TIMEOUT_MS)
+        {
+            _position = TrainPosition::Undetected;
+            _direction = TrainDirection::Undetected;
         }
         break;
     }

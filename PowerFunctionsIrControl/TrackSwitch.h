@@ -35,6 +35,7 @@ private:
     TrainDirection _direction;
     TrainPosition _position;
     unsigned long _lastDetection;
+    unsigned long _lastClear;
     DetectionCallback _onDetectionCallback;
 
 public:
