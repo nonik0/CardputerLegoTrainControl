@@ -58,7 +58,7 @@ IrReflective irReflective;
 TrackSwitch trackSwitch;
 SwitchBehavior switchBehavior;
 
-uint8_t controlSwitchChannel = 1;
+uint8_t controlSwitchChannel = 0;
 PowerFunctionsPort controlSwitchPort = PowerFunctionsPort::BLUE;
 unsigned long lastTrainExitMs = 0;
 bool redirecting = false;
@@ -195,6 +195,12 @@ void trainRedirectLoopCallback(TrainPosition position, TrainDirection direction)
 
 void toggle_mode(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel)
 {
+  if (pwm == PowerFunctionsPwm::BRAKE) {
+    log_i("Broadcasting requested state");
+    client.switch_mode(controlSwitchPort, (PowerFunctionsPwm)switchBehavior, controlSwitchChannel);
+    return;
+  }
+
   if (port != controlSwitchPort || channel != controlSwitchChannel)
   {
     log_i("Port and channel do not match control track switch, not toggling mode");
@@ -204,6 +210,7 @@ void toggle_mode(PowerFunctionsPort port, PowerFunctionsPwm pwm, uint8_t channel
   if (pwm != PowerFunctionsPwm::FLOAT)
   {
     log_i("Not toggle PWM value, not toggling mode");
+    return;
   }
 
   switchBehavior = static_cast<SwitchBehavior>((static_cast<int>(switchBehavior) + 1) % static_cast<int>(SwitchBehavior::NumBehaviors));

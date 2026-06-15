@@ -727,6 +727,7 @@ void powerFunctionsInit()
     log_i("enabling IR broadcast and receive");
     irTrainCtl.enableBroadcast();
     irTrainCtl.registerRecvCallback(powerFunctionsRecvCallback);
+    irTrainCtl.switch_mode((PowerFunctionsPort)0, PowerFunctionsPwm::BRAKE, 0); // request nearby switch states
   }
 }
 
@@ -892,6 +893,7 @@ void powerFunctionsRecvCallback(PowerFunctionsIrMessage receivedMessage)
     break;
   case PowerFunctionsCall::SwitchMode:
     log_i("Updating tracking state for switch mode");
+    irPortFunction[receivedMessage.channel][(byte)receivedMessage.port] = true;
     irSwitchPort[receivedMessage.channel] = receivedMessage.port;
     irSwitchMode[receivedMessage.channel] = (uint8_t)receivedMessage.pwm;
     redraw = true;
@@ -1456,6 +1458,7 @@ void handleRemoteButtonPress(Button *button)
       log_i("enabling IR broadcast and receive");
       irTrainCtl.enableBroadcast();
       irTrainCtl.registerRecvCallback(powerFunctionsRecvCallback);
+      irTrainCtl.switch_mode((PowerFunctionsPort)0, PowerFunctionsPwm::BRAKE, 0); // request nearby switch states
     }
     else if (irMode == 0)
     {
