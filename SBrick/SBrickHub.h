@@ -53,7 +53,7 @@ public:
 
 private:
     friend class SBrickHubClientCallback;
-    friend class SBrickHubAdvertisedDeviceCallbacks;
+    friend class SBrickHubScanCallbacks;
     struct AdcChannel
     {
         byte Channel;

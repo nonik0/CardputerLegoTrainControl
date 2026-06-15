@@ -36,26 +36,26 @@ public:
     }
 };
 
-class CircuitCubesHubAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks
+class CircuitCubesHubScanCallbacks : public NimBLEScanCallbacks
 {
     CircuitCubesHub *_circuitCubesHub;
 
 public:
-    CircuitCubesHubAdvertisedDeviceCallbacks(CircuitCubesHub *circuitCubeHub) : NimBLEAdvertisedDeviceCallbacks()
+    CircuitCubesHubScanCallbacks(CircuitCubesHub *circuitCubeHub) : NimBLEScanCallbacks()
     {
         _circuitCubesHub = circuitCubeHub;
     }
 
-    static void scanEndedCallback(NimBLEScanResults results)
+    void onScanEnd(const NimBLEScanResults& scanResults, int reason)
     {
-        log_d("Number of devices: %d", results.getCount());
-        for (int i = 0; i < results.getCount(); i++)
+        log_d("Number of devices: %d, reason: %d", results.getCount(), reason);
+        for (int i = 0; i < scanResults.getCount(); i++)
         {
             log_d("device[%d]: %s", i, results.getDevice(i).toString().c_str());
         }
     }
 
-    void onResult(NimBLEAdvertisedDevice *advertisedDevice)
+    void onResult(const NimBLEAdvertisedDevice *advertisedDevice)
     {
         // Found a device, check if the service is contained and optional if address fits requested address
         log_d("advertised device: %s", advertisedDevice->toString().c_str());
@@ -91,17 +91,15 @@ void CircuitCubesHub::init()
     NimBLEDevice::init("");
     NimBLEScan *pBLEScan = NimBLEDevice::getScan();
 
-    pBLEScan->setAdvertisedDeviceCallbacks(new CircuitCubesHubAdvertisedDeviceCallbacks(this));
+    pBLEScan->setScanCallbacks(new CircuitCubesHubScanCallbacks(this));
 
     pBLEScan->setActiveScan(true);
-    // start method with callback function to enforce the non blocking scan. If no callback function is used,
-    // the scan starts in a blocking manner
-    pBLEScan->start(_scanDuration, CircuitCubesHubAdvertisedDeviceCallbacks::scanEndedCallback);
+    pBLEScan->start(_scanDuration);
 }
 
 void CircuitCubesHub::init(std::string deviceAddress)
 {
-    _requestedDeviceAddress = new BLEAddress(deviceAddress);
+    _requestedDeviceAddress = new NimBLEAddress(deviceAddress, 0);
     init();
 }
 
@@ -113,7 +111,7 @@ void CircuitCubesHub::init(uint32_t scanDuration)
 
 void CircuitCubesHub::init(std::string deviceAddress, uint32_t scanDuration)
 {
-    _requestedDeviceAddress = new BLEAddress(deviceAddress);
+    _requestedDeviceAddress = new NimBLEAddress(deviceAddress, 0);
     _scanDuration = scanDuration;
     init();
 }
@@ -122,10 +120,10 @@ bool CircuitCubesHub::connectHub()
 {
     NimBLEAddress pAddress = *_pServerAddress;
 
-    log_d("number of ble clients: %d", NimBLEDevice::getClientListSize());
+    log_d("number of ble clients: %d", NimBLEDevice::getCreatedClientCount());
 
     /** Check if we have a client we should reuse first **/
-    if (NimBLEDevice::getClientListSize())
+    if (NimBLEDevice::getCreatedClientCount())
     {
         /** Special case when we already know this device, we send false as the
          *  second argument in connect() to prevent refreshing the service database.
@@ -153,9 +151,9 @@ bool CircuitCubesHub::connectHub()
     /** No client to reuse? Create a new one. */
     if (!_pClient)
     {
-        if (NimBLEDevice::getClientListSize() >= NIMBLE_MAX_CONNECTIONS)
+        if (NimBLEDevice::getCreatedClientCount() >= NIMBLE_MAX_CONNECTIONS)
         {
-            log_w("max clients reached - no more connections available: %d", NimBLEDevice::getClientListSize());
+            log_w("max clients reached - no more connections available: %d", NimBLEDevice::getCreatedClientCount());
             return false;
         } 
 
