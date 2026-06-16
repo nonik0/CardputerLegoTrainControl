@@ -32,6 +32,7 @@ const short BtDistanceStopThreshold = 100; // when train is "picked up"
 Lpf2Hub lpf2Hub;
 bool lpf2Init = false;
 volatile int lpf2Rssi = -1000;
+volatile int lpf2BatteryLevel= 0;
 short lpf2PortSpeed[2] = {0, 0};
 unsigned long lpf2DisconnectDelay;    // debounce disconnects
 unsigned long lpf2ButtonDebounce = 0; // debounce button presses
@@ -266,9 +267,23 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
       return;
     }
 
-    log_d("rssiCallback: %d", rssi);
+    log_d("lpf2HubCallback: rssi %d", rssi);
     lpf2Rssi = rssi;
     redraw = true;
+    return;
+  }
+  else if (hubProperty == HubPropertyReference::BATTERY_VOLTAGE)
+  {
+    int batteryLevel = trainCtl->parseBatteryLevel(pData);
+
+    if (batteryLevel == lpf2BatteryLevel)
+    {
+      return;
+    }
+
+    log_d("lpf2HubCallback: battery level %d", batteryLevel);
+    lpf2Rssi = batteryLevel;
+    //redraw = true; TODO: finish battery stuff
     return;
   }
   else if (hubProperty == HubPropertyReference::BUTTON && millis() > lpf2ButtonDebounce)

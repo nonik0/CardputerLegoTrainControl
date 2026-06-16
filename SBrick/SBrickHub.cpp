@@ -27,11 +27,11 @@ public:
     {
     }
 
-    void onDisconnect(NimBLEClient *bleClient)
+    void onDisconnect(BLEClient *bleClient, int reason)
     {
         _sbrickHub->_isConnecting = false;
         _sbrickHub->_isConnected = false;
-        log_d("disconnected client");
+        log_d("disconnected client, reason: %d", reason);
     }
 };
 
@@ -45,17 +45,33 @@ public:
         _sbrickHub = sbrickHub;
     }
 
-    void onScanEnd(const NimBLEScanResults& scanResults, int reason)
+    void onScanEnd(const NimBLEScanResults& results, int reason) override
     {
-        log_d("Number of devices: %d, reason: %d", results.getCount(), reason);
-        for (int i = 0; i < scanResults.getCount(); i++)
+        log_d("Scan Eeded reason: %d\nNumber of devices: %d", reason, results.getCount());
+        for (int i = 0; i < results.getCount(); i++)
         {
-            log_d("device[%d]: %s", i, results.getDevice(i).toString().c_str());
+            log_d("device[%d]: %s", i, results.getDevice(i)->toString().c_str());
         }
     }
 
-    void onResult(const NimBLEAdvertisedDevice *advertisedDevice)
+    // NimBLE 2.x calls onDiscovered() first, then onResult() only after scan response.
+    // Check for the hub in both callbacks to ensure detection works regardless of
+    // whether the service UUID is in the advertisement or the scan response.
+    void onDiscovered(const NimBLEAdvertisedDevice* advertisedDevice) override
     {
+        checkForHub(advertisedDevice);
+    }
+
+    void onResult(const NimBLEAdvertisedDevice* advertisedDevice) override
+    {
+        checkForHub(advertisedDevice);
+    }
+
+    void checkForHub(const NimBLEAdvertisedDevice* advertisedDevice)
+    {
+        // Already found a hub, skip further checks
+        if (_sbrickHub->_isConnecting) return;
+
         // Found a device, check if the service is contained and optional if address fits requested address
         log_d("advertised device: %s", advertisedDevice->toString().c_str());
 
@@ -73,6 +89,7 @@ public:
                 log_d("manufacturer data: [%s]", getHexString(manufacturerData, manufacturerDataLength).c_str());
             }
             _sbrickHub->_isConnecting = true;
+            advertisedDevice->getScan()->stop();
         }
     }
 };
@@ -92,7 +109,15 @@ void SBrickHub::init()
     NimBLEDevice::init("");
     NimBLEScan *pBLEScan = NimBLEDevice::getScan();
 
-    pBLEScan->setScanCallbacks(new SBrickHubScanCallbacks(this));
+    _scanCallbacks = new SBrickHubScanCallbacks(this);
+
+    if (_scanCallbacks == nullptr)
+    {
+        log_e("failed to create scan callbacks");
+        return;
+    }
+
+    pBLEScan->setScanCallbacks(_scanCallbacks);
 
     pBLEScan->setActiveScan(true);
     pBLEScan->start(_scanDuration);
@@ -100,7 +125,7 @@ void SBrickHub::init()
 
 void SBrickHub::init(std::string deviceAddress)
 {
-    _requestedDeviceAddress = new NimBLEAddress(deviceAddress, 0);
+    _requestedDeviceAddress = new NimBLEAddress(deviceAddress, BLE_ADDR_PUBLIC);
     init();
 }
 
@@ -112,7 +137,7 @@ void SBrickHub::init(uint32_t scanDuration)
 
 void SBrickHub::init(std::string deviceAddress, uint32_t scanDuration)
 {
-    _requestedDeviceAddress = new NimBLEAddress(deviceAddress, 0);
+    _requestedDeviceAddress = new NimBLEAddress(deviceAddress, BLE_ADDR_PUBLIC);
     _scanDuration = scanDuration;
     init();
 }

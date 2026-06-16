@@ -62,6 +62,7 @@ private:
 
     // BLE specific stuff
     void notifyCallback(NimBLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);
+    NimBLEScanCallbacks *_scanCallbacks = nullptr;
     NimBLEUUID _bleUuid;
     NimBLEUUID _characteristicRemoteControlUuid;
     NimBLEUUID _characteristicQuickDriveUuid;
@@ -86,5 +87,5 @@ private:
     AdcChannel _activeAdcChannels[SBRICK_ADC_CHANNEL_COUNT];
     int _numberOfActiveChannels = 0;
 
-    uint32_t _scanDuration = 10;
+    uint32_t _scanDuration = 10000;
 };

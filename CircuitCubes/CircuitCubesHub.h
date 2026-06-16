@@ -35,6 +35,7 @@ public:
     float getBatteryLevel();
 
     void notifyCallback(NimBLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);
+    NimBLEScanCallbacks *_scanCallbacks = nullptr;
     NimBLEUUID _bleUuid;
     NimBLEUUID _characteristicWriteUuid;
     NimBLEUUID _characteristicNotifyUuid;
@@ -48,6 +49,6 @@ public:
     bool _isConnected;
 
 private:
-    uint32_t _scanDuration = 10;
+    uint32_t _scanDuration = 10000;
     float _batteryVoltage;
 };
