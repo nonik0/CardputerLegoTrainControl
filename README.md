@@ -36,7 +36,7 @@ Function|Description
 Aux1 | Toggle BT connection
 Aux2 | Toggle LED color
 
-The BT connection will autodisconnect if the hub is left connected and no motors are on.
+The BT connection will auto-disconnect if the hub is left connected and no motors are on. The hub's battery state is shown near the top of the controls.
 
 #### with Color & Distance Sensor:
 ![pu 1](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/96a9bf02-faa8-4c22-b871-32faa0d1c135) ![pu 2](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/6d80bd5f-246f-413b-90f1-6d7ad0c0e6c3)
@@ -62,11 +62,13 @@ Aux1 | change IR channel (1-4)
 Aux2 | change between modes
 Port Function Toggle | toggle between motor and switch mode
 
-Aux1 simply changes the IR channel being controlled and needs to match IR receiver.
+Aux1 changes the IR channel being controlled and needs to match the IR receiver.
 
 Aux2 controls the remote modes, which cycle between normal -> state -> state/broadcast -> broadcast -> normal.
 - State mode: tracks the speed of the motor on the Cardputer and sends specific speed commands to the remote device, as opposed to sending simple motor speed increment signals.
-- Broadcast mode: broadcasts all IR commands using ESP-NOW such that other ESP devices can pick up and rebroadcast the IR signal, extending the range of the Cardputer's weak IR. See the [PowerFunctionsIRRepeater project](PowerFunctionsIrRepeater) for a simple implementation of a repeater using M5Atom. Can also listen to other broadcasts from other devices and show/update state locally.
+- Broadcast mode: broadcasts all IR commands using ESP-NOW such that other ESP devices can pick up and rebroadcast the IR signal, drastically extending the range and reliability for IR contrls over over just using the Cardputer's weak IR emitter. See the [PowerFunctionsIRRepeater project](PowerFunctionsIrRepeater) for a simple implementation of a repeater using an M5Atom.
+
+For maximum use out of broadcast mode, there is also support for the more experimental [PowerFunctionsIrControl](PowerFunctionsIrControl). This companion project uses another ESP and two proximity and/or distance sensors positioned each of a track switch. These sensors are used to track the state of trains entering, passing through, and exiting the switch. With this tracking, the switch can redirect trains in four different "modes" -- manual, alternate, redirect route, and redirect loop. The current mode is shown on the corresponding port's stop button (and matching channel) and the mode can be toggled by pressing Function Shift + Stop button. The switch controller also rebroadcasts its switching actions, which are reflected by virtual button presses, and its tracking state, shown by highlighted button icons.
 
 Port Function Toggle will switch a port between motor and switch functionality. Switch functionality is for when a motor is used to control a track switch (like this [example](https://www.flickr.com/photos/skaako/albums/72157629455967364/with/7086199383)). Pressing the up/down port button will send a one second pulse to the motor to
 switch the track to that direction, and the stop/center port button will toggle the switch state.
