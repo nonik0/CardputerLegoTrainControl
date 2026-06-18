@@ -32,7 +32,7 @@ const short BtDistanceStopThreshold = 100; // when train is "picked up"
 Lpf2Hub lpf2Hub;
 bool lpf2Init = false;
 volatile int lpf2Rssi = -1000;
-volatile int lpf2BatteryLevel= 0;
+volatile int lpf2BatteryLevel = 0;
 short lpf2PortSpeed[2] = {0, 0};
 unsigned long lpf2DisconnectDelay;    // debounce disconnects
 unsigned long lpf2ButtonDebounce = 0; // debounce button presses
@@ -46,6 +46,7 @@ volatile bool lpf2DisabledAction = false;        // true if last action was "dis
 
 // lpf2 color/distance sensor
 bool lpf2SensorInit = false;
+byte lpf2SensorRetries = 0;            // sensor detection is spotty, allow for retries
 byte lpf2SensorPort = NO_SENSOR_FOUND; // set to A or B if detected
 byte lpf2MotorPort = NO_SENSOR_FOUND;  // set to opposite of sensor port if detected
 short lpf2SensorDistanceMovingAverage = 0;
@@ -258,21 +259,7 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
 {
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
 
-  if (hubProperty == HubPropertyReference::RSSI)
-  {
-    int rssi = trainCtl->parseRssi(pData);
-
-    if (rssi == lpf2Rssi)
-    {
-      return;
-    }
-
-    log_d("lpf2HubCallback: rssi %d", rssi);
-    lpf2Rssi = rssi;
-    redraw = true;
-    return;
-  }
-  else if (hubProperty == HubPropertyReference::BATTERY_VOLTAGE)
+  if (hubProperty == HubPropertyReference::BATTERY_VOLTAGE)
   {
     int batteryLevel = trainCtl->parseBatteryLevel(pData);
 
@@ -281,9 +268,9 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
       return;
     }
 
-    log_d("lpf2HubCallback: battery level %d", batteryLevel);
-    lpf2Rssi = batteryLevel;
-    //redraw = true; TODO: finish battery stuff
+    log_i("lpf2HubCallback: battery level %d%%", batteryLevel);
+    lpf2BatteryLevel = batteryLevel;
+    redraw = true;
     return;
   }
   else if (hubProperty == HubPropertyReference::BUTTON && millis() > lpf2ButtonDebounce)
@@ -291,7 +278,7 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
     lpf2ButtonDebounce = millis() + 200;
     ButtonState buttonState = trainCtl->parseHubButton(pData);
 
-    log_d("buttonState: %d", buttonState);
+    log_i("lpf2HubCallback: button state: %d", buttonState);
     if (buttonState == ButtonState::PRESSED)
     {
       if (lpf2SensorStopDelay > 0)
@@ -314,6 +301,20 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
         lpf2AutoAction = Lpf2Color;
       }
     }
+  }
+  if (hubProperty == HubPropertyReference::RSSI)
+  {
+    int rssi = trainCtl->parseRssi(pData);
+
+    if (rssi == lpf2Rssi)
+    {
+      return;
+    }
+
+    log_d("lpf2HubCallback: rssi %d", rssi); // frequent
+    lpf2Rssi = rssi;
+    redraw = true;
+    return;
   }
 }
 
@@ -350,7 +351,7 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   redraw = true;
 
   // ignore BLACK for LED color updates
-  if (color != Color::BLACK)
+  if (color == Color::BLACK)
   {
     return;
   }
@@ -437,12 +438,35 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   }
 }
 
+void lpf2ResetHubState()
+{
+  // resets any ephermeral hub state, skips over some things that don't matter (probably)
+  lpf2Init = false;
+  lpf2Rssi = -1000;
+  lpf2BatteryLevel = 0;
+  lpf2PortSpeed[0] = 0;
+  lpf2PortSpeed[1] = 0;
+  lpf2LedColor = Color::NONE;
+  lpf2AutoAction = NoAction;
+  lpf2AltAutoAction = false;
+  lpf2ResumeAction = false;
+  lpf2DisabledAction = false;
+  lpf2SensorInit = false;
+  lpf2SensorRetries = 0;
+  lpf2SensorPort = NO_SENSOR_FOUND;
+  lpf2MotorPort = NO_SENSOR_FOUND;
+  lpf2SensorDistanceMovingAverage = 0;
+  lpf2SensorColor = Color::NONE;
+
+  redraw = true;
+}
+
 void lpf2ConnectionToggle()
 {
-  log_d("btConnectionToggle");
-
   if (!lpf2Init)
   {
+    log_i("trying to connect");
+
     if (!lpf2Hub.isConnecting())
     {
       lpf2Hub.init();
@@ -457,27 +481,24 @@ void lpf2ConnectionToggle()
       delay(200);
 
       lpf2Init = true;
-      lpf2LedColor = Color::NONE;
+      lpf2Hub.activateHubPropertyUpdate(HubPropertyReference::BATTERY_VOLTAGE, lpf2HubCallback);
       lpf2Hub.activateHubPropertyUpdate(HubPropertyReference::BUTTON, lpf2HubCallback);
       lpf2Hub.activateHubPropertyUpdate(HubPropertyReference::RSSI, lpf2HubCallback);
+
+      // battery changes infrequently so request initial value
+      log_i("requesting initial battery voltage update");
+      lpf2Hub.requestHubPropertyUpdate(HubPropertyReference::BATTERY_VOLTAGE, lpf2HubCallback);
     }
 
+    // avoiding disconnecting from a hub right after connecting to avoid user accidentally disconnecting
     lpf2DisconnectDelay = millis() + 500;
   }
   else if (lpf2DisconnectDelay < millis())
   {
+    log_i("disconnecting");
     lpf2Hub.shutDownHub();
-
     delay(200);
-
-    lpf2Init = false;
-    lpf2SensorInit = false;
-    lpf2PortSpeed[0] = lpf2PortSpeed[1] = 0;
-    lpf2MotorPort = NO_SENSOR_FOUND;
-    lpf2SensorPort = NO_SENSOR_FOUND;
-    lpf2LedColor = Color::NONE;
-    lpf2SensorColor = Color::NONE;
-    lpf2SensorStopDelay = 0;
+    lpf2ResetHubState();
   }
 }
 
@@ -675,70 +696,54 @@ void lpf2HandlePortAction(Button *button)
 
 void lpf2Update()
 {
+  // TODO: this is prob redundant
   if (!lpf2Hub.isConnected())
   {
-    lpf2Init = false;
-    lpf2SensorInit = false;
-    lpf2PortSpeed[0] = lpf2PortSpeed[1] = 0;
-    lpf2MotorPort = NO_SENSOR_FOUND;
-    lpf2SensorPort = NO_SENSOR_FOUND;
-    lpf2SensorSpdUpColor = Color::GREEN;
-    lpf2SensorSpdUpAltColor = Color::NONE;
-    lpf2SensorStopColor = Color::RED;
-    lpf2SensorStopAltColor = Color::NONE;
-    lpf2SensorSpdDnColor = Color::YELLOW;
-    lpf2SensorSpdDnAltColor = Color::NONE;
-    lpf2SensorStopFunction = 0;
-    lpf2SensorStopDelay = 0;
-    redraw = true;
+    log_i("Hub disconnected, resetting local state");
+    lpf2ResetHubState();
+    return;
   }
-  else
+
+  // try detecting sensor with retries shortly after initially connecting
+  if (!lpf2SensorInit && lpf2SensorRetries < 10)
   {
-    if (lpf2LedColor == Color::NONE)
+    lpf2SensorPort = lpf2Hub.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
+    if (lpf2SensorPort == (byte)PoweredUpHubPort::A || lpf2SensorPort == (byte)PoweredUpHubPort::B)
     {
-      byte btLedPort = lpf2Hub.getPortForDeviceType((byte)DeviceType::HUB_LED);
-      if (btLedPort != NO_SENSOR_FOUND)
-      {
-        lpf2LedColor = (Color)(1 + (millis() % (Color::NUM_COLORS - 1))); // "random" color
-        lpf2Hub.setLedColor(lpf2LedColor);
-      }
-    }
-
-    if (!lpf2SensorInit)
-    {
-      lpf2SensorPort = lpf2Hub.getPortForDeviceType((byte)DeviceType::COLOR_DISTANCE_SENSOR);
-      if (lpf2SensorPort == (byte)PoweredUpHubPort::A || lpf2SensorPort == (byte)PoweredUpHubPort::B)
-      {
-        lpf2Hub.activatePortDevice(lpf2SensorPort, lpf2DeviceCallback);
-        lpf2MotorPort = (lpf2SensorPort == (byte)PoweredUpHubPort::A) ? (byte)PoweredUpHubPort::B : (byte)PoweredUpHubPort::A;
-        lpf2SensorColor = Color::NONE;
-        lpf2SensorInit = true;
-        redraw = true;
-      }
-    }
-    // bt sensor delayed start after stop
-    if ((lpf2SensorStopFunction != -1 || lpf2SensorStopAltFunction != -1) && lpf2SensorStopDelay > 0 && millis() > lpf2SensorStopDelay)
-    {
-      lpf2ResumeTrainMotion();
-
-      // also show press for sensor button
-      Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
-      for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
-      {
-        if (lpf2Button[i].action == Brake && lpf2Button[i].port == lpf2SensorPort)
-        {
-          lpf2Button[i].pressed = true;
-          break;
-        }
-      }
-    }
-
-    // disconnect from hub if no activity (motor off with sensor or both motors off)
-    if (millis() - lpf2LastAction > BtInactiveTimeoutMs && ((lpf2SensorInit && lpf2PortSpeed[lpf2MotorPort] == 0) || (lpf2PortSpeed[0] == 0 && lpf2PortSpeed[1] == 0)))
-    {
-      lpf2ConnectionToggle();
+      lpf2Hub.activatePortDevice(lpf2SensorPort, lpf2DeviceCallback);
+      lpf2MotorPort = (lpf2SensorPort == (byte)PoweredUpHubPort::A) ? (byte)PoweredUpHubPort::B : (byte)PoweredUpHubPort::A;
+      lpf2SensorColor = Color::NONE;
+      lpf2SensorInit = true;
+      lpf2SensorRetries = 0;
       redraw = true;
     }
+    else {
+      lpf2SensorRetries++;
+    }
+  }
+
+  // resume train motion if configured and pause is active and expired
+  if ((lpf2SensorStopFunction != -1 || lpf2SensorStopAltFunction != -1) && lpf2SensorStopDelay > 0 && millis() > lpf2SensorStopDelay)
+  {
+    lpf2ResumeTrainMotion();
+
+    // also show press for sensor button
+    Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
+    for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
+    {
+      if (lpf2Button[i].action == Brake && lpf2Button[i].port == lpf2SensorPort)
+      {
+        lpf2Button[i].pressed = true;
+        break;
+      }
+    }
+  }
+
+  // disconnect from hub if no activity (motor off with sensor or both motors off)
+  if (millis() - lpf2LastAction > BtInactiveTimeoutMs && ((lpf2SensorInit && lpf2PortSpeed[lpf2MotorPort] == 0) || (lpf2PortSpeed[0] == 0 && lpf2PortSpeed[1] == 0)))
+  {
+    lpf2ConnectionToggle();
+    redraw = true;
   }
 }
 
@@ -997,7 +1002,7 @@ void sbrickMotionSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
-  log_d("motion: %d", motion);
+  log_i("motion: %d", motion);
   sbrickAutoAction = Brake;
 }
 
@@ -1041,7 +1046,7 @@ void sbrickTiltSensorCallback(void *hub, byte channel, float voltage)
     return;
   }
 
-  log_d("tilt: %d", tilt);
+  log_i("tilt: %d", tilt);
   sbrickAutoAction = Brake;
 }
 
@@ -1230,7 +1235,7 @@ void sbrickUpdate()
 
 void circuitCubesConnectionToggle()
 {
-  log_d("circuitCubesConnectionToggle");
+  log_i("circuitCubesConnectionToggle");
 
   if (!circuitCubesInit)
   {
@@ -2024,6 +2029,25 @@ void draw()
   //     canvas.drawString(String(lpf2SensorDistanceMovingAverage) + "cm", lpf2DistanceX + bw / 2, r1 - 2);
   //   }
   // }
+
+  // powered up sensor data
+  int lpf2DataCol = 0;
+  if (lpf2Init)
+  {
+    if (activeRemoteLeft == RemoteDevice::PoweredUp)
+    {
+      lpf2DataCol = c1;
+    }
+    else if (activeRemoteRight == RemoteDevice::PoweredUp)
+    {
+      lpf2DataCol = c6;
+    }
+
+    if (lpf2DataCol)
+    {
+      canvas.drawString(String(lpf2BatteryLevel) + "%", lpf2DataCol + bw / 2, r1_5 - 15);
+    }
+  }
 
   // sbrick sensor data
   int sbrickDataCol = 0;
