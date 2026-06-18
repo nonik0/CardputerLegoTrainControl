@@ -2045,7 +2045,8 @@ void draw()
 
     if (lpf2DataCol)
     {
-      canvas.drawString(String(lpf2BatteryLevel) + "%", lpf2DataCol + bw / 2, r1_5 - 15);
+      //canvas.drawString(String(lpf2BatteryLevel) + "%", lpf2DataCol + bw / 2, r1_5 - 15);
+      drawBatteryIndicator(&canvas, lpf2DataCol + bw / 4, r1_5 - 20, lpf2BatteryLevel, 13, 7);
     }
   }
 

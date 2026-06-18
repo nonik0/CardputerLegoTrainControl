@@ -85,15 +85,12 @@ inline void drawActiveRemoteIndicator(M5Canvas *canvas, int x, int y, uint8_t ac
   }
 }
 
-inline void drawBatteryIndicator(M5Canvas *canvas, int x, int y, int batteryPct)
+inline void drawBatteryIndicator(M5Canvas *canvas, int x, int y, int batteryPct, int width = 24, int height = 11)
 {
-  int battw = 24;
-  int batth = 11;
-
-  int ya = y - batth / 2;
+  int yc = y - height / 2;
 
   // determine battery color and charge width from charge level
-  int chgw = (battw - 2) * batteryPct / 100;
+  int chgw = (width - 2) * batteryPct / 100;
   uint16_t batColor = COLOR_TEAL;
   if (batteryPct < 100)
   {
@@ -101,10 +98,17 @@ inline void drawBatteryIndicator(M5Canvas *canvas, int x, int y, int batteryPct)
     int g = (batteryPct / 100.0) * 256;
     batColor = canvas->color565(r, g, 0);
   }
-  canvas->fillRoundRect(x, ya, battw, batth, 2, TFT_SILVER);
-  canvas->fillRect(x - 2, y - 2, 2, 4, TFT_SILVER);
-  canvas->fillRect(x + 1, ya + 1, battw - 2 - chgw, batth - 2, COLOR_DARKGRAY);  // 1px margin from outer battery
-  canvas->fillRect(x + 1 + battw - 2 - chgw, ya + 1, chgw, batth - 2, batColor); // 1px margin from outer battery
+  canvas->fillRoundRect(x, yc, width, height, 2, TFT_SILVER);
+  if (height < 8)
+  {
+    canvas->fillRect(x - 1, y - 1, 1, 2, TFT_SILVER);
+  }
+  else
+  {
+    canvas->fillRect(x - 2, y - 2, 2, 4, TFT_SILVER);
+  }
+  canvas->fillRect(x + 1, yc + 1, width - 2 - chgw, height - 2, COLOR_DARKGRAY);  // 1px margin from outer battery
+  canvas->fillRect(x + 1 + width - 2 - chgw, yc + 1, chgw, height - 2, batColor); // 1px margin from outer battery
 }
 
 inline void drawRssiSymbol(M5Canvas *canvas, int x, int y, bool init, int rssi)
