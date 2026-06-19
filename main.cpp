@@ -255,6 +255,25 @@ void lpf2ResumeTrainMotion()
   log_i("resuming train motion: %d", lpf2PortSpeed[lpf2MotorPort]);
 }
 
+void lpf2SensorPress()
+{
+  // skip sensor press if button not visible
+  if (lpf2AltAutoAction != lpf2SensorPortFunction)
+  {
+    return;
+  }
+
+  Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
+  for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
+  {
+    if (lpf2Button[i].action == lpf2AutoAction && lpf2Button[i].port == lpf2SensorPort)
+    {
+      lpf2Button[i].pressed = true;
+      break;
+    }
+  }
+}
+
 void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData)
 {
   Lpf2Hub *trainCtl = (Lpf2Hub *)hub;
@@ -421,21 +440,7 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
     return;
   }
 
-  // also show press for sensor button (but only if visible)
-  if (lpf2AltAutoAction != lpf2SensorPortFunction)
-  {
-    return;
-  }
-
-  Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
-  for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
-  {
-    if (lpf2Button[i].action == lpf2AutoAction && lpf2Button[i].port == lpf2SensorPort)
-    {
-      lpf2Button[i].pressed = true;
-      break;
-    }
-  }
+  lpf2SensorPress();
 }
 
 void lpf2ResetHubState()
@@ -717,7 +722,8 @@ void lpf2Update()
       lpf2SensorRetries = 0;
       redraw = true;
     }
-    else {
+    else
+    {
       lpf2SensorRetries++;
     }
   }
@@ -726,17 +732,7 @@ void lpf2Update()
   if ((lpf2SensorStopFunction != -1 || lpf2SensorStopAltFunction != -1) && lpf2SensorStopDelay > 0 && millis() > lpf2SensorStopDelay)
   {
     lpf2ResumeTrainMotion();
-
-    // also show press for sensor button
-    Button *lpf2Button = remoteButton[RemoteDevice::PoweredUp];
-    for (int i = 0; i < remoteButtonCount[RemoteDevice::PoweredUp]; i++)
-    {
-      if (lpf2Button[i].action == Brake && lpf2Button[i].port == lpf2SensorPort)
-      {
-        lpf2Button[i].pressed = true;
-        break;
-      }
-    }
+    lpf2SensorPress();
   }
 
   // disconnect from hub if no activity (motor off with sensor or both motors off)
@@ -2045,7 +2041,7 @@ void draw()
 
     if (lpf2DataCol)
     {
-      //canvas.drawString(String(lpf2BatteryLevel) + "%", lpf2DataCol + bw / 2, r1_5 - 15);
+      // canvas.drawString(String(lpf2BatteryLevel) + "%", lpf2DataCol + bw / 2, r1_5 - 15);
       drawBatteryIndicator(&canvas, lpf2DataCol + bw / 4, r1_5 - 20, lpf2BatteryLevel, 13, 7);
     }
   }
