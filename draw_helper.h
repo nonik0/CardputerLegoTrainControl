@@ -402,6 +402,33 @@ inline void drawSBrickSensorReading(M5Canvas *canvas, int x, int y, RemoteAction
   }
 }
 
+inline void drawButtonKeyMapping(M5Canvas *canvas, Button &button, int x, int y, uint8_t key)
+{
+  x += button.w / 2 + 1;
+  y += button.h / 2;
+
+  canvas->setTextDatum(middle_center);
+
+  String keyStr;
+
+  switch (key)
+  {
+  case KEY_TAB:
+    keyStr = "tab";
+    break;
+  case KEY_BACKSPACE:
+    keyStr = "del";
+    break;
+  case '`':
+    keyStr = "esc";
+    break;
+  default:
+    keyStr = String((char)key);
+  }
+
+  canvas->drawString(keyStr, x, y, &fonts::Font2);
+}
+
 inline void drawButtonSymbol(M5Canvas *canvas, Button &button, int x, int y, State &state)
 {
   x += button.w / 2;

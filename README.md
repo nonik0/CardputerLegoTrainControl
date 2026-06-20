@@ -26,7 +26,12 @@ Aux2 | tab | \ | specific to remote device
 Change Remote | ctrl | space | change remote to show/control
 Port Function Toggle | 3, 4 | 8, 9 | change function of port, specific to remote device
 Function Shift | fn | ok/enter | hold down to change function of certain keys, specific to remote device
-Display Brightness | | | control brightness of display
+
+Function|Kesy|Description
+Display Brightness | up, down | control brightness of display
+Show key Bindings | opt | hold down to show button key bindings
+Save Settings | v | save current settings to local SD card
+
 
 ## Powered Up Control
 ![pu_0](https://github.com/nonik0/CardputerLegoTrainControl/assets/17152317/b3bf5688-521c-4152-85a0-a81d316036f5)

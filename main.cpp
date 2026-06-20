@@ -20,6 +20,7 @@ M5Canvas canvas(&M5Cardputer.Display);
 uint8_t brightness = 100;
 unsigned long lastKeyPressMillis = 0;
 const unsigned long KeyboardDebounce = 200;
+bool showKeyBindings = false;
 
 // bluetooth train control constants
 const int BtMaxSpeed = 100;
@@ -145,7 +146,6 @@ int h = 135; // height
 int bw = 25; // button width
 int om = 4;  // outer margin
 int im = 2;  // inner margin
-int bwhh = bw / 2 - im;
 
 // header rectangle
 int hx = om;
@@ -1627,123 +1627,26 @@ bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
 {
   pressedKey = RemoteKey::NoTouchy;
 
-  // left port
-  if (M5Cardputer.Keyboard.isKeyPressed('3'))
+  for (const auto &entry : RemoteKeyMappings)
   {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::LeftPortFunction;
+    if (M5Cardputer.Keyboard.isKeyPressed(entry.key))
+    {
+      pressedKey = entry.remoteKey;
+      isLeftRemote = entry.isLeftRemote;
+      return true;
+    }
   }
-  if (M5Cardputer.Keyboard.isKeyPressed('8'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::LeftPortFunction;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('e'))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::LeftPortSpdUp;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('i'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::LeftPortSpdUp;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('s'))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::LeftPortBrake;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('j'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::LeftPortBrake;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('z'))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::LeftPortSpdDn;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('n'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::LeftPortSpdDn;
-  }
+  return false;
+}
 
-  // right port
-  else if (M5Cardputer.Keyboard.isKeyPressed('4'))
+const uint8_t getRemoteKeyMapping(RemoteKey remoteKey, bool isLeftRemote)
+{
+  for (const auto &entry : RemoteKeyMappings)
   {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::RightPortFunction;
+    if (entry.remoteKey == remoteKey && entry.isLeftRemote == isLeftRemote)
+      return entry.key;
   }
-  else if (M5Cardputer.Keyboard.isKeyPressed('9'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::RightPortFunction;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('r'))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::RightPortSpdUp;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('o'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::RightPortSpdUp;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('d'))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::RightPortBrake;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('k'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::RightPortBrake;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('x'))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::RightPortSpdDn;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('m'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::RightPortSpdDn;
-  }
-
-  // aux
-  else if (M5Cardputer.Keyboard.isKeyPressed('`'))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::AuxOne;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_BACKSPACE))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::AuxOne;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_TAB))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::AuxTwo;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed('\\'))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::AuxTwo;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
-  {
-    isLeftRemote = true;
-    pressedKey = RemoteKey::AuxFunction;
-  }
-  else if (M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
-  {
-    isLeftRemote = false;
-    pressedKey = RemoteKey::AuxFunction;
-  }
-
-  return pressedKey != RemoteKey::NoTouchy;
+  return 0;
 }
 
 String getRemoteAuxOneLabel(bool isLeftRemote, RemoteDevice remote, int &y)
@@ -1835,6 +1738,7 @@ int getButtonY(RemoteRow row)
   }
 }
 
+// TODO: refactor to move all cardputer input into here
 void handleKeyboardInput(bool &actionTaken)
 {
   M5Cardputer.update();
@@ -1854,6 +1758,7 @@ void handleKeyboardInput(bool &actionTaken)
       {
         if (remoteButton[activeRemote][i].key == remoteKeyPressed)
         {
+          // TODO: check and pass in bool for alt function here?
           handleRemoteButtonPress(&remoteButton[activeRemote][i]);
           actionTaken = true;
           break;
@@ -1896,6 +1801,13 @@ void handleKeyboardInput(bool &actionTaken)
     {
       saveSettings();
     }
+  }
+
+  // show key bindings
+  if (M5Cardputer.Keyboard.isKeyPressed(KEY_OPT) != showKeyBindings)
+  {
+    showKeyBindings = !showKeyBindings;
+    redraw = true;
   }
 
   // take screenshot
@@ -2148,7 +2060,15 @@ void draw()
     int x = getButtonX(button.col, true);
     int y = getButtonY(button.row);
     canvas.fillRoundRect(x, y, button.w, button.h, 3, color);
-    drawButtonSymbol(&canvas, button, x, y, state);
+    if (showKeyBindings)
+    {
+      uint8_t key = getRemoteKeyMapping(button.key, true);
+      drawButtonKeyMapping(&canvas, button, x, y, key);
+    }
+    else
+    {
+      drawButtonSymbol(&canvas, button, x, y, state);
+    }
   }
 
   Button *rightRemoteButton = remoteButton[activeRemoteRight];
@@ -2159,7 +2079,15 @@ void draw()
     int x = getButtonX(button.col, false);
     int y = getButtonY(button.row);
     canvas.fillRoundRect(x, y, button.w, button.h, 3, color);
-    drawButtonSymbol(&canvas, button, x, y, state);
+    if (showKeyBindings)
+    {
+      uint8_t key = getRemoteKeyMapping(button.key, false);
+      drawButtonKeyMapping(&canvas, button, x, y, key);
+    }
+    else
+    {
+      drawButtonSymbol(&canvas, button, x, y, state);
+    }
   }
 
   canvas.pushSprite(0, 0);

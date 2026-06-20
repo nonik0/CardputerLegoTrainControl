@@ -35,6 +35,44 @@ enum RemoteKey {
   NoTouchy,
 };
 
+struct KeyMapping {
+    uint8_t key;
+    RemoteKey remoteKey;
+    bool isLeftRemote;
+};
+
+static constexpr KeyMapping RemoteKeyMappings[] = {
+    // left remote
+    {'3', RemoteKey::LeftPortFunction,  true},
+    {'e', RemoteKey::LeftPortSpdUp,     true},
+    {'s', RemoteKey::LeftPortBrake,     true},
+    {'z', RemoteKey::LeftPortSpdDn,     true},
+
+    {'4', RemoteKey::RightPortFunction, true},
+    {'r', RemoteKey::RightPortSpdUp,    true},
+    {'d', RemoteKey::RightPortBrake,    true},
+    {'x', RemoteKey::RightPortSpdDn,    true},
+
+    {'`', RemoteKey::AuxOne,            true},
+    {KEY_TAB, RemoteKey::AuxTwo,        true},
+    {KEY_FN,  RemoteKey::AuxFunction,   true},
+
+    // right remote
+    {'8', RemoteKey::LeftPortFunction,  false},
+    {'i', RemoteKey::LeftPortSpdUp,     false},
+    {'j', RemoteKey::LeftPortBrake,     false},
+    {'n', RemoteKey::LeftPortSpdDn,     false},
+
+    {'9', RemoteKey::RightPortFunction, false},
+    {'o', RemoteKey::RightPortSpdUp,    false},
+    {'k', RemoteKey::RightPortBrake,    false},
+    {'m', RemoteKey::RightPortSpdDn,    false},
+
+    {KEY_BACKSPACE, RemoteKey::AuxOne,  false},
+    {'\\', RemoteKey::AuxTwo,           false},
+    {KEY_ENTER, RemoteKey::AuxFunction, false},
+};
+
 enum RemoteColumn
 {
   LeftPortCol, // c2 or c4
