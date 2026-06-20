@@ -525,7 +525,7 @@ void lpf2CycleSensorColor(Color &target)
                                                  { return target == c; }));
 }
 
-void lpf2HandlePortAction(Button *button)
+void lpf2HandlePortAction(Button *button, bool isAltHeld)
 {
   log_i("[d:%d][p:%d][a:%d]", button->device, button->port, button->action);
 
@@ -535,7 +535,7 @@ void lpf2HandlePortAction(Button *button)
   // if button is on a port with color sensor
   if (button->port == lpf2SensorPort)
   {
-    if (M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+    if (isAltHeld)
     {
       switch (button->action)
       {
@@ -754,7 +754,7 @@ void powerFunctionsInit()
   }
 }
 
-void powerFunctionsHandlePortAction(Button *button)
+void powerFunctionsHandlePortAction(Button *button, bool isAltHeld)
 {
   if (button->action == PortFunction)
   {
@@ -781,7 +781,7 @@ void powerFunctionsHandlePortAction(Button *button)
         break;
       case Brake:
         // special case: send control toggle broadcast request alt key + brake in broadcast mode
-        if ((irMode == 2 || irMode == 3) && (M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER)))
+        if ((irMode == 2 || irMode == 3) && isAltHeld)
         {
           irTrainCtl.switch_mode((PowerFunctionsPort)button->port, (PowerFunctionsPwm)0, irChannel);
           return;
@@ -1119,12 +1119,12 @@ void sbrickConnectionToggle()
   }
 }
 
-void sbrickHandlePortAction(Button *button)
+void sbrickHandlePortAction(Button *button, bool isAltHeld)
 {
   if (!sbrickHub.isConnected())
     return;
 
-  if (button->action == PortFunction || M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  if (button->action == PortFunction || isAltHeld)
   {
     // determine which port to move to foreground
     byte portToBg = button->port;
@@ -1260,12 +1260,12 @@ void circuitCubesConnectionToggle()
   }
 }
 
-void circuitCubesHandlePortAction(Button *button)
+void circuitCubesHandlePortAction(Button *button, bool isAltHeld)
 {
   if (!circuitCubesHub.isConnected())
     return;
 
-  if (button->action == PortFunction || M5Cardputer.Keyboard.isKeyPressed(KEY_FN) || M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  if (button->action == PortFunction || isAltHeld)
   {
     // determine which port to move to foreground
     byte portToBg = button->port;
@@ -1416,7 +1416,7 @@ void saveScreenshot()
   free(pngBytes);
 }
 
-void handleRemoteButtonPress(Button *button)
+void handleRemoteButtonPress(Button *button, bool isAltHeld = false)
 {
   log_i("[DEVICE:%d][PORT:%d][ACTION:%d]", button->device, button->port, button->action);
 
@@ -1498,16 +1498,16 @@ void handleRemoteButtonPress(Button *button)
     switch (button->device)
     {
     case RemoteDevice::PoweredUp:
-      lpf2HandlePortAction(button);
+      lpf2HandlePortAction(button, isAltHeld);
       break;
     case RemoteDevice::PowerFunctionsIR:
-      powerFunctionsHandlePortAction(button);
+      powerFunctionsHandlePortAction(button, isAltHeld);
       break;
     case RemoteDevice::SBrick:
-      sbrickHandlePortAction(button);
+      sbrickHandlePortAction(button, isAltHeld);
       break;
     case RemoteDevice::CircuitCubes:
-      circuitCubesHandlePortAction(button);
+      circuitCubesHandlePortAction(button, isAltHeld);
       break;
     }
     break;
@@ -1738,7 +1738,6 @@ int getButtonY(RemoteRow row)
   }
 }
 
-// TODO: refactor to move all cardputer input into here
 void handleKeyboardInput(bool &actionTaken)
 {
   M5Cardputer.update();
@@ -1753,13 +1752,13 @@ void handleKeyboardInput(bool &actionTaken)
     if (getPressedRemoteKey(remoteKeyPressed, isLeftRemote))
     {
       int activeRemote = isLeftRemote ? activeRemoteLeft : activeRemoteRight;
+      bool isAltHeld = isLeftRemote ? M5Cardputer.Keyboard.isKeyPressed(KEY_FN) : M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER);
 
       for (int i = 0; i < remoteButtonCount[activeRemote]; i++)
       {
         if (remoteButton[activeRemote][i].key == remoteKeyPressed)
         {
-          // TODO: check and pass in bool for alt function here?
-          handleRemoteButtonPress(&remoteButton[activeRemote][i]);
+          handleRemoteButtonPress(&remoteButton[activeRemote][i], isAltHeld);
           actionTaken = true;
           break;
         }
