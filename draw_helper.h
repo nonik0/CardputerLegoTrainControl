@@ -67,13 +67,11 @@ inline void drawActiveRemoteIndicator(M5Canvas *canvas, int x, int y, uint8_t ac
   {
     if (i == activeRemoteLeft)
     {
-      // canvas->fillRoundRect(x, y, w, h, 1, TFT_RED);
       canvas->drawRoundRect(x, y, w, h, 1, TFT_SILVER);
       canvas->floodFill(x + 1, y + 1, TFT_RED);
     }
     else if (i == activeRemoteRight)
     {
-      // canvas->fillRoundRect(x, y, w, h, 1, TFT_BLUE);
       canvas->drawRoundRect(x, y, w, h, 1, TFT_SILVER);
       canvas->floodFill(x + 1, y + 1, TFT_BLUE);
     }

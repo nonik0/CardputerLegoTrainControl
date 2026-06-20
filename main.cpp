@@ -141,11 +141,12 @@ bool sdInit = false;
 volatile bool redraw = false;
 
 // define a bunch of display variables to make adjustments not a nightmare
-int w = 240; // width
-int h = 135; // height
-int bw = 25; // button width
-int om = 4;  // outer margin
-int im = 2;  // inner margin
+int w = 240;      // width
+int h = 135;      // height
+int bw = 25;      // button width
+int bwh = bw / 2; // half butotn width
+int om = 4;       // outer margin
+int im = 2;       // inner margin
 
 // header rectangle
 int hx = om;
@@ -159,11 +160,12 @@ int rw = hw;
 int rh = h - hh - 3 * om;
 // rows and cols in main rectangle
 int r3 = h - 2 * om - im - bw;
-int r3_5 = r3 + bw / 2 + im; //(r3 + rh) / 2;
+int r3_5 = r3 + bwh + im - 1;
 int r2 = r3 - bw - im;
 int r2_5 = (r2 + r3) / 2;
 int r1 = r2 - bw - im;
 int r1_5 = (r1 + r2) / 2;
+int r0 = ry + 2 * om;
 int c3 = (w / 2) - 2 * om - bw;
 int c2 = c3 - bw - im;
 int c1 = c2 - bw - om;
@@ -1732,7 +1734,7 @@ int getButtonY(RemoteRow row)
   case Row3_5:
     return r3_5;
   case Row0:
-    return ry + 2 * om;
+    return r0;
   default:
     return -h;
   }
@@ -1900,136 +1902,186 @@ void draw()
   drawRemoteTitle(&canvas, true, activeRemoteLeft, lrtx, lrty);
   drawRemoteTitle(&canvas, false, activeRemoteRight, rrtx, rrty);
 
-  // draw port labels
-  int auxY;
-
   canvas.setTextDatum(bottom_center);
   canvas.setTextSize(1);
-  canvas.drawString(getRemoteAuxOneLabel(true, activeRemoteLeft, auxY), c1 + bw / 2, auxY);
-  canvas.drawString(getRemoteAuxTwoLabel(true, activeRemoteLeft, auxY), c1 + bw / 2, auxY);
 
-  canvas.drawString(getRemotePortString(true, activeRemoteLeft), c2 + bw / 2, r1 - 2);
-  canvas.drawString(getRemotePortString(false, activeRemoteLeft), c3 + bw / 2, r1 - 2);
-  canvas.drawString(getRemotePortString(true, activeRemoteRight), c4 + bw / 2, r1 - 2);
-  canvas.drawString(getRemotePortString(false, activeRemoteRight), c5 + bw / 2, r1 - 2);
-
-  canvas.drawString(getRemoteAuxOneLabel(false, activeRemoteRight, auxY), c6 + bw / 2, auxY);
-  canvas.drawString(getRemoteAuxTwoLabel(false, activeRemoteRight, auxY), c6 + bw / 2, auxY);
-
-  // powered up distance data
-  // int lpf2DistanceX = 0;
-  // if (lpf2SensorInit)
-  // {
-  //   if (activeRemoteLeft == RemoteDevice::PoweredUp)
-  //   {
-  //     lpf2DistanceX = c1;
-  //   }
-  //   else if (activeRemoteRight == RemoteDevice::PoweredUp)
-  //   {
-  //     lpf2DistanceX = c6;
-  //   }
-
-  //   if (lpf2DistanceX)
-  //   {
-  //     unsigned short distanceColor = lpf2SensorDistanceMovingAverage > BtDistanceStopThreshold ? TFT_RED : TFT_SILVER;
-  //     canvas.setTextColor(distanceColor);
-  //     canvas.drawString(String(lpf2SensorDistanceMovingAverage) + "cm", lpf2DistanceX + bw / 2, r1 - 2);
-  //   }
-  // }
-
-  // powered up sensor data
-  int lpf2DataCol = 0;
-  if (lpf2Init)
+  if (showKeyBindings)
   {
-    if (activeRemoteLeft == RemoteDevice::PoweredUp)
-    {
-      lpf2DataCol = c1;
-    }
-    else if (activeRemoteRight == RemoteDevice::PoweredUp)
-    {
-      lpf2DataCol = c6;
-    }
+    const int bh = bwh - 3;
 
-    if (lpf2DataCol)
-    {
-      // canvas.drawString(String(lpf2BatteryLevel) + "%", lpf2DataCol + bw / 2, r1_5 - 15);
-      drawBatteryIndicator(&canvas, lpf2DataCol + bw / 4, r1_5 - 20, lpf2BatteryLevel, 13, 7);
-    }
+    canvas.fillRoundRect(c2, r0 - 1, bw, bh, 3, COLOR_LIGHTGRAY);
+    canvas.drawString("3", c2 + bwh, r1 - 2);
+
+    canvas.fillRoundRect(c3, r0 - 1, bw, bh, 3, COLOR_LIGHTGRAY);
+    canvas.drawString("4", c3 + bwh, r1 - 2);
+
+    canvas.fillRoundRect(c4, r0 - 1, bw, bh, 3, COLOR_LIGHTGRAY);
+    canvas.drawString("8", c4 + bwh, r1 - 2);
+
+    canvas.fillRoundRect(c5, r0 - 1, bw, bh, 3, COLOR_LIGHTGRAY);
+    canvas.drawString("9", c5 + bwh, r1 - 2);
+  }
+  else
+  {
+    // draw port labels
+    int auxY;
+
+    canvas.drawString(getRemoteAuxOneLabel(true, activeRemoteLeft, auxY), c1 + bwh, auxY);
+    canvas.drawString(getRemoteAuxTwoLabel(true, activeRemoteLeft, auxY), c1 + bwh, auxY);
+
+    canvas.drawString(getRemotePortString(true, activeRemoteLeft), c2 + bwh, r1 - 2);
+    canvas.drawString(getRemotePortString(false, activeRemoteLeft), c3 + bwh, r1 - 2);
+    canvas.drawString(getRemotePortString(true, activeRemoteRight), c4 + bwh, r1 - 2);
+    canvas.drawString(getRemotePortString(false, activeRemoteRight), c5 + bwh, r1 - 2);
+
+    canvas.drawString(getRemoteAuxOneLabel(false, activeRemoteRight, auxY), c6 + bwh, auxY);
+    canvas.drawString(getRemoteAuxTwoLabel(false, activeRemoteRight, auxY), c6 + bwh, auxY);
   }
 
-  // sbrick sensor data
-  int sbrickDataCol = 0;
-  if (sbrickInit)
+  if (showKeyBindings)
   {
-    if (activeRemoteLeft == RemoteDevice::SBrick)
-    {
-      sbrickDataCol = c1;
-    }
-    else if (activeRemoteRight == RemoteDevice::SBrick)
-    {
-      sbrickDataCol = c6;
-    }
+    const uint16_t FADE_RED = interpolateColors(COLOR_LIGHTGRAY, TFT_RED, 40);
+    const uint16_t FADE_BLUE = interpolateColors(COLOR_LIGHTGRAY, TFT_BLUE, 40);
+    const uint16_t FADE_YELLOW = interpolateColors(COLOR_LIGHTGRAY, TFT_YELLOW, 40);
 
-    if (sbrickDataCol)
-    {
-      canvas.drawString(String(sbrickBatteryV, 1) + "V", sbrickDataCol + bw / 2, r1_5 - 13);
-      canvas.drawString(String(sbrickTempF, 0) + "C", sbrickDataCol + bw / 2, r1_5 - 2);
+    canvas.drawRoundRect(c1, r0 - 1, bw, bw - 2, 3, FADE_YELLOW);
+    canvas.drawString("ALT", c1 + bwh, r1 - 1);
 
-      if (sbrickMotionSensorInit || sbrickTiltSensorInit)
+    canvas.drawRoundRect(c6, r0 - 1, bw, bw - 3, 3, FADE_YELLOW);
+    canvas.drawString("ALT", c6 + bwh, r1 - 1);
+
+    canvas.setTextDatum(middle_center);
+    
+    canvas.fillRoundRect(c1, r1, bw, bwh - 1, 3, FADE_YELLOW);
+    canvas.drawString("fn", c1 + bwh, r1 + bwh / 2);
+
+    canvas.fillRoundRect(c1, r3_5, bw, bwh - 1, 3, FADE_RED);
+    canvas.drawString("ctl", c1 + bwh, r3_5 + bwh / 2);
+
+    canvas.fillRoundRect(c6, r1, bw, bwh - 1, 3, FADE_YELLOW);
+    canvas.drawString("ok", c6 + bwh + 1, r1 + bwh / 2);
+
+    canvas.fillRoundRect(c6, r3_5, bw, bwh - 1, 3, FADE_BLUE);
+    canvas.drawString("spc", c6 + bwh + 1, r3_5 + bwh / 2);
+  }
+  else
+  {
+
+    // powered up distance data
+    // int lpf2DistanceX = 0;
+    // if (lpf2SensorInit)
+    // {
+    //   if (activeRemoteLeft == RemoteDevice::PoweredUp)
+    //   {
+    //     lpf2DistanceX = c1;
+    //   }
+    //   else if (activeRemoteRight == RemoteDevice::PoweredUp)
+    //   {
+    //     lpf2DistanceX = c6;
+    //   }
+
+    //   if (lpf2DistanceX)
+    //   {
+    //     unsigned short distanceColor = lpf2SensorDistanceMovingAverage > BtDistanceStopThreshold ? TFT_RED : TFT_SILVER;
+    //     canvas.setTextColor(distanceColor);
+    //     canvas.drawString(String(lpf2SensorDistanceMovingAverage) + "cm", lpf2DistanceX + bwh, r1 - 2);
+    //   }
+    // }
+
+    // powered up sensor data
+    int lpf2DataCol = 0;
+    if (lpf2Init)
+    {
+      if (activeRemoteLeft == RemoteDevice::PoweredUp)
       {
-        int tiltW = 12;
-        int tiltPL = 3;
-        int tiltPW = 3;
-        int tiltT = 2;
-        int tiltX = sbrickDataCol + bw / 2;
-        int tiltY = r3 + bw / 2;
-        int indicatorColor = sbrickSensorMotion ? TFT_RED : TFT_SILVER;
+        lpf2DataCol = c1;
+      }
+      else if (activeRemoteRight == RemoteDevice::PoweredUp)
+      {
+        lpf2DataCol = c6;
+      }
 
-        switch (sbrickSensorTilt)
-        {
-        case WedoTilt::Forward:
-        case WedoTilt::Backward:
-          canvas.fillRect(tiltX - tiltW / 2, tiltY - tiltT / 2, tiltW, tiltT, indicatorColor);
-          canvas.fillRect(tiltX - tiltT / 2, tiltY - tiltW / 2, tiltT, tiltW, TFT_RED);
-          break;
-        case WedoTilt::Left:
-        case WedoTilt::Right:
-          canvas.fillRect(tiltX - tiltT / 2, tiltY - tiltW / 2, tiltT, tiltW, indicatorColor);
-          canvas.fillRect(tiltX - tiltW / 2, tiltY - tiltT / 2, tiltW, tiltT, TFT_RED);
-          break;
-        case WedoTilt::Neutral:
-          canvas.fillRect(tiltX - tiltT / 2, tiltY - tiltW / 2, tiltT, tiltW, indicatorColor);
-          canvas.fillRect(tiltX - tiltW / 2, tiltY - tiltT / 2, tiltW, tiltT, indicatorColor);
-        }
-
-        canvas.fillTriangle(tiltX, tiltY - tiltW / 2 - tiltPL, tiltX - tiltPW, tiltY - tiltW / 2, tiltX + tiltPW, tiltY - tiltW / 2,
-                            sbrickSensorTilt == WedoTilt::Forward ? TFT_RED : indicatorColor);
-        canvas.fillTriangle(tiltX, tiltY + tiltW / 2 + tiltPL, tiltX - tiltPW, tiltY + tiltW / 2, tiltX + tiltPW, tiltY + tiltW / 2,
-                            sbrickSensorTilt == WedoTilt::Backward ? TFT_RED : indicatorColor);
-        canvas.fillTriangle(tiltX - tiltW / 2 - tiltPL, tiltY, tiltX - tiltW / 2, tiltY - tiltPW, tiltX - tiltW / 2, tiltY + tiltPW,
-                            sbrickSensorTilt == WedoTilt::Left ? TFT_RED : indicatorColor);
-        canvas.fillTriangle(tiltX + tiltW / 2 + tiltPL, tiltY, tiltX + tiltW / 2, tiltY - tiltPW, tiltX + tiltW / 2, tiltY + tiltPW,
-                            sbrickSensorTilt == WedoTilt::Right ? TFT_RED : indicatorColor);
+      if (lpf2DataCol)
+      {
+        // canvas.drawString(String(lpf2BatteryLevel) + "%", lpf2DataCol + bwh, r1_5 - 15);
+        drawBatteryIndicator(&canvas, lpf2DataCol + bw / 4, r1_5 - 20, lpf2BatteryLevel, 13, 7);
       }
     }
-  }
 
-  // circuit cubes battery data
-  int circuitCubesDataX = 0;
-  if (circuitCubesInit)
-  {
-    if (activeRemoteLeft == RemoteDevice::CircuitCubes)
+    // sbrick sensor data
+    int sbrickDataCol = 0;
+    if (sbrickInit)
     {
-      circuitCubesDataX = c1;
-    }
-    else if (activeRemoteRight == RemoteDevice::CircuitCubes)
-    {
-      circuitCubesDataX = c6;
+      if (activeRemoteLeft == RemoteDevice::SBrick)
+      {
+        sbrickDataCol = c1;
+      }
+      else if (activeRemoteRight == RemoteDevice::SBrick)
+      {
+        sbrickDataCol = c6;
+      }
+
+      if (sbrickDataCol)
+      {
+        canvas.drawString(String(sbrickBatteryV, 1) + "V", sbrickDataCol + bwh, r1_5 - 13);
+        canvas.drawString(String(sbrickTempF, 0) + "C", sbrickDataCol + bwh, r1_5 - 2);
+
+        if (sbrickMotionSensorInit || sbrickTiltSensorInit)
+        {
+          int tiltW = 12;
+          int tiltPL = 3;
+          int tiltPW = 3;
+          int tiltT = 2;
+          int tiltX = sbrickDataCol + bwh;
+          int tiltY = r3 + bwh;
+          int indicatorColor = sbrickSensorMotion ? TFT_RED : TFT_SILVER;
+
+          switch (sbrickSensorTilt)
+          {
+          case WedoTilt::Forward:
+          case WedoTilt::Backward:
+            canvas.fillRect(tiltX - tiltW / 2, tiltY - tiltT / 2, tiltW, tiltT, indicatorColor);
+            canvas.fillRect(tiltX - tiltT / 2, tiltY - tiltW / 2, tiltT, tiltW, TFT_RED);
+            break;
+          case WedoTilt::Left:
+          case WedoTilt::Right:
+            canvas.fillRect(tiltX - tiltT / 2, tiltY - tiltW / 2, tiltT, tiltW, indicatorColor);
+            canvas.fillRect(tiltX - tiltW / 2, tiltY - tiltT / 2, tiltW, tiltT, TFT_RED);
+            break;
+          case WedoTilt::Neutral:
+            canvas.fillRect(tiltX - tiltT / 2, tiltY - tiltW / 2, tiltT, tiltW, indicatorColor);
+            canvas.fillRect(tiltX - tiltW / 2, tiltY - tiltT / 2, tiltW, tiltT, indicatorColor);
+          }
+
+          canvas.fillTriangle(tiltX, tiltY - tiltW / 2 - tiltPL, tiltX - tiltPW, tiltY - tiltW / 2, tiltX + tiltPW, tiltY - tiltW / 2,
+                              sbrickSensorTilt == WedoTilt::Forward ? TFT_RED : indicatorColor);
+          canvas.fillTriangle(tiltX, tiltY + tiltW / 2 + tiltPL, tiltX - tiltPW, tiltY + tiltW / 2, tiltX + tiltPW, tiltY + tiltW / 2,
+                              sbrickSensorTilt == WedoTilt::Backward ? TFT_RED : indicatorColor);
+          canvas.fillTriangle(tiltX - tiltW / 2 - tiltPL, tiltY, tiltX - tiltW / 2, tiltY - tiltPW, tiltX - tiltW / 2, tiltY + tiltPW,
+                              sbrickSensorTilt == WedoTilt::Left ? TFT_RED : indicatorColor);
+          canvas.fillTriangle(tiltX + tiltW / 2 + tiltPL, tiltY, tiltX + tiltW / 2, tiltY - tiltPW, tiltX + tiltW / 2, tiltY + tiltPW,
+                              sbrickSensorTilt == WedoTilt::Right ? TFT_RED : indicatorColor);
+        }
+      }
     }
 
-    if (circuitCubesDataX)
+    // circuit cubes battery data
+    int circuitCubesDataX = 0;
+    if (circuitCubesInit)
     {
-      canvas.drawString(String(circuitCubesBatteryV, 1) + "V", circuitCubesDataX + bw / 2, r1_5 - 7);
+      if (activeRemoteLeft == RemoteDevice::CircuitCubes)
+      {
+        circuitCubesDataX = c1;
+      }
+      else if (activeRemoteRight == RemoteDevice::CircuitCubes)
+      {
+        circuitCubesDataX = c6;
+      }
+
+      if (circuitCubesDataX)
+      {
+        canvas.drawString(String(circuitCubesBatteryV, 1) + "V", circuitCubesDataX + bwh, r1_5 - 7);
+      }
     }
   }
 
