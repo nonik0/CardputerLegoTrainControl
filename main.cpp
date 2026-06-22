@@ -81,9 +81,11 @@ volatile byte irAutoActionPort = 0xFF;
 volatile bool irActionBroadcastRecv = false; // reflect action on display, but don't do
 
 // IR remote switch state tracking
+const unsigned long irSwitchDetectionTimeout = 10000;
 volatile PowerFunctionsPort irSwitchPort[4];
 volatile uint8_t irSwitchMode[4] = {0, 0, 0, 0};
 volatile uint8_t irSwitchDetection[4] = {0, 0, 0, 0};
+volatile unsigned long irSwitchLastMessage[4] = {0, 0, 0, 0};
 // volatile PowerFunctionsPort irTrainDetectionPort[4];
 
 // saved settings
@@ -878,6 +880,8 @@ void powerFunctionsHandleBroadcastAction(Button *button)
 
 void powerFunctionsRecvCallback(PowerFunctionsIrMessage receivedMessage)
 {
+  irSwitchLastMessage[receivedMessage.channel] = millis();
+
   RemoteAction buttonAction;
   switch (receivedMessage.call)
   {
@@ -936,7 +940,6 @@ void powerFunctionsRecvCallback(PowerFunctionsIrMessage receivedMessage)
   if (receivedMessage.channel != irChannel)
   {
     powerFunctionsHandleBroadcastAction(receivedMessage.channel, buttonAction, (byte)receivedMessage.port);
-    return;
   }
   else
   {
@@ -957,6 +960,13 @@ void powerFunctionsUpdate()
       irAutoActionPort = irPort;
       break;
     }
+  }
+
+  // timeout switch detections eventually if no updates from switch
+  if (irSwitchDetection[irChannel] > 0 && millis() - irSwitchLastMessage[irChannel] > irSwitchDetectionTimeout)
+  {
+    log_w("Track detection timed out!");
+    irSwitchDetection[irChannel] = 0;
   }
 }
 
@@ -1909,7 +1919,7 @@ void draw()
     xc = x + hbh / 2;
     canvas.fillRoundRect(x, hby, hbh, hbh, 3, COLOR_LIGHTGRAY);
     canvas.fillTriangle(xc - 3, yc + 2, xc + 3, yc + 2, xc, yc - 2, TFT_SILVER);
-    
+
     x = x - hbh - im;
     xc = x + hbh / 2;
     canvas.drawString("Brightness:", x - im, yc);
