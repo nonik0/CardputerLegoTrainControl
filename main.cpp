@@ -1900,10 +1900,18 @@ void draw()
   canvas.fillRoundRect(rrx, rry, rrw, rrh, 6, COLOR_MEDGRAY);
 
   canvas.setTextColor(TFT_SILVER);
+  canvas.setTextDatum(middle_center);
   canvas.setTextSize(1);
+
+  drawActiveRemoteIndicator(&canvas, 2 * om, hy + (hh / 2), activeRemoteLeft, activeRemoteRight);
+
+  // draw active remote titles
+  drawRemoteTitle(&canvas, true, activeRemoteLeft, lrtx, lrty);
+  drawRemoteTitle(&canvas, false, activeRemoteRight, rrtx, rrty);
 
   if (showKeyBindings)
   {
+    // header button consts
     const int hby = hy + 3;
     const int hbh = hh - 6;
     const int yc = hy + hh / 2;
@@ -1928,21 +1936,13 @@ void draw()
   }
   else
   {
-    canvas.setTextDatum(middle_center);
-
     canvas.drawString("Lego Train Control", w / 2, hy + hh / 2, &fonts::Font2);
     drawBatteryIndicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
   }
 
-  canvas.setTextDatum(middle_center);
-  drawActiveRemoteIndicator(&canvas, 2 * om, hy + (hh / 2), activeRemoteLeft, activeRemoteRight);
-
-  // draw active remote titles
-  drawRemoteTitle(&canvas, true, activeRemoteLeft, lrtx, lrty);
-  drawRemoteTitle(&canvas, false, activeRemoteRight, rrtx, rrty);
-
   canvas.setTextDatum(bottom_center);
 
+  // draw port bindings or labels
   if (showKeyBindings)
   {
     const int bh = bwh - 3;
@@ -1961,7 +1961,6 @@ void draw()
   }
   else
   {
-    // draw port labels
     int auxY;
 
     canvas.drawString(getRemoteAuxOneLabel(true, activeRemoteLeft, auxY), c1 + bwh, auxY);
