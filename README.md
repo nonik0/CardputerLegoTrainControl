@@ -29,7 +29,7 @@ Function Shift | fn | ok/enter | hold down to change function of certain keys, s
 
 Function|Kesy|Description
 Display Brightness | up, down | control brightness of display
-Show key Bindings | opt | hold down to show button key bindings
+Show key Bindings | opt, alt | hold down to show button key bindings
 Save Settings | v | save current settings to local SD card
 
 

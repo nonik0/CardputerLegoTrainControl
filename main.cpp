@@ -1805,7 +1805,7 @@ void handleKeyboardInput(bool &actionTaken)
   }
 
   // show key bindings
-  if (M5Cardputer.Keyboard.isKeyPressed(KEY_OPT) != showKeyBindings)
+  if ((M5Cardputer.Keyboard.isKeyPressed(KEY_OPT) || M5Cardputer.Keyboard.isKeyPressed(KEY_LEFT_ALT)) != showKeyBindings)
   {
     showKeyBindings = !showKeyBindings;
     redraw = true;
@@ -1890,20 +1890,48 @@ void draw()
   canvas.fillRoundRect(rrx, rry, rrw, rrh, 6, COLOR_MEDGRAY);
 
   canvas.setTextColor(TFT_SILVER);
-  canvas.setTextDatum(middle_center);
   canvas.setTextSize(1);
-  canvas.drawString("Lego Train Control", w / 2, hy + hh / 2, &fonts::Font2);
 
-  // system bar indicators
+  if (showKeyBindings)
+  {
+    const int hby = hy + 3;
+    const int hbh = hh - 6;
+    const int yc = hy + hh / 2;
+
+    int x = w / 3 + 20;
+    int xc = x + hbh / 2;
+    canvas.fillRoundRect(x, hby, hbh, hbh, 3, COLOR_LIGHTGRAY);
+    canvas.drawString("v", xc, yc);
+    canvas.setTextDatum(middle_right);
+    canvas.drawString("Save:", x - im, yc);
+
+    x = w - 2 * om - hbh;
+    xc = x + hbh / 2;
+    canvas.fillRoundRect(x, hby, hbh, hbh, 3, COLOR_LIGHTGRAY);
+    canvas.fillTriangle(xc - 3, yc + 2, xc + 3, yc + 2, xc, yc - 2, TFT_SILVER);
+    
+    x = x - hbh - im;
+    xc = x + hbh / 2;
+    canvas.drawString("Brightness:", x - im, yc);
+    canvas.fillRoundRect(x, hby, hbh, hbh, 3, COLOR_LIGHTGRAY);
+    canvas.fillTriangle(xc - 3, yc - 2, xc + 3, yc - 2, xc, yc + 2, TFT_SILVER);
+  }
+  else
+  {
+    canvas.setTextDatum(middle_center);
+
+    canvas.drawString("Lego Train Control", w / 2, hy + hh / 2, &fonts::Font2);
+    drawBatteryIndicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
+  }
+
+  canvas.setTextDatum(middle_center);
   drawActiveRemoteIndicator(&canvas, 2 * om, hy + (hh / 2), activeRemoteLeft, activeRemoteRight);
-  drawBatteryIndicator(&canvas, w - 34, hy + (hh / 2), batteryPct);
 
   // draw active remote titles
   drawRemoteTitle(&canvas, true, activeRemoteLeft, lrtx, lrty);
   drawRemoteTitle(&canvas, false, activeRemoteRight, rrtx, rrty);
 
   canvas.setTextDatum(bottom_center);
-  canvas.setTextSize(1);
 
   if (showKeyBindings)
   {
@@ -1951,7 +1979,7 @@ void draw()
     canvas.drawString("ALT", c6 + bwh, r1 - 1);
 
     canvas.setTextDatum(middle_center);
-    
+
     canvas.fillRoundRect(c1, r1, bw, bwh - 1, 3, FADE_YELLOW);
     canvas.drawString("fn", c1 + bwh, r1 + bwh / 2);
 
