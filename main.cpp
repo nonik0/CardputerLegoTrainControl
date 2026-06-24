@@ -1459,12 +1459,13 @@ void handleRemoteButtonPress(Button *button, bool isAltHeld = false)
     else
     {
       // can change colors while not connected to choose initial color
-      lpf2LedColor = (lpf2LedColor == Color(1))
-                         ? Color(Color::NUM_COLORS - 1)
-                         : (Color)(lpf2LedColor - 1);
-      log_i("bt color: %d", lpf2LedColor);
+      lpf2LedColor = (Color)((lpf2LedColor + Color::NUM_COLORS - 1) % Color::NUM_COLORS);
+      log_i("lpf2LedColor: %d", lpf2LedColor);
+      redraw = true;
       if (lpf2Hub.isConnected())
+      {
         lpf2Hub.setLedColor(lpf2LedColor);
+      }
     }
     break;
   case IrChannel:
@@ -1535,7 +1536,7 @@ unsigned short getButtonColor(Button *button)
 
   if (button->device == RemoteDevice::PoweredUp)
   {
-    if (button->port == lpf2SensorPort)
+    if (lpf2SensorPort != NO_SENSOR_FOUND && button->port == lpf2SensorPort)
     {
       switch (button->action)
       {
@@ -1558,7 +1559,9 @@ unsigned short getButtonColor(Button *button)
     if (button->port == (byte)PoweredUpHubPort::LED)
     {
       if (lpf2SensorInit)
+      {
         return BtColors[lpf2SensorColor];
+      }
     }
   }
 
