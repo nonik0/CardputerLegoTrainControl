@@ -18,6 +18,7 @@ unsigned short COLOR_GREYORANGEBRIGHT = interpolateColors(COLOR_LIGHTGRAY, COLOR
 
 M5Canvas canvas(&M5Cardputer.Display);
 uint8_t brightness = 100;
+unsigned long lastActionMillis = 0; // track for auto-disconnect
 unsigned long lastKeyPressMillis = 0;
 const unsigned long KeyboardDebounce = 200;
 bool showKeyBindings = false;
@@ -39,7 +40,6 @@ unsigned long lpf2DisconnectDelay;    // debounce disconnects
 unsigned long lpf2ButtonDebounce = 0; // debounce button presses
 volatile Color lpf2LedColor = Color::NONE;
 unsigned short lpf2LedColorDelay = 0;
-unsigned long lpf2LastAction = 0;                // track for auto-disconnect
 volatile RemoteAction lpf2AutoAction = NoAction; // action triggered by color sensor
 volatile bool lpf2AltAutoAction = false;         // true if last action was alt auto action
 volatile bool lpf2ResumeAction = false;          // true when train resumes motion, ignores spndup/spddn function
@@ -740,7 +740,7 @@ void lpf2Update()
   }
 
   // disconnect from hub if no activity (motor off with sensor or both motors off)
-  if (millis() - lpf2LastAction > BtInactiveTimeoutMs && ((lpf2SensorInit && lpf2PortSpeed[lpf2MotorPort] == 0) || (lpf2PortSpeed[0] == 0 && lpf2PortSpeed[1] == 0)))
+  if (millis() - lastActionMillis > BtInactiveTimeoutMs && ((lpf2SensorInit && lpf2PortSpeed[lpf2MotorPort] == 0) || (lpf2PortSpeed[0] == 0 && lpf2PortSpeed[1] == 0)))
   {
     lpf2ConnectionToggle();
     redraw = true;
@@ -870,12 +870,6 @@ void powerFunctionsHandleBroadcastAction(byte recvChannel, RemoteAction action, 
       break;
     }
   }
-}
-
-void powerFunctionsHandleBroadcastAction(Button *button)
-{
-  button->pressed = true;
-  powerFunctionsHandleBroadcastAction(irChannel, button->action, button->port);
 }
 
 void powerFunctionsRecvCallback(PowerFunctionsIrMessage receivedMessage)
@@ -1854,6 +1848,8 @@ void handleRemoteInput(bool &actionTaken)
 
   if (irAutoAction != NoAction)
   {
+    log_i("ir auto action: %d", lpf2AutoAction);
+
     Button *irButton = remoteButton[RemoteDevice::PowerFunctionsIR];
     for (int i = 0; i < remoteButtonCount[RemoteDevice::PowerFunctionsIR]; i++)
     {
@@ -1861,7 +1857,8 @@ void handleRemoteInput(bool &actionTaken)
       {
         if (irActionBroadcastRecv)
         {
-          powerFunctionsHandleBroadcastAction(&irButton[i]);
+          irButton[i].pressed = true;
+          powerFunctionsHandleBroadcastAction(irChannel, irButton[i].action, irButton[i].port);
         }
         else
         {
@@ -1878,6 +1875,8 @@ void handleRemoteInput(bool &actionTaken)
 
   if (sbrickAutoAction != NoAction)
   {
+    log_i("sbrick auto action: %d", lpf2AutoAction);
+
     Button *sbrickButton = remoteButton[RemoteDevice::SBrick];
     for (int i = 0; i < remoteButtonCount[RemoteDevice::SBrick]; i++)
     {
@@ -2217,13 +2216,14 @@ void loop()
   {
     draw();
     delay(60);
-    for (int i = 0; i < remoteButtonCount[activeRemoteLeft]; i++)
-      remoteButton[activeRemoteLeft][i].pressed = false;
-    for (int i = 0; i < remoteButtonCount[activeRemoteRight]; i++)
-      remoteButton[activeRemoteRight][i].pressed = false;
+
+    // clear button presses on all remotes, actions triggered on hidden buttons also need to be cleared
+    for (int r = 0; r < NUM_DEVICES; r++)
+      for (int i = 0; i < remoteButtonCount[r]; i++)
+        remoteButton[r][i].pressed = false;
     redraw = true;
 
-    lpf2LastAction = millis();
+    lastActionMillis = millis();
   }
 
   // update loop for system bar redraws, etc
