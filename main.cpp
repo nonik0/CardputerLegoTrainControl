@@ -511,22 +511,18 @@ void lpf2ConnectionToggle()
   }
 }
 
-void lpf2CycleSensorColor(Color &target)
+void lpf2CycleFunctionColor(Color &targetColor)
 {
-  const Color allSensorColors[] = {
+  const Color reservedColors[] = {
       lpf2SensorSpdUpColor, lpf2SensorSpdUpAltColor,
       lpf2SensorStopColor, lpf2SensorStopAltColor,
-      lpf2SensorSpdDnColor, lpf2SensorSpdDnAltColor};
+      lpf2SensorSpdDnColor, lpf2SensorSpdDnAltColor,
+      Color::BLACK};
 
   do
   {
-    target = (target == Color::BLACK)
-                 ? Color(Color::NUM_COLORS - 1)
-                 : Color(target - 1);
-
-  } while (target != Color::BLACK || std::any_of(std::begin(allSensorColors), std::end(allSensorColors),
-                                                 [&](Color c)
-                                                 { return target == c; }));
+    targetColor = (Color)((targetColor + Color::NUM_COLORS - 1) % Color::NUM_COLORS);
+  } while (std::find(std::begin(reservedColors), std::end(reservedColors), targetColor) != std::end(reservedColors));
 }
 
 void lpf2HandlePortAction(Button *button, bool isAltHeld)
@@ -544,13 +540,13 @@ void lpf2HandlePortAction(Button *button, bool isAltHeld)
       switch (button->action)
       {
       case SpdUp:
-        lpf2CycleSensorColor(lpf2SensorPortFunction ? lpf2SensorSpdUpAltColor : lpf2SensorSpdUpColor);
+        lpf2CycleFunctionColor(lpf2SensorPortFunction ? lpf2SensorSpdUpAltColor : lpf2SensorSpdUpColor);
         break;
       case Brake:
-        lpf2CycleSensorColor(lpf2SensorPortFunction ? lpf2SensorStopAltColor : lpf2SensorStopColor);
+        lpf2CycleFunctionColor(lpf2SensorPortFunction ? lpf2SensorStopAltColor : lpf2SensorStopColor);
         break;
       case SpdDn:
-        lpf2CycleSensorColor(lpf2SensorPortFunction ? lpf2SensorSpdDnAltColor : lpf2SensorSpdDnColor);
+        lpf2CycleFunctionColor(lpf2SensorPortFunction ? lpf2SensorSpdDnAltColor : lpf2SensorSpdDnColor);
         break;
       }
     }
