@@ -20,6 +20,11 @@ M5Canvas canvas(&M5Cardputer.Display);
 uint8_t brightness = 100;
 unsigned long lastActionMillis = 0; // track for auto-disconnect
 unsigned long lastKeyPressMillis = 0;
+RemoteKey remoteKeyPressed = RemoteKey::RemoteNoOp;
+bool isLeftRemote = false;
+bool isLeftAltHeld = false;
+bool isRightAltHeld = false;
+AuxKey auxKeyPressed = AuxKey::AuxNoOp;
 const unsigned long KeyboardDebounce = 200;
 bool showKeyBindings = false;
 
@@ -1630,13 +1635,13 @@ unsigned short getButtonColor(Button *button)
 
 bool getPressedRemoteKey(RemoteKey &pressedKey, bool &isLeftRemote)
 {
-  pressedKey = RemoteKey::NoTouchy;
+  pressedKey = RemoteKey::RemoteNoOp;
 
   for (const auto &entry : RemoteKeyMappings)
   {
-    if (M5Cardputer.Keyboard.isKeyPressed(entry.key))
+    if (M5Cardputer.Keyboard.isKeyPressed(entry.keyboardKey))
     {
-      pressedKey = entry.remoteKey;
+      pressedKey = entry.functionKey;
       isLeftRemote = entry.isLeftRemote;
       return true;
     }
@@ -1648,8 +1653,37 @@ const uint8_t getRemoteKeyMapping(RemoteKey remoteKey, bool isLeftRemote)
 {
   for (const auto &entry : RemoteKeyMappings)
   {
-    if (entry.remoteKey == remoteKey && entry.isLeftRemote == isLeftRemote)
-      return entry.key;
+    if (entry.functionKey == remoteKey && entry.isLeftRemote == isLeftRemote)
+    {
+      return entry.keyboardKey;
+    }
+  }
+  return 0;
+}
+
+bool getPressedAuxKey(AuxKey &pressedKey)
+{
+  pressedKey = AuxKey::AuxNoOp;
+
+  for (const auto &entry : AuxKeyMappings)
+  {
+    if (M5Cardputer.Keyboard.isKeyPressed(entry.keyboardKey))
+    {
+      pressedKey = entry.functionKey;
+      return true;
+    }
+  }
+  return false;
+}
+
+const uint8_t getAuxKeyMapping(AuxKey auxKey)
+{
+  for (const auto &entry : AuxKeyMappings)
+  {
+    if (entry.functionKey == auxKey)
+    {
+      return entry.keyboardKey;
+    }
   }
   return 0;
 }
@@ -1747,17 +1781,41 @@ void handleKeyboardInput(bool &actionTaken)
 {
   M5Cardputer.update();
 
-  if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed() && millis() - lastKeyPressMillis > KeyboardDebounce)
+  if (!M5Cardputer.Keyboard.isChange())
+  {
+    return;
+  }
+
+  // handle hold button changes outside of press debounces
+  bool keyBindingKeyHeld = M5Cardputer.Keyboard.isKeyPressed(KEY_OPT) || M5Cardputer.Keyboard.isKeyPressed(KEY_LEFT_ALT) || M5Cardputer.Keyboard.isKeyPressed('/') || M5Cardputer.Keyboard.isKeyPressed('?');
+  if (keyBindingKeyHeld != showKeyBindings)
+  {
+    log_i("aux key toggled");
+    showKeyBindings = !showKeyBindings;
+    redraw = true;
+  }
+
+  if (isLeftAltHeld != M5Cardputer.Keyboard.isKeyPressed(KEY_FN))
+  {
+    isLeftAltHeld = !isLeftAltHeld;
+    redraw = showKeyBindings;
+  }
+
+  if (isRightAltHeld != M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER))
+  {
+    isRightAltHeld = !isRightAltHeld;
+    redraw = showKeyBindings;
+  }
+
+  if (M5Cardputer.Keyboard.isPressed() && millis() - lastKeyPressMillis > KeyboardDebounce)
   {
     lastKeyPressMillis = millis();
 
     // handle remote key
-    bool isLeftRemote;
-    RemoteKey remoteKeyPressed;
     if (getPressedRemoteKey(remoteKeyPressed, isLeftRemote))
     {
-      int activeRemote = isLeftRemote ? activeRemoteLeft : activeRemoteRight;
-      bool isAltHeld = isLeftRemote ? M5Cardputer.Keyboard.isKeyPressed(KEY_FN) : M5Cardputer.Keyboard.isKeyPressed(KEY_ENTER);
+      RemoteDevice activeRemote = isLeftRemote ? activeRemoteLeft : activeRemoteRight;
+      bool isAltHeld = isLeftRemote ? isLeftAltHeld : isRightAltHeld;
 
       for (int i = 0; i < remoteButtonCount[activeRemote]; i++)
       {
@@ -1770,48 +1828,37 @@ void handleKeyboardInput(bool &actionTaken)
       }
     }
 
-    // toggle active left remote
-    if (M5Cardputer.Keyboard.isKeyPressed(KEY_LEFT_CTRL))
+    if (getPressedAuxKey(auxKeyPressed))
     {
-      do
+      RemoteDevice *activeRemote;
+      switch (auxKeyPressed)
       {
-        activeRemoteLeft = (RemoteDevice)((activeRemoteLeft + 1) % RemoteDevice::NUM_DEVICES);
-      } while (activeRemoteLeft == activeRemoteRight);
-      redraw = true;
-    }
+      case BrightnessUp:
+      case BrightnessDn:
+        brightness = auxKeyPressed == BrightnessDn ? max(0, brightness - 10) : min(100, brightness + 10);
+        M5Cardputer.Display.setBrightness(brightness);
+        log_i("setting screen brightness: %d", brightness);
+        break;
+      case SaveSettings:
+        saveSettings();
+        log_i("saved settings");
+        break;
+      case ToggleLeft:
+      case ToggleRight:
+        activeRemote = auxKeyPressed == ToggleLeft ? &activeRemoteLeft : &activeRemoteRight;
+        do
+        {
+          *activeRemote = (RemoteDevice)((*activeRemote + 1) % RemoteDevice::NUM_DEVICES);
+        } while (activeRemoteLeft == activeRemoteRight);
+        log_i("toggling %s active remote to %d", auxKeyPressed == ToggleLeft ? "left" : "right", *activeRemote);
+        redraw = true;
+        break;
+      }
 
-    // toggle active right remote
-    if (M5Cardputer.Keyboard.isKeyPressed(' '))
-    {
-      do
-      {
-        activeRemoteRight = (RemoteDevice)((activeRemoteRight + 1) % RemoteDevice::NUM_DEVICES);
-      } while (activeRemoteRight == activeRemoteLeft);
-      redraw = true;
+      // only show as action if we are viewing key bindings
+      actionTaken = showKeyBindings;
+      redraw |= showKeyBindings;
     }
-
-    // adjust brightness
-    if (M5Cardputer.Keyboard.isKeyPressed('.') || M5Cardputer.Keyboard.isKeyPressed(';'))
-    {
-      brightness = M5Cardputer.Keyboard.isKeyPressed('.')
-                       ? max(0, brightness - 10)
-                       : min(100, brightness + 10);
-      log_i("brightness: %d", brightness);
-      M5Cardputer.Display.setBrightness(brightness);
-    }
-
-    // save settings
-    if (M5Cardputer.Keyboard.isKeyPressed('v'))
-    {
-      saveSettings();
-    }
-  }
-
-  // show key bindings
-  if ((M5Cardputer.Keyboard.isKeyPressed(KEY_OPT) || M5Cardputer.Keyboard.isKeyPressed(KEY_LEFT_ALT)) != showKeyBindings)
-  {
-    showKeyBindings = !showKeyBindings;
-    redraw = true;
   }
 
   // take screenshot
@@ -1821,7 +1868,7 @@ void handleKeyboardInput(bool &actionTaken)
   }
 }
 
-void handleRemoteInput(bool &actionTaken)
+void handleRemoteAutoActions(bool &actionTaken)
 {
   // sensor or button triggered action
   if (lpf2AutoAction != NoAction)
@@ -1914,23 +1961,28 @@ void draw()
     const int hbh = hh - 6;
     const int yc = hy + hh / 2;
 
-    int x = w / 3 + 20;
+    // draw right to left here
+    int x = w - 2 * om - hbh;
     int xc = x + hbh / 2;
-    canvas.fillRoundRect(x, hby, hbh, hbh, 3, COLOR_LIGHTGRAY);
-    canvas.drawString("v", xc, yc);
-    canvas.setTextDatum(middle_right);
-    canvas.drawString("Save:", x - im, yc);
-
-    x = w - 2 * om - hbh;
-    xc = x + hbh / 2;
-    canvas.fillRoundRect(x, hby, hbh, hbh, 3, COLOR_LIGHTGRAY);
-    canvas.fillTriangle(xc - 3, yc + 2, xc + 3, yc + 2, xc, yc - 2, TFT_SILVER);
+    canvas.fillRoundRect(x, hby, hbh, hbh, 3, auxKeyPressed == BrightnessUp ? COLOR_ORANGE : COLOR_LIGHTGRAY);
+    canvas.drawString(String((char)getAuxKeyMapping(BrightnessUp)), xc, yc);
+    // canvas.fillTriangle(xc - 3, yc + 2, xc + 3, yc + 2, xc, yc - 2, TFT_SILVER);
 
     x = x - hbh - im;
     xc = x + hbh / 2;
+    canvas.fillRoundRect(x, hby, hbh, hbh, 3, auxKeyPressed == BrightnessDn ? COLOR_ORANGE : COLOR_MEDGRAY);
+    canvas.drawString(String((char)getAuxKeyMapping(BrightnessDn)), xc, yc);
+    canvas.setTextDatum(middle_right);
     canvas.drawString("Brightness:", x - im, yc);
-    canvas.fillRoundRect(x, hby, hbh, hbh, 3, COLOR_LIGHTGRAY);
-    canvas.fillTriangle(xc - 3, yc - 2, xc + 3, yc - 2, xc, yc + 2, TFT_SILVER);
+    // canvas.fillTriangle(xc - 3, yc - 2, xc + 3, yc - 2, xc, yc + 2, TFT_SILVER);
+
+    x = w / 3 + 20;
+    xc = x + hbh / 2;
+    canvas.fillRoundRect(x, hby, hbh, hbh, 3, auxKeyPressed == SaveSettings ? COLOR_ORANGE : COLOR_LIGHTGRAY);
+    canvas.setTextDatum(middle_center);
+    canvas.drawString(String((char)getAuxKeyMapping(SaveSettings)), xc, yc);
+    canvas.setTextDatum(middle_right);
+    canvas.drawString("Save:", x - im, yc);
   }
   else
   {
@@ -1945,16 +1997,16 @@ void draw()
   {
     const int bh = bwh - 3;
 
-    canvas.fillRoundRect(c2, r0 - 1, bw, bh, 3, COLOR_LIGHTGRAY);
+    canvas.fillRoundRect(c2, r0 - 1, bw, bh, 3, remoteKeyPressed == LeftPortFunction && isLeftRemote ? COLOR_ORANGE : COLOR_LIGHTGRAY);
     canvas.drawString("3", c2 + bwh, r1 - 2);
 
-    canvas.fillRoundRect(c3, r0 - 1, bw, bh, 3, COLOR_LIGHTGRAY);
+    canvas.fillRoundRect(c3, r0 - 1, bw, bh, 3, remoteKeyPressed == RightPortFunction && isLeftRemote ? COLOR_ORANGE : COLOR_LIGHTGRAY);
     canvas.drawString("4", c3 + bwh, r1 - 2);
 
-    canvas.fillRoundRect(c4, r0 - 1, bw, bh, 3, COLOR_LIGHTGRAY);
+    canvas.fillRoundRect(c4, r0 - 1, bw, bh, 3, remoteKeyPressed == LeftPortFunction && !isLeftRemote ? COLOR_ORANGE : COLOR_LIGHTGRAY);
     canvas.drawString("8", c4 + bwh, r1 - 2);
 
-    canvas.fillRoundRect(c5, r0 - 1, bw, bh, 3, COLOR_LIGHTGRAY);
+    canvas.fillRoundRect(c5, r0 - 1, bw, bh, 3, remoteKeyPressed == RightPortFunction && !isLeftRemote ? COLOR_ORANGE : COLOR_LIGHTGRAY);
     canvas.drawString("9", c5 + bwh, r1 - 2);
   }
   else
@@ -1987,16 +2039,16 @@ void draw()
 
     canvas.setTextDatum(middle_center);
 
-    canvas.fillRoundRect(c1, r1, bw, bwh - 1, 3, FADE_YELLOW);
+    canvas.fillRoundRect(c1, r1, bw, bwh - 1, 3, isLeftAltHeld ? COLOR_ORANGE : FADE_YELLOW);
     canvas.drawString("fn", c1 + bwh, r1 + bwh / 2);
 
-    canvas.fillRoundRect(c1, r3_5, bw, bwh - 1, 3, FADE_RED);
+    canvas.fillRoundRect(c1, r3_5, bw, bwh - 1, 3, auxKeyPressed == ToggleLeft ? COLOR_ORANGE : FADE_RED);
     canvas.drawString("ctl", c1 + bwh, r3_5 + bwh / 2);
 
-    canvas.fillRoundRect(c6, r1, bw, bwh - 1, 3, FADE_YELLOW);
+    canvas.fillRoundRect(c6, r1, bw, bwh - 1, 3, isRightAltHeld ? COLOR_ORANGE : FADE_YELLOW);
     canvas.drawString("ok", c6 + bwh + 1, r1 + bwh / 2);
 
-    canvas.fillRoundRect(c6, r3_5, bw, bwh - 1, 3, FADE_BLUE);
+    canvas.fillRoundRect(c6, r3_5, bw, bwh - 1, 3, auxKeyPressed == ToggleRight ? COLOR_ORANGE : FADE_BLUE);
     canvas.drawString("spc", c6 + bwh + 1, r3_5 + bwh / 2);
   }
   else
@@ -2205,7 +2257,7 @@ void loop()
 {
   bool actionTaken = false;
   handleKeyboardInput(actionTaken);
-  handleRemoteInput(actionTaken);
+  handleRemoteAutoActions(actionTaken);
 
   // draw button being pressed
   if (actionTaken)
@@ -2217,6 +2269,8 @@ void loop()
     for (int r = 0; r < NUM_DEVICES; r++)
       for (int i = 0; i < remoteButtonCount[r]; i++)
         remoteButton[r][i].pressed = false;
+    remoteKeyPressed = RemoteNoOp;
+    auxKeyPressed = AuxNoOp;
     redraw = true;
 
     lastActionMillis = millis();

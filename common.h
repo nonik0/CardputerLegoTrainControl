@@ -19,65 +19,86 @@ const unsigned short COLOR_PURPLE = 0x7075;
 // index maps/casts to Legoino Color enum
 const unsigned short BtColors[] = {TFT_BLACK, TFT_PINK, TFT_PURPLE, TFT_BLUE, 0x9E7F, TFT_CYAN, TFT_GREEN, TFT_YELLOW, COLOR_ORANGE, TFT_RED, TFT_WHITE};
 
+template <typename T>
+struct KeyMapping
+{
+  uint8_t keyboardKey;
+  T functionKey;
+  bool isLeftRemote; // ignored for aux buttons
+};
+
 // will map to keys in either left or right remote layouts
-enum RemoteKey {
-  AuxOne, // '`' or KEY_BACKSPACE
-  AuxTwo, // KEY_TAB or '\'
-  AuxFunction, // KEY_FN or KEY_ENTER
-  LeftPortFunction, // '3' or '8'
-  LeftPortSpdUp, // 'e' or 'i'
-  LeftPortBrake, // 's' or 'j'
-  LeftPortSpdDn, // 'z' or 'n'
+enum RemoteKey
+{
+  AuxOne,            // '`' or KEY_BACKSPACE
+  AuxTwo,            // KEY_TAB or '\'
+  AuxFunction,       // KEY_FN or KEY_ENTER
+  LeftPortFunction,  // '3' or '8'
+  LeftPortSpdUp,     // 'e' or 'i'
+  LeftPortBrake,     // 's' or 'j'
+  LeftPortSpdDn,     // 'z' or 'n'
   RightPortFunction, // '4' or '9'
-  RightPortSpdUp, // 'r' or 'o'
-  RightPortBrake, // 'd' or 'k'
-  RightPortSpdDn, // 'x' or 'm'
-  NoTouchy,
+  RightPortSpdUp,    // 'r' or 'o'
+  RightPortBrake,    // 'd' or 'k'
+  RightPortSpdDn,    // 'x' or 'm'
+  RemoteNoOp,
 };
 
-struct KeyMapping {
-    uint8_t key;
-    RemoteKey remoteKey;
-    bool isLeftRemote;
+enum AuxKey
+{
+  BrightnessUp, // ';'
+  BrightnessDn, // '.'
+  SaveSettings, // 'v'
+  ToggleLeft,   // KEY_LEFT_CTRL
+  ToggleRight,  // ' '
+  AuxNoOp,
 };
 
-static constexpr KeyMapping RemoteKeyMappings[] = {
+static constexpr KeyMapping<RemoteKey> RemoteKeyMappings[] = {
     // left remote
-    {'3', RemoteKey::LeftPortFunction,  true},
-    {'e', RemoteKey::LeftPortSpdUp,     true},
-    {'s', RemoteKey::LeftPortBrake,     true},
-    {'z', RemoteKey::LeftPortSpdDn,     true},
+    {'`', RemoteKey::AuxOne, true},
+    {KEY_TAB, RemoteKey::AuxTwo, true},
+    {KEY_FN, RemoteKey::AuxFunction, true},
+
+    {'3', RemoteKey::LeftPortFunction, true},
+    {'e', RemoteKey::LeftPortSpdUp, true},
+    {'s', RemoteKey::LeftPortBrake, true},
+    {'z', RemoteKey::LeftPortSpdDn, true},
 
     {'4', RemoteKey::RightPortFunction, true},
-    {'r', RemoteKey::RightPortSpdUp,    true},
-    {'d', RemoteKey::RightPortBrake,    true},
-    {'x', RemoteKey::RightPortSpdDn,    true},
-
-    {'`', RemoteKey::AuxOne,            true},
-    {KEY_TAB, RemoteKey::AuxTwo,        true},
-    {KEY_FN,  RemoteKey::AuxFunction,   true},
+    {'r', RemoteKey::RightPortSpdUp, true},
+    {'d', RemoteKey::RightPortBrake, true},
+    {'x', RemoteKey::RightPortSpdDn, true},
 
     // right remote
-    {'8', RemoteKey::LeftPortFunction,  false},
-    {'i', RemoteKey::LeftPortSpdUp,     false},
-    {'j', RemoteKey::LeftPortBrake,     false},
-    {'n', RemoteKey::LeftPortSpdDn,     false},
+    {'8', RemoteKey::LeftPortFunction, false},
+    {'i', RemoteKey::LeftPortSpdUp, false},
+    {'j', RemoteKey::LeftPortBrake, false},
+    {'n', RemoteKey::LeftPortSpdDn, false},
 
     {'9', RemoteKey::RightPortFunction, false},
-    {'o', RemoteKey::RightPortSpdUp,    false},
-    {'k', RemoteKey::RightPortBrake,    false},
-    {'m', RemoteKey::RightPortSpdDn,    false},
+    {'o', RemoteKey::RightPortSpdUp, false},
+    {'k', RemoteKey::RightPortBrake, false},
+    {'m', RemoteKey::RightPortSpdDn, false},
 
-    {KEY_BACKSPACE, RemoteKey::AuxOne,  false},
-    {'\\', RemoteKey::AuxTwo,           false},
+    {KEY_BACKSPACE, RemoteKey::AuxOne, false},
+    {'\\', RemoteKey::AuxTwo, false},
     {KEY_ENTER, RemoteKey::AuxFunction, false},
+};
+
+static constexpr KeyMapping<AuxKey> AuxKeyMappings[] = {
+    {'v', AuxKey::SaveSettings, false},
+    {';', AuxKey::BrightnessUp, false},
+    {'.', AuxKey::BrightnessDn, false},
+    {KEY_LEFT_CTRL, AuxKey::ToggleLeft, false},
+    {' ', AuxKey::ToggleRight, false},
 };
 
 enum RemoteColumn
 {
-  LeftPortCol, // c2 or c4
+  LeftPortCol,  // c2 or c4
   RightPortCol, // c3 or c5
-  AuxCol, // c1 or c6
+  AuxCol,       // c1 or c6
   HiddenCol,
 };
 
