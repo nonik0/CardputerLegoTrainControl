@@ -27,6 +27,11 @@ class TrackSwitch
 private:
     std::function<bool()> _joinSensor;
     std::function<bool()> _forkSensor;
+    bool _lastJoinReading;
+    bool _lastForkReading;
+    unsigned long _lastJoinToggle;
+    unsigned long _lastForkToggle;
+
     PowerFunctionsIrBroadcast _pfIrClient;
     PowerFunctionsPort _motorPort;
     uint8_t _motorChannel;
@@ -38,11 +43,10 @@ private:
     DetectionCallback _onDetectionCallback;
 
     // tracking for detection timing
-    unsigned long _firstDetection;
-    unsigned long _lastDetection;
-    unsigned long _lastClear;
-    unsigned long _stableInterval;
-    unsigned long _timeoutInterval;
+    unsigned long _lastEnterDetection;
+    unsigned long _lastPositionChange;
+    unsigned long _carGapThresholdMs;
+    unsigned long _speedTimeoutThresholdMs;
 
 public:
     void logState();

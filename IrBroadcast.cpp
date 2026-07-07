@@ -13,7 +13,7 @@ void PowerFunctionsIrBroadcast::_broadcastMessage(PowerFunctionsCall call, Power
     }
     else
     {
-        log_i("SEND=>[CALL:%d|PORT:%d|PWM:%d|CHAN:%d]", call, port, pwm, channel);
+        log_d("SEND=>[CALL:%d|PORT:%d|PWM:%d|CHAN:%d]", call, port, pwm, channel);
     }
 }
 

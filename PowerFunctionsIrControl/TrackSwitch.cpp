@@ -89,148 +89,120 @@ void TrackSwitch::switchTrack(bool state)
 
 void TrackSwitch::update()
 {
+    // callbacks sent when position changes
     TrainPosition lastPosition = _position;
-    TrainDirection lastDirection = _direction;
-    bool cleanExit = false;
 
-    bool mergeDetection = _joinSensor();
-    bool forkDetection = _forkSensor();
-
-    // only used when train is detected and _direction is set
-    bool inSensor = (_direction == TrainDirection::Forking) ? mergeDetection : forkDetection;
-    bool outSensor = (_direction == TrainDirection::Forking) ? forkDetection : mergeDetection;
-
-    switch (lastPosition)
+    bool joinReading = _joinSensor();
+    if (joinReading != _lastJoinReading)
     {
-    case TrainPosition::Undetected:
-        // wait for train to trigger sensor from either direction
-        if (mergeDetection)
-        {
-            // wait for stable out sensor detection before updating position
-            if (millis() - _lastClear > NOISE_DEBOUNCE_MS)
-            {
-                _position = TrainPosition::Entering;
-                _direction = TrainDirection::Forking;
-                _firstDetection = millis();
-                _lastDetection = _firstDetection;
-            }
-        }
-        else if (forkDetection)
-        {
-            // wait for stable out sensor detection before updating position
-            if (millis() - _lastClear > NOISE_DEBOUNCE_MS)
-            {
-                _position = TrainPosition::Entering;
-                _direction = TrainDirection::Merging;
-                _firstDetection = millis();
-                _lastDetection = _firstDetection;
-            }
-        }
-        else
-        {
-            // reset direction after clean exit
-            if (_direction != TrainDirection::Undetected)
-            {
-                _direction = TrainDirection::Undetected;
-            }
+        _lastJoinReading = joinReading;
+        _lastJoinToggle = millis();
+    }
 
-            _lastClear = millis();
-        }
-        break;
-    case TrainPosition::Entering:
-        // wait for train to trigger out sensor
-        if (outSensor)
+    bool forkReading = _forkSensor();
+    if (forkReading != _lastForkReading)
+    {
+        _lastForkReading = forkReading;
+        _lastForkToggle = millis();
+    }
+
+    if (_position == TrainPosition::Undetected)
+    {
+        // start tracking when either sensor is stably triggered (ignoring case where both trigger in debounce window for now)
+        if (joinReading && millis() - _lastJoinToggle > NOISE_DEBOUNCE_MS)
         {
-            // wait for stable out sensor detection before updating position
-            if (millis() - _lastClear > NOISE_DEBOUNCE_MS)
+            _position = TrainPosition::Entering;
+            _direction = TrainDirection::Forking;
+            _lastEnterDetection = millis();
+            _lastPositionChange = _lastEnterDetection;
+        }
+        else if (forkReading && millis() - _lastForkToggle > NOISE_DEBOUNCE_MS)
+        {
+            _position = TrainPosition::Entering;
+            _direction = TrainDirection::Merging;
+            _lastEnterDetection = millis();
+            _lastPositionChange = _lastEnterDetection;
+        }
+        else if (_direction != TrainDirection::Undetected)
+        {
+            _direction = TrainDirection::Undetected;
+        }
+    }
+    else
+    {
+        bool enterReading = (_direction == TrainDirection::Forking) ? joinReading : forkReading;
+        bool exitReading = (_direction == TrainDirection::Forking) ? forkReading : joinReading;
+        unsigned long lastEnterToggle = (_direction == TrainDirection::Forking) ? _lastForkToggle : _lastJoinToggle;
+        unsigned long lastExitToggle = (_direction == TrainDirection::Forking) ? _lastJoinToggle : _lastForkToggle;
+
+        switch (_position)
+        {
+        case TrainPosition::Entering:
+            // wait for train to trigger exit sensor
+            if (enterReading && exitReading && millis() - lastExitToggle > NOISE_DEBOUNCE_MS)
             {
                 _position = TrainPosition::Passing;
-                _lastDetection = millis();
+                _lastPositionChange = millis();
 
-                // use train speed (interval) to determine detection debounce/timeout
-                auto trainInterval = _lastClear - _firstDetection;
-                _stableInterval = trainInterval;
-                _timeoutInterval = trainInterval;
-                log_i("Train interval=%dms", trainInterval);
+                // use train speed to determine sensor debounce/timeout thresholds for exit
+                auto trainSensorToSensorMs = lastExitToggle - _lastEnterDetection - NOISE_DEBOUNCE_MS;
+                _carGapThresholdMs = trainSensorToSensorMs / 4; // interval sensors need to be stable to transition to next correct state
+                _speedTimeoutThresholdMs = trainSensorToSensorMs;    // interval that times outs any invalid sensors and resets state to undetected
+                log_i("Threshold=%d/%dms", _carGapThresholdMs, _speedTimeoutThresholdMs);
             }
-        }
-        else
-        {
-            _lastClear = millis();
-        }
-        // in sensor shouldn't clear while train is entering
-        if (inSensor)
-        {
-            _lastDetection = millis();
-        }
-        else if (millis() - _lastDetection > DETECTION_TIMEOUT_MS)
-        {
-            _position = TrainPosition::Undetected;
-            _direction = TrainDirection::Undetected;
-        }
-        break;
-    case TrainPosition::Passing:
-        // wait for train to clear in sensor
-        if (!inSensor)
-        {
-            // debounce sensor gaps due to reflections, track curvature, gaps between cars
-            // use train interval for stable threshold, sensor blips should never be longer than this
-            if (millis() - _lastDetection > _stableInterval)
-            {
-                _position = TrainPosition::Exiting;
-                _lastDetection = millis();
-            }
-        }
-        else
-        {
-            // log sizable gaps to help calibrate timeouts when debugging
-            auto gap = millis() - _lastDetection;
-            if (gap > _stableInterval / 2) {
-                log_i("detection gap: %d", gap);
-            }
-            
-            _lastDetection = millis();
-        }
-        // out sensor shouldn't clear while train is passing (timeout with threshold relative to train interval)
-        if (outSensor)
-        {
-            // overloading name here, "_lastDetection2"
-            _lastClear = millis();
-        }
-        else if (millis() - _lastClear > _timeoutInterval * 2)
-        {
-            _position = TrainPosition::Undetected;
-            _direction = TrainDirection::Undetected;
-        }
-        break;
-    case TrainPosition::Exiting:
-        // wait for the train to clear out sensor
-        if (!outSensor)
-        {
-            // debounce small gaps from between cars before updating position
-            // use train interval for stable threshold, sensor blips should never be longer than this
-            if (millis() - _lastDetection > _stableInterval)
+
+            // enter sensor shouldn't clear while train is entering
+            if (!enterReading && millis() - lastEnterToggle > DETECTION_TIMEOUT_MS)
             {
                 _position = TrainPosition::Undetected;
-                // direction not cleared yet to show clean exit
+                _direction = TrainDirection::Undetected;
             }
+            break;
+        case TrainPosition::Passing:
+            // wait for train to clear enter sensor, ignore car gaps with stable threshold
+            if (!enterReading && exitReading && millis() - lastEnterToggle > _carGapThresholdMs)
+            {
+                if (millis() - lastExitToggle < NOISE_DEBOUNCE_MS)
+                {
+                    log_w("Exit sensor not stable while passing");
+                }
+
+                _position = TrainPosition::Exiting;
+                _lastPositionChange = millis();
+            }
+
+            // exit sensor shouldn't clear while train is passing
+            if (!exitReading && millis() - lastExitToggle > _speedTimeoutThresholdMs)
+            {
+                _position = TrainPosition::Undetected;
+                _direction = TrainDirection::Undetected;
+            }
+            break;
+        case TrainPosition::Exiting:
+            // wait for the train to clear out sensor
+            if (!enterReading && !exitReading && millis() - lastExitToggle < NOISE_DEBOUNCE_MS)
+            {
+                if (millis() - lastEnterToggle < NOISE_DEBOUNCE_MS)
+                {
+                    log_w("Enter sensor not stable while exiting");
+                }
+
+                _position = TrainPosition::Undetected;
+                _lastPositionChange = millis();
+                // direction not cleared yet to show clean exit, i.e. direction of exit is known
+            }
+
+            // if enter sensor toggles back on, go back to passing state 
+            if (enterReading && millis() - lastEnterToggle > _carGapThresholdMs)
+            {
+                _position = TrainPosition::Passing;
+                _lastPositionChange = millis();
+                //_position = TrainPosition::Undetected;
+                //_direction = TrainDirection::Undetected;
+            }
+
+            break;
         }
-        else
-        {
-            _lastDetection = millis();
-        }
-        // in sensor shouldn't detect while train is exiting
-        if (!inSensor)
-        {
-            _lastClear = millis();
-        }
-        else if (millis() - _lastClear > _timeoutInterval * 2)
-        {
-            _position = TrainPosition::Passing;
-            //_position = TrainPosition::Undetected;
-            //_direction = TrainDirection::Undetected;
-        }
-        break;
     }
 
     if (_position != lastPosition)
