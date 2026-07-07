@@ -5,43 +5,28 @@
 
 void TrackSwitch::logState()
 {
-    String position, direction;
-
     if (_position == TrainPosition::Undetected)
     {
-        if (_direction != TrainDirection::Undetected)
+        switch (_direction)
         {
-            log_i("Train has exited");
-        }
-        else
-        {
+        case TrainDirection::Undetected:
             log_w("Train detection error");
+            break;
+        case TrainDirection::Forking:
+            log_i("Train has exited forward");
+            break;
+        case TrainDirection::Merging:
+            log_i("Train has exited reverse");
+            break;
         }
         return;
     }
 
-    switch (_position)
-    {
-    case TrainPosition::Entering:
-        position = "entering";
-        break;
-    case TrainPosition::Passing:
-        position = "passing";
-        break;
-    case TrainPosition::Exiting:
-        position = "exiting";
-        break;
-    }
-
-    switch (_direction)
-    {
-    case TrainDirection::Forking:
-        direction = "forward";
-        break;
-    case TrainDirection::Merging:
-        direction = "reverse";
-        break;
-    }
+    const char *position =
+        (_position == TrainPosition::Entering) ? "entering" : (_position == TrainPosition::Passing) ? "passing"
+                                                                                                    : "exiting";
+    const char *direction =
+        (_direction == TrainDirection::Forking) ? "forward" : "reverse";
 
     log_i("Train is %s %s", position, direction);
 }
@@ -89,116 +74,142 @@ void TrackSwitch::switchTrack(bool state)
 
 void TrackSwitch::update()
 {
+    const unsigned long now = millis();
+
     // callbacks sent when position changes
     TrainPosition lastPosition = _position;
 
-    bool joinReading = _joinSensor();
-    if (joinReading != _lastJoinReading)
+    // helper functions for tracking/updating state and timestamps for train detection
+    auto isStable = [&](unsigned long t, unsigned long ms = NOISE_DEBOUNCE_MS)
     {
-        _lastJoinReading = joinReading;
-        _lastJoinToggle = millis();
+        return now - t > ms;
+    };
+    auto setPosition = [&](TrainPosition p, TrainDirection d = TrainDirection::Undetected)
+    {
+        if (d == TrainDirection::Undetected)
+        {
+            d = _direction;
+        }
+        
+        // update specific timestamps for tracking for certain position transitions
+        if (_position == TrainPosition::Undetected && p == TrainPosition::Entering && d != TrainDirection::Undetected)
+        {
+            _lastEnterDetection = now;
+        }
+        else if (_position == TrainPosition::Entering && p == TrainPosition::Passing && d != TrainDirection::Undetected)
+        {
+            // use train speed to determine sensor debounce/timeout thresholds for exit
+            auto trainSensorToSensorMs = now - _lastEnterDetection - NOISE_DEBOUNCE_MS; // remove debounce from timing (now~=toggle+debounce)
+            _carGapThresholdMs = trainSensorToSensorMs / 4;   // interval sensors need to be stable to transition to next correct state
+            _speedTimeoutThresholdMs = trainSensorToSensorMs; // interval that times outs any invalid sensors and resets state to undetected
+            log_i("Threshold=%d/%dms", _carGapThresholdMs, _speedTimeoutThresholdMs);
+        }
+
+        _position = p;
+        _direction = d;
+        _lastPositionChange = now;
+    };
+    auto resetDetection = [&]()
+    {
+        setPosition(TrainPosition::Undetected, TrainDirection::Undetected);
+    };
+
+    bool joinReading = _joinSensor();
+    if (joinReading != _joinReading)
+    {
+        _joinReading = joinReading;
+        _joinToggle = now;
     }
 
     bool forkReading = _forkSensor();
-    if (forkReading != _lastForkReading)
+    if (forkReading != _forkReading)
     {
-        _lastForkReading = forkReading;
-        _lastForkToggle = millis();
+        _forkReading = forkReading;
+        _forkToggle = now;
     }
 
     if (_position == TrainPosition::Undetected)
     {
-        // start tracking when either sensor is stably triggered (ignoring case where both trigger in debounce window for now)
-        if (joinReading && millis() - _lastJoinToggle > NOISE_DEBOUNCE_MS)
+        // start tracking when either sensor is stably triggered
+        if (joinReading && !forkReading && isStable(_joinToggle))
         {
-            _position = TrainPosition::Entering;
-            _direction = TrainDirection::Forking;
-            _lastEnterDetection = millis();
-            _lastPositionChange = _lastEnterDetection;
+            setPosition(TrainPosition::Entering, TrainDirection::Forking);
         }
-        else if (forkReading && millis() - _lastForkToggle > NOISE_DEBOUNCE_MS)
+        else if (forkReading && !joinReading && isStable(_forkToggle))
         {
-            _position = TrainPosition::Entering;
-            _direction = TrainDirection::Merging;
-            _lastEnterDetection = millis();
-            _lastPositionChange = _lastEnterDetection;
+            setPosition(TrainPosition::Entering, TrainDirection::Merging);
         }
         else if (_direction != TrainDirection::Undetected)
         {
-            _direction = TrainDirection::Undetected;
+            // clean exit leaves direction known for the later callback to include, this clears the remaining tracking state at
+            // the next update/cycle after the callback has been invoked and it's safe to fully clear detection state
+            resetDetection();
         }
     }
     else
     {
-        bool enterReading = (_direction == TrainDirection::Forking) ? joinReading : forkReading;
-        bool exitReading = (_direction == TrainDirection::Forking) ? forkReading : joinReading;
-        unsigned long lastEnterToggle = (_direction == TrainDirection::Forking) ? _lastForkToggle : _lastJoinToggle;
-        unsigned long lastExitToggle = (_direction == TrainDirection::Forking) ? _lastJoinToggle : _lastForkToggle;
+        const bool isForward = _direction == TrainDirection::Forking;
+        const bool enterReading = isForward ? joinReading : forkReading;
+        const bool exitReading = isForward ? forkReading : joinReading;
+        const unsigned long enterToggle = isForward ? _joinToggle : _forkToggle;
+        const unsigned long exitToggle = isForward ? _forkToggle : _joinToggle;
 
         switch (_position)
         {
         case TrainPosition::Entering:
             // wait for train to trigger exit sensor
-            if (enterReading && exitReading && millis() - lastExitToggle > NOISE_DEBOUNCE_MS)
+            if (enterReading && exitReading && isStable(exitToggle))
             {
-                _position = TrainPosition::Passing;
-                _lastPositionChange = millis();
+                if (!isStable(enterToggle))
+                {
+                    log_w("Enter sensor not stable while entering");
+                }
 
-                // use train speed to determine sensor debounce/timeout thresholds for exit
-                auto trainSensorToSensorMs = lastExitToggle - _lastEnterDetection - NOISE_DEBOUNCE_MS;
-                _carGapThresholdMs = trainSensorToSensorMs / 4; // interval sensors need to be stable to transition to next correct state
-                _speedTimeoutThresholdMs = trainSensorToSensorMs;    // interval that times outs any invalid sensors and resets state to undetected
-                log_i("Threshold=%d/%dms", _carGapThresholdMs, _speedTimeoutThresholdMs);
+                setPosition(TrainPosition::Passing);
             }
 
             // enter sensor shouldn't clear while train is entering
-            if (!enterReading && millis() - lastEnterToggle > DETECTION_TIMEOUT_MS)
+            if (!enterReading && isStable(enterToggle))
             {
-                _position = TrainPosition::Undetected;
-                _direction = TrainDirection::Undetected;
+                resetDetection();
             }
             break;
         case TrainPosition::Passing:
-            // wait for train to clear enter sensor, ignore car gaps with stable threshold
-            if (!enterReading && exitReading && millis() - lastEnterToggle > _carGapThresholdMs)
+            // wait for train to clear enter sensor, ignore car gaps with longer debounce threshold
+            if (!enterReading && exitReading && isStable(enterToggle, _carGapThresholdMs))
             {
-                if (millis() - lastExitToggle < NOISE_DEBOUNCE_MS)
+                if (!isStable(exitToggle))
                 {
                     log_w("Exit sensor not stable while passing");
                 }
 
-                _position = TrainPosition::Exiting;
-                _lastPositionChange = millis();
+                setPosition(TrainPosition::Exiting);
             }
 
             // exit sensor shouldn't clear while train is passing
-            if (!exitReading && millis() - lastExitToggle > _speedTimeoutThresholdMs)
+            if (!exitReading && isStable(exitToggle, _speedTimeoutThresholdMs))
             {
-                _position = TrainPosition::Undetected;
-                _direction = TrainDirection::Undetected;
+                resetDetection();
             }
             break;
         case TrainPosition::Exiting:
-            // wait for the train to clear out sensor
-            if (!enterReading && !exitReading && millis() - lastExitToggle < NOISE_DEBOUNCE_MS)
+            // wait for the train to clear both sensors
+            if (!enterReading && !exitReading && isStable(exitToggle))
             {
-                if (millis() - lastEnterToggle < NOISE_DEBOUNCE_MS)
+                if (!isStable(enterToggle))
                 {
                     log_w("Enter sensor not stable while exiting");
                 }
 
-                _position = TrainPosition::Undetected;
-                _lastPositionChange = millis();
-                // direction not cleared yet to show clean exit, i.e. direction of exit is known
+                // direction is unchanged to signify a clean exit, i.e. the direction of train's exit is known
+                setPosition(TrainPosition::Undetected);
             }
 
-            // if enter sensor toggles back on, go back to passing state 
-            if (enterReading && millis() - lastEnterToggle > _carGapThresholdMs)
+            // if enter sensor toggles back on, go back to passing state
+            if (enterReading && isStable(enterToggle, _carGapThresholdMs))
             {
-                _position = TrainPosition::Passing;
-                _lastPositionChange = millis();
-                //_position = TrainPosition::Undetected;
-                //_direction = TrainDirection::Undetected;
+                setPosition(TrainPosition::Passing);
+                // resetDetection();
             }
 
             break;

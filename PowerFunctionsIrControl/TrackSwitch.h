@@ -27,10 +27,10 @@ class TrackSwitch
 private:
     std::function<bool()> _joinSensor;
     std::function<bool()> _forkSensor;
-    bool _lastJoinReading;
-    bool _lastForkReading;
-    unsigned long _lastJoinToggle;
-    unsigned long _lastForkToggle;
+    bool _joinReading;
+    bool _forkReading;
+    unsigned long _joinToggle;
+    unsigned long _forkToggle;
 
     PowerFunctionsIrBroadcast _pfIrClient;
     PowerFunctionsPort _motorPort;
