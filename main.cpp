@@ -47,7 +47,7 @@ volatile Color lpf2LedColor = Color::NONE;
 unsigned short lpf2LedColorDelay = 0;
 volatile RemoteAction lpf2AutoAction = NoAction; // action triggered by color sensor
 volatile bool lpf2AltAutoAction = false;         // true if last action was alt auto action
-volatile bool lpf2ResumeAction = false;          // true when train resumes motion, ignores spndup/spddn function
+volatile bool lpf2IgnoreAutoFunction = false;          // true when train resumes motion, ignores spndup/spddn function
 volatile bool lpf2DisabledAction = false;        // true if last action was "disabled" auto action (noop but flashes to show sensor detection)
 
 // lpf2 color/distance sensor
@@ -258,7 +258,7 @@ void lpf2ResumeTrainMotion()
 {
   lpf2SensorStopDelay = 0;
   lpf2AutoAction = lpf2SensorStopSavedSpd > 0 ? SpdUp : SpdDn;
-  lpf2ResumeAction = true;
+  lpf2IgnoreAutoFunction = true; // ignore any configured auto function for SpdUp/SpdDn, just want to resume motor
   short btSpdAdjust = lpf2SensorStopSavedSpd > 0 ? -BtSpdInc : BtSpdInc;
   lpf2PortSpeed[lpf2MotorPort] = lpf2SensorStopSavedSpd + btSpdAdjust;
   log_i("resuming train motion: %d", lpf2PortSpeed[lpf2MotorPort]);
@@ -299,7 +299,6 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
     log_i("lpf2HubCallback: battery level %d%%", batteryLevel);
     lpf2BatteryLevel = batteryLevel;
     redraw = true;
-    return;
   }
   else if (hubProperty == HubPropertyReference::BUTTON && millis() > lpf2ButtonDebounce)
   {
@@ -320,6 +319,7 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
           if (lpf2Button[i].action == Lpf2Color)
           {
             lpf2Button[i].pressed = true;
+            redraw = true;
             break;
           }
         }
@@ -330,7 +330,7 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
       }
     }
   }
-  if (hubProperty == HubPropertyReference::RSSI)
+  else if (hubProperty == HubPropertyReference::RSSI)
   {
     int rssi = trainCtl->parseRssi(pData);
 
@@ -342,7 +342,6 @@ void lpf2HubCallback(void *hub, HubPropertyReference hubProperty, uint8_t *pData
     log_d("lpf2HubCallback: rssi %d", rssi); // frequent
     lpf2Rssi = rssi;
     redraw = true;
-    return;
   }
 }
 
@@ -359,12 +358,13 @@ void lpf2DeviceCallback(void *hub, byte sensorPort, DeviceType deviceType, uint8
   Color color = (Color)(trainCtl->parseColor(pData));
 
   // track moving average of distance to random noisy spikes, turn off motor if not on track
-  lpf2SensorDistanceMovingAverage = (lpf2SensorDistanceMovingAverage * 3 + distance) >> 2; // I bet compiler does this anyway for dividing by 4
+  lpf2SensorDistanceMovingAverage = (lpf2SensorDistanceMovingAverage * 3 + distance) >> 2;
   if (lpf2SensorDistanceMovingAverage > BtDistanceStopThreshold && lpf2PortSpeed[lpf2MotorPort] != 0)
   {
     log_w("off track, distance moving avg: %d", distance);
 
     lpf2AutoAction = Brake;
+    lpf2IgnoreAutoFunction = true; // ignore any configured auto function for Brake, just want to stop motor
     lpf2SensorStopDelay = 0;
     lpf2SensorStopSavedSpd = 0;
     return;
@@ -463,7 +463,7 @@ void lpf2ResetHubState()
   lpf2LedColor = Color::NONE;
   lpf2AutoAction = NoAction;
   lpf2AltAutoAction = false;
-  lpf2ResumeAction = false;
+  lpf2IgnoreAutoFunction = false;
   lpf2DisabledAction = false;
   lpf2SensorInit = false;
   lpf2SensorRetries = 0;
@@ -619,8 +619,7 @@ void lpf2HandlePortAction(Button *button, bool isAltHeld)
     }
 
     // if an auto action triggered this press, look at the corresponding sensor function to determine action
-    // resume action just relies on a "normal" motor action and falls to that case
-    if (lpf2AutoAction != NoAction && !lpf2ResumeAction)
+    if (lpf2AutoAction != NoAction && !lpf2IgnoreAutoFunction)
     {
       int direction = lpf2PortSpeed[button->port] >= 0 ? 1 : -1;
 
@@ -674,12 +673,11 @@ void lpf2HandlePortAction(Button *button, bool isAltHeld)
     // normal key press for motor controls
     else
     {
-      // clear tracking bool for resume if that was trigger
-      if (lpf2ResumeAction)
+      if (lpf2IgnoreAutoFunction)
       {
-        lpf2ResumeAction = false;
+        lpf2IgnoreAutoFunction = false;
 
-        // if the previous auto action that originally scheduled the resume action is not visible, clear button press
+        // if a previous auto action that originally scheduled the action is not visible, clear button press
         if (lpf2SensorPortFunction != lpf2AltAutoAction)
         {
           button->pressed = false;
