@@ -90,7 +90,7 @@ void TrackSwitch::update()
         {
             d = _direction;
         }
-        
+
         // update specific timestamps for tracking for certain position transitions
         if (_position == TrainPosition::Undetected && p == TrainPosition::Entering && d != TrainDirection::Undetected)
         {
@@ -171,6 +171,7 @@ void TrackSwitch::update()
             // enter sensor shouldn't clear while train is entering
             if (!enterReading && isStable(enterToggle))
             {
+                log_w("Enter sensor cleared while entering, resetting detection");
                 resetDetection();
             }
             break;
@@ -189,6 +190,7 @@ void TrackSwitch::update()
             // exit sensor shouldn't clear while train is passing
             if (!exitReading && isStable(exitToggle, _speedTimeoutThresholdMs))
             {
+                log_w("Exit sensor cleared while passing, resetting detection");
                 resetDetection();
             }
             break;
@@ -208,6 +210,7 @@ void TrackSwitch::update()
             // if enter sensor toggles back on, go back to passing state
             if (enterReading && isStable(enterToggle, _carGapThresholdMs))
             {
+                log_w("Enter sensor toggled back on while exiting, going back to passing state");
                 setPosition(TrainPosition::Passing);
                 // resetDetection();
             }
