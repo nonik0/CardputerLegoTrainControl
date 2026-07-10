@@ -48,6 +48,11 @@ void TrackSwitch::registerCallback(DetectionCallback callback)
     _onDetectionCallback = callback;
 }
 
+void TrackSwitch::setTrackState(bool state)
+{
+    _switchState = state;
+}
+
 void TrackSwitch::switchTrack()
 {
     _switchState = !_switchState;
@@ -100,8 +105,8 @@ void TrackSwitch::update()
         {
             // use train speed to determine sensor debounce/timeout thresholds for exit
             auto trainSensorToSensorMs = now - _lastEnterDetection - NOISE_DEBOUNCE_MS; // remove debounce from timing (now~=toggle+debounce)
-            _carGapThresholdMs = trainSensorToSensorMs / 4;   // interval sensors need to be stable to transition to next correct state
-            _speedTimeoutThresholdMs = trainSensorToSensorMs; // interval that times outs any invalid sensors and resets state to undetected
+            _carGapThresholdMs = trainSensorToSensorMs / 4;                             // interval sensors need to be stable to transition to next correct state
+            _speedTimeoutThresholdMs = trainSensorToSensorMs;                           // interval that times outs any invalid sensors and resets state to undetected
             log_i("Threshold=%d/%dms", _carGapThresholdMs, _speedTimeoutThresholdMs);
         }
 

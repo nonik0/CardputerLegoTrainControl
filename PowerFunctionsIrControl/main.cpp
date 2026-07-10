@@ -59,7 +59,7 @@ IrReflective irReflective;
 TrackSwitch trackSwitch;
 SwitchBehavior switchBehavior;
 
-uint8_t controlSwitchChannel = 0;
+uint8_t controlSwitchChannel = 1;
 PowerFunctionsPort controlSwitchPort = PowerFunctionsPort::BLUE;
 unsigned long lastTrainExitMs = 0;
 unsigned long lastIrDetection = 0;
@@ -257,6 +257,12 @@ void recvCallback(PowerFunctionsIrMessage message)
   {
   case PowerFunctionsCall::SinglePwm:
     client.single_pwm(message.port, message.pwm, message.channel, false);
+
+    // update state of track switch when manually controlled
+    if (message.pwm == PowerFunctionsPwm::FORWARD7 || message.pwm == PowerFunctionsPwm::REVERSE7)
+    {
+      trackSwitch.setTrackState(message.pwm == PowerFunctionsPwm::FORWARD7);
+    }
     break;
   case PowerFunctionsCall::SingleIncrement:
     client.single_increment(message.port, message.channel, false);

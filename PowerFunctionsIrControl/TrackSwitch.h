@@ -52,6 +52,7 @@ public:
     void logState();
     void begin(std::function<bool()> joinSensor, std::function<bool()> forkSensor, PowerFunctionsIrBroadcast pfIrClient, PowerFunctionsPort motorPort, uint8_t motorChannel, bool defaultState = false);
     void registerCallback(DetectionCallback callback);
+    void setTrackState(bool state);
     void switchTrack();
     void switchTrack(bool state);
     void update();
